@@ -56,8 +56,8 @@ def render_html_dashboard(
     now = get_tw_now()
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    # 取得密碼設定 (預設 888888)，計算安全 SHA-256 雜湊
-    raw_pwd = os.getenv("DASHBOARD_PASSWORD", "888888")
+    # 取得密碼設定 (預設 888888)，清除前後空白與換行，計算安全 SHA-256 雜湊
+    raw_pwd = (os.getenv("DASHBOARD_PASSWORD") or "888888").strip()
     pwd_hash = hashlib.sha256(raw_pwd.encode("utf-8")).hexdigest()
 
     wave1_stocks = wave1_stocks or []
