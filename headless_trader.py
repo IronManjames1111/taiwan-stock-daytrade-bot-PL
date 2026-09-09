@@ -206,7 +206,6 @@ def render_html_dashboard(
                     解鎖進入看板 ➔
                 </button>
             </form>
-            <p class="text-[11px] text-gray-600">預設密碼為 888888 · 可於 GitHub Secrets 自訂</p>
         </div>
     </div>
 

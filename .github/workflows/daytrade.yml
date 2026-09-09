@@ -33,6 +33,7 @@ jobs:
         env:
           FUGLE_API_KEY: ${{ secrets.FUGLE_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
           PYTHONUNBUFFERED: "1"
         run: |
           python headless_trader.py
