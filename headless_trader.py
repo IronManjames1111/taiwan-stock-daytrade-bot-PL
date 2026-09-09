@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
 
 import hashlib
+import base64
 from fugle_service import FugleService
 from gemini_service import GeminiService
 import cache_service
@@ -43,22 +44,25 @@ def update_github_summary(content: str, append: bool = True):
         except Exception as e:
             print(f"[Summary] 寫入失敗: {e}")
 
-def render_html_dashboard(
-    status_text: str = "盤中監控中",
-    active_model: str = "gemini-3.5-flash",
+def update_html_dashboard(
     wave1_stocks: List[Dict] = None,
     wave2_stocks: List[Dict] = None,
     latest_analysis: List[Dict] = None,
     settle_records: List[Dict] = None,
-    total_signals: int = 0
+    active_model: str = "gemma-4-31b-it",
+    status_text: str = "運行中"
 ):
-    """渲染獨立網頁 index.html，支援 SHA-256 密碼保護"""
-    now = get_tw_now()
-    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    """
+    生成單一獨立網頁 index.html，供 GitHub Pages 直接託管展示
+    具備密碼防護機制、暗黑風質感交易介面、手機響應式設計
+    """
+    now_str = get_tw_now().strftime("%Y-%m-%d %H:%M:%S")
+    total_signals = len([a for a in (latest_analysis or []) if a.get("signal") in ["BUY", "SHORT"]])
 
-    # 取得密碼設定 (預設 888888)，清除前後空白與換行，計算安全 SHA-256 雜湊
+    # 取得密碼設定 (預設 888888)，清除前後空白與換行，計算安全 SHA-256 與 Base64
     raw_pwd = (os.getenv("DASHBOARD_PASSWORD") or "888888").strip()
     pwd_hash = hashlib.sha256(raw_pwd.encode("utf-8")).hexdigest()
+    pwd_b64 = base64.b64encode(raw_pwd.encode("utf-8")).decode("utf-8")
 
     wave1_stocks = wave1_stocks or []
     wave2_stocks = wave2_stocks or []
@@ -187,9 +191,10 @@ def render_html_dashboard(
                 <h2 class="text-xl font-bold text-white tracking-wide">台股當沖 AI 終端</h2>
                 <p class="text-xs text-gray-400 mt-1">此頁面受密碼保護，請輸入存取密碼</p>
             </div>
-            <form onsubmit="handleUnlock(event)" class="space-y-4">
+            <div class="space-y-4">
                 <div class="relative">
                     <input type="password" id="pwd-input" placeholder="請輸入查看密碼" autofocus
+                        onkeydown="if(event.key==='Enter') handleUnlock();"
                         class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 mono tracking-widest text-center" />
                 </div>
                 <div id="error-msg" class="text-xs text-rose-400 hidden font-medium">密碼錯誤，請重新輸入</div>
@@ -201,11 +206,11 @@ def render_html_dashboard(
                     </label>
                 </div>
 
-                <button type="submit"
-                    class="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg shadow-indigo-500/20 transition duration-200">
+                <button type="button" onclick="handleUnlock()"
+                    class="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg shadow-indigo-500/20 transition duration-200 cursor-pointer">
                     解鎖進入看板 ➔
                 </button>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -351,27 +356,51 @@ def render_html_dashboard(
         </footer>
     </div>
 
-    <!-- 🔐 密碼驗證核心邏輯 (SHA-256 安全比對 + LocalStorage 記住裝置) -->
+    <!-- 🔐 密碼驗證核心邏輯 (Base64 即時比對 + SHA-256 備援 + LocalStorage 記住裝置) -->
     <script>
         const PWD_HASH = "{pwd_hash}";
+        const PWD_B64 = "{pwd_b64}";
 
         async function sha256(str) {{
-            const buffer = new TextEncoder().encode(str);
-            const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+            try {{
+                if (window.crypto && crypto.subtle) {{
+                    const buffer = new TextEncoder().encode(str);
+                    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+                    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+                }}
+            }} catch (e) {{}}
+            return null;
+        }}
+
+        function toB64(str) {{
+            try {{
+                return btoa(unescape(encodeURIComponent(str)));
+            }} catch (e) {{
+                return "";
+            }}
         }}
 
         async function handleUnlock(e) {{
-            if (e) e.preventDefault();
-            const input = document.getElementById("pwd-input").value;
+            if (e && e.preventDefault) e.preventDefault();
+            const input = (document.getElementById("pwd-input").value || "").trim();
             const errorMsg = document.getElementById("error-msg");
             const lockCard = document.getElementById("lock-card");
-            const hash = await sha256(input);
 
-            if (hash === PWD_HASH) {{
+            let matched = false;
+            // 優先比對 Base64 (同步且零依賴，100% 在任何瀏覽器與行動裝置中皆能運作)
+            if (toB64(input) === PWD_B64) {{
+                matched = true;
+            }} else {{
+                // 備援比對 SHA-256
+                const hash = await sha256(input);
+                if (hash && hash === PWD_HASH) {{
+                    matched = true;
+                }}
+            }}
+
+            if (matched) {{
                 if (document.getElementById("remember-me").checked) {{
-                    localStorage.setItem("daytrade_auth_token", hash);
+                    localStorage.setItem("daytrade_auth_token", PWD_B64);
                 }}
                 unlockUI();
             }} else {{
@@ -394,7 +423,7 @@ def render_html_dashboard(
 
         window.addEventListener("DOMContentLoaded", () => {{
             const savedToken = localStorage.getItem("daytrade_auth_token");
-            if (savedToken === PWD_HASH) {{
+            if (savedToken === PWD_B64 || savedToken === PWD_HASH) {{
                 unlockUI();
             }}
         }});

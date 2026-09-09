@@ -32,9 +32,10 @@
                 <h2 class="text-xl font-bold text-white tracking-wide">台股當沖 AI 終端</h2>
                 <p class="text-xs text-gray-400 mt-1">此頁面受密碼保護，請輸入存取密碼</p>
             </div>
-            <form onsubmit="handleUnlock(event)" class="space-y-4">
+            <div class="space-y-4">
                 <div class="relative">
                     <input type="password" id="pwd-input" placeholder="請輸入查看密碼" autofocus
+                        onkeydown="if(event.key==='Enter') handleUnlock();"
                         class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 mono tracking-widest text-center" />
                 </div>
                 <div id="error-msg" class="text-xs text-rose-400 hidden font-medium">密碼錯誤，請重新輸入</div>
@@ -46,11 +47,11 @@
                     </label>
                 </div>
 
-                <button type="submit"
-                    class="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg shadow-indigo-500/20 transition duration-200">
+                <button type="button" onclick="handleUnlock()"
+                    class="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg shadow-indigo-500/20 transition duration-200 cursor-pointer">
                     解鎖進入看板 ➔
                 </button>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -215,28 +216,52 @@
         </footer>
     </div>
 
-    <!-- 🔐 密碼驗證核心邏輯 (SHA-256 安全比對 + LocalStorage 記住裝置) -->
+    <!-- 🔐 密碼驗證核心邏輯 (Base64 即時比對 + SHA-256 備援 + LocalStorage 記住裝置) -->
     <script>
-        // 預設密碼 888888 對應之 SHA-256 雜湊值 (Python 產生時會自動替換為自訂密碼雜湊)
-        const PWD_HASH = "d576a9c94060dd7634f1958ae49f5068de86663b610368a5200ee3b4e6d4ffef";
+        // 預設密碼 888888 對應之 SHA-256 與 Base64 (Python 產生時會自動替換)
+        const PWD_HASH = "92925488b28ab12584ac8fcaa8a27a0f497b2c62940c8f4fbc8ef19ebc87c43e";
+        const PWD_B64 = "ODg4ODg4";
 
         async function sha256(str) {
-            const buffer = new TextEncoder().encode(str);
-            const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+            try {
+                if (window.crypto && crypto.subtle) {
+                    const buffer = new TextEncoder().encode(str);
+                    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+                    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        function toB64(str) {
+            try {
+                return btoa(unescape(encodeURIComponent(str)));
+            } catch (e) {
+                return "";
+            }
         }
 
         async function handleUnlock(e) {
-            if (e) e.preventDefault();
-            const input = document.getElementById("pwd-input").value;
+            if (e && e.preventDefault) e.preventDefault();
+            const input = (document.getElementById("pwd-input").value || "").trim();
             const errorMsg = document.getElementById("error-msg");
             const lockCard = document.getElementById("lock-card");
-            const hash = await sha256(input);
 
-            if (hash === PWD_HASH) {
+            let matched = false;
+            // 優先比對 Base64 (同步且零依賴，100% 在任何瀏覽器與行動裝置中皆能運作)
+            if (toB64(input) === PWD_B64) {
+                matched = true;
+            } else {
+                // 備援比對 SHA-256
+                const hash = await sha256(input);
+                if (hash && hash === PWD_HASH) {
+                    matched = true;
+                }
+            }
+
+            if (matched) {
                 if (document.getElementById("remember-me").checked) {
-                    localStorage.setItem("daytrade_auth_token", hash);
+                    localStorage.setItem("daytrade_auth_token", PWD_B64);
                 }
                 unlockUI();
             } else {
@@ -260,7 +285,7 @@
         // 頁面載入時檢查是否已記住登入
         window.addEventListener("DOMContentLoaded", () => {
             const savedToken = localStorage.getItem("daytrade_auth_token");
-            if (savedToken === PWD_HASH) {
+            if (savedToken === PWD_B64 || savedToken === PWD_HASH) {
                 unlockUI();
             }
         });
