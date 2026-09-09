@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 headless_trader.py - 雲端無頭當沖機器人 (v3.0 獨立網頁看板版)
 ─────────────────────────────────────────────────────────────
@@ -21,6 +21,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
 
+import hashlib
 from fugle_service import FugleService
 from gemini_service import GeminiService
 import cache_service
@@ -51,9 +52,13 @@ def render_html_dashboard(
     settle_records: List[Dict] = None,
     total_signals: int = 0
 ):
-    """渲染獨立網頁 index.html，供 GitHub Pages 免登入即時看盤"""
+    """渲染獨立網頁 index.html，支援 SHA-256 密碼保護"""
     now = get_tw_now()
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    # 取得密碼設定 (預設 888888)，計算安全 SHA-256 雜湊
+    raw_pwd = os.getenv("DASHBOARD_PASSWORD", "888888")
+    pwd_hash = hashlib.sha256(raw_pwd.encode("utf-8")).hexdigest()
 
     wave1_stocks = wave1_stocks or []
     wave2_stocks = wave2_stocks or []
@@ -161,10 +166,52 @@ def render_html_dashboard(
     <style>
         body {{ font-family: 'Noto Sans TC', sans-serif; background-color: #0d1117; color: #c9d1d9; }}
         .mono {{ font-family: 'JetBrains Mono', monospace; }}
+        .shake {{ animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }}
+        @keyframes shake {{
+            10%, 90% {{ transform: translate3d(-1px, 0, 0); }}
+            20%, 80% {{ transform: translate3d(2px, 0, 0); }}
+            30%, 50%, 70% {{ transform: translate3d(-4px, 0, 0); }}
+            40%, 60% {{ transform: translate3d(4px, 0, 0); }}
+        }}
     </style>
 </head>
-<body class="min-h-screen p-3 md:p-6">
-    <div class="max-w-5xl mx-auto space-y-5">
+<body class="min-h-screen p-3 md:p-6 flex flex-col justify-between">
+
+    <!-- 🔐 密碼保護鎖定遮罩 -->
+    <div id="lock-screen" class="fixed inset-0 z-50 bg-[#0d1117] flex items-center justify-center p-4">
+        <div id="lock-card" class="bg-gray-900 border border-gray-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-6">
+            <div class="inline-flex p-4 rounded-2xl bg-indigo-950/60 border border-indigo-800/50 text-indigo-400 text-3xl">
+                🔒
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-white tracking-wide">台股當沖 AI 終端</h2>
+                <p class="text-xs text-gray-400 mt-1">此頁面受密碼保護，請輸入存取密碼</p>
+            </div>
+            <form onsubmit="handleUnlock(event)" class="space-y-4">
+                <div class="relative">
+                    <input type="password" id="pwd-input" placeholder="請輸入查看密碼" autofocus
+                        class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 mono tracking-widest text-center" />
+                </div>
+                <div id="error-msg" class="text-xs text-rose-400 hidden font-medium">密碼錯誤，請重新輸入</div>
+                
+                <div class="flex items-center justify-between text-xs text-gray-400 px-1">
+                    <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input type="checkbox" id="remember-me" checked class="rounded bg-gray-800 border-gray-700 text-indigo-500 focus:ring-0" />
+                        <span>記住此裝置 (免再輸入)</span>
+                    </label>
+                </div>
+
+                <button type="submit"
+                    class="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg shadow-indigo-500/20 transition duration-200">
+                    解鎖進入看板 ➔
+                </button>
+            </form>
+            <p class="text-[11px] text-gray-600">預設密碼為 888888 · 可於 GitHub Secrets 自訂</p>
+        </div>
+    </div>
+
+    <!-- 📊 主看板內容 (解鎖後顯示) -->
+    <div id="main-content" class="max-w-5xl mx-auto w-full space-y-5 hidden">
         
         <!-- Header -->
         <header class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -301,9 +348,58 @@ def render_html_dashboard(
 
         <!-- Footer -->
         <footer class="text-center text-xs text-gray-600 py-3">
-            本儀表板由 GitHub Actions 全自動維護 · 專屬獨立網頁免登入即可瀏覽
+            本儀表板由 GitHub Actions 全自動維護 · 密碼防護機制已啟用
         </footer>
     </div>
+
+    <!-- 🔐 密碼驗證核心邏輯 (SHA-256 安全比對 + LocalStorage 記住裝置) -->
+    <script>
+        const PWD_HASH = "{pwd_hash}";
+
+        async function sha256(str) {{
+            const buffer = new TextEncoder().encode(str);
+            const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+        }}
+
+        async function handleUnlock(e) {{
+            if (e) e.preventDefault();
+            const input = document.getElementById("pwd-input").value;
+            const errorMsg = document.getElementById("error-msg");
+            const lockCard = document.getElementById("lock-card");
+            const hash = await sha256(input);
+
+            if (hash === PWD_HASH) {{
+                if (document.getElementById("remember-me").checked) {{
+                    localStorage.setItem("daytrade_auth_token", hash);
+                }}
+                unlockUI();
+            }} else {{
+                errorMsg.classList.remove("hidden");
+                lockCard.classList.remove("shake");
+                void lockCard.offsetWidth;
+                lockCard.classList.add("shake");
+            }}
+        }}
+
+        function unlockUI() {{
+            document.getElementById("lock-screen").classList.add("hidden");
+            document.getElementById("main-content").classList.remove("hidden");
+        }}
+
+        function handleLock() {{
+            localStorage.removeItem("daytrade_auth_token");
+            location.reload();
+        }}
+
+        window.addEventListener("DOMContentLoaded", () => {{
+            const savedToken = localStorage.getItem("daytrade_auth_token");
+            if (savedToken === PWD_HASH) {{
+                unlockUI();
+            }}
+        }});
+    </script>
 </body>
 </html>
 """
