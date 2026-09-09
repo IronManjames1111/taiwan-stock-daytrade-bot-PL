@@ -91,9 +91,14 @@ def main():
     fugle_api_key = os.getenv("FUGLE_API_KEY") or cfg.get("fugle_api_key", "")
     gemini_api_key = os.getenv("GEMINI_API_KEY") or cfg.get("gemini_api_key", "")
 
+    if not fugle_api_key:
+        print("❌ 錯誤：未設定 FUGLE_API_KEY 環境變數！")
+        print("   請至 GitHub 倉庫 -> Settings -> Secrets and variables -> Actions 新增 FUGLE_API_KEY。")
+    if not gemini_api_key:
+        print("❌ 錯誤：未設定 GEMINI_API_KEY 環境變數！")
+        print("   請至 GitHub 倉庫 -> Settings -> Secrets and variables -> Actions 新增 GEMINI_API_KEY。")
+
     if not fugle_api_key or not gemini_api_key:
-        print("❌ 錯誤：未設定 FUGLE_API_KEY 或 GEMINI_API_KEY！")
-        print("   請至 GitHub 倉庫 -> Settings -> Secrets and variables -> Actions 設定。")
         sys.exit(1)
 
     fugle = FugleService(api_key=fugle_api_key)
@@ -117,15 +122,21 @@ def main():
         if test_stocks:
             test_sym = test_stocks[0]["symbol"]
             print(f"\n🔍 測試 Fugle 日K線抓取 ({test_sym})：")
-            daily = fugle.get_historical_candles(test_sym, timeframe="D")
-            daily_len = len(daily.get("data", [])) if daily else 0
-            print(f"   ✅ 富果 API 連線成功！取得 {daily_len} 根日K")
+            try:
+                daily = fugle.get_historical_candles(test_sym)
+                daily_len = len(daily.get("data", [])) if daily else 0
+                print(f"   ✅ 富果 API 連線成功！取得 {daily_len} 根日K")
+            except Exception as e:
+                print(f"   ❌ 富果日K抓取異常: {e}")
 
             print(f"\n🔍 測試 Gemini AI 快速分析連線 ({test_sym})：")
-            check_res = gemini.quick_check(test_sym, test_stocks[0]["price"], 1.5)
-            print(f"   ✅ Gemini 回覆: {check_res.strip()}")
+            try:
+                check_res = gemini.quick_check(test_sym, test_stocks[0]["price"], 1.5)
+                print(f"   ✅ Gemini 回覆: {check_res.strip()}")
+            except Exception as e:
+                print(f"   ❌ Gemini 連線異常: {e}")
 
-        print("\n🎉 GitHub Actions 測試驗證全數通過！在開盤日早上 08:55 排程啟動時將自動進入正式當沖監控。")
+        print("\n🎉 GitHub Actions 測試驗證完成！在開盤日早上 08:55 排程啟動時將自動進入正式當沖監控。")
         return
 
     # ── 正式盤中運作流程 ─────────────────────────────────────
@@ -172,7 +183,7 @@ def main():
                         continue
 
                     indicators = fugle.get_technical_indicators(candles, is_intraday=True)
-                    daily_raw = fugle.get_historical_candles(symbol, timeframe="D")
+                    daily_raw = fugle.get_historical_candles(symbol)
                     daily_candles = daily_raw.get("data", []) if daily_raw else []
                     quote = fugle.get_intraday_quote(symbol) or {}
                     prev_close = quote.get("previousClose")
