@@ -1,11 +1,12 @@
 ﻿# -*- coding: utf-8 -*-
 """
-headless_trader.py - 雲端無頭當沖機器人 (v2.0 增強版)
+headless_trader.py - 雲端無頭當沖機器人 (v3.0 獨立網頁看板版)
 ─────────────────────────────────────────────────────────────
 • 09:15 早盤第一次抓取成交量排行前 5 檔 (避開開盤假突破雜訊)
 • 10:30 中盤第二次重新抓取成交量排行前 5 檔 (鎖定盤中換手輪動飆股)
 • 盤中每 10 分鐘調用 Google AI (多模型自動降級鏈) 進行深度判斷
-• 自動將挑選標的與每輪 AI 分析即時同步至 GitHub Step Summary 網頁看板
+• 自動生成獨立網頁 index.html (透過 GitHub Pages 提供免登入固定專屬網址)
+• 同步輸出 GitHub Step Summary 即時 Markdown 看板
 • 13:25 收盤自動回放當日 1分K 結算盈虧，產出 CSV 報表保存至 GitHub
 """
 
@@ -31,7 +32,7 @@ def get_tw_now() -> datetime.datetime:
     return datetime.datetime.now(TW_TZ)
 
 def update_github_summary(content: str, append: bool = True):
-    """將即時看板內容寫入 GitHub Actions 網頁 Summary，方便在網頁即時觀看"""
+    """將即時看板內容寫入 GitHub Actions 網頁 Summary"""
     summary_path = os.getenv("GITHUB_STEP_SUMMARY")
     if summary_path:
         mode = "a" if append else "w"
@@ -40,6 +41,278 @@ def update_github_summary(content: str, append: bool = True):
                 f.write(content + "\n\n")
         except Exception as e:
             print(f"[Summary] 寫入失敗: {e}")
+
+def render_html_dashboard(
+    status_text: str = "盤中監控中",
+    active_model: str = "gemini-3.5-flash",
+    wave1_stocks: List[Dict] = None,
+    wave2_stocks: List[Dict] = None,
+    latest_analysis: List[Dict] = None,
+    settle_records: List[Dict] = None,
+    total_signals: int = 0
+):
+    """渲染獨立網頁 index.html，供 GitHub Pages 免登入即時看盤"""
+    now = get_tw_now()
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    wave1_stocks = wave1_stocks or []
+    wave2_stocks = wave2_stocks or []
+    latest_analysis = latest_analysis or []
+    settle_records = settle_records or []
+
+    # 計算損益卡片文字
+    pnl_text = "尚未結算"
+    pnl_class = "text-gray-400"
+    if settle_records:
+        net_total = sum(r.get("net_profit", 0) for r in settle_records)
+        pnl_text = f"+${net_total:,}" if net_total > 0 else f"-${abs(net_total):,}" if net_total < 0 else "$0"
+        pnl_class = "text-red-400" if net_total > 0 else "text-emerald-400" if net_total < 0 else "text-gray-300"
+
+    # 生成波段一列表
+    wave1_html = ""
+    if wave1_stocks:
+        for idx, s in enumerate(wave1_stocks, 1):
+            wave1_html += f"""
+            <li class="flex items-center justify-between p-2 rounded-xl bg-gray-800/40 border border-gray-800">
+                <span class="font-bold text-white"><span class="text-blue-400 mr-2">#{idx}</span>{s['symbol']} {s['name']}</span>
+                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元</span>
+            </li>
+            """
+    else:
+        wave1_html = '<li class="text-gray-500 text-xs py-2">等待開盤 09:15 抓取中...</li>'
+
+    # 生成波段二列表
+    wave2_html = ""
+    if wave2_stocks:
+        for idx, s in enumerate(wave2_stocks, 1):
+            wave2_html += f"""
+            <li class="flex items-center justify-between p-2 rounded-xl bg-gray-800/40 border border-gray-800">
+                <span class="font-bold text-white"><span class="text-purple-400 mr-2">#{idx}</span>{s['symbol']} {s['name']}</span>
+                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元</span>
+            </li>
+            """
+    else:
+        wave2_html = '<li class="text-gray-500 text-xs py-2">10:30 自動重新掃描成交量排行...</li>'
+
+    # 生成分析表格
+    analysis_rows = ""
+    if latest_analysis:
+        for a in latest_analysis:
+            sig = a.get("signal", "WATCH")
+            sig_badge = (
+                '<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">🟢 做多</span>'
+                if "BUY" in sig else
+                '<span class="px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-bold">🔴 放空</span>'
+                if "SHORT" in sig else
+                '<span class="px-2 py-0.5 rounded bg-gray-800 text-gray-400">⚪ 觀望</span>'
+            )
+            analysis_rows += f"""
+            <tr class="hover:bg-gray-800/30">
+                <td class="py-2.5 px-3 font-bold text-white">{a.get('symbol')} {a.get('name', '')}</td>
+                <td class="py-2.5 px-3">{sig_badge}</td>
+                <td class="py-2.5 px-3 mono text-gray-200">{a.get('entry', '-')}</td>
+                <td class="py-2.5 px-3 mono text-emerald-400">{a.get('stop_loss', '-')}</td>
+                <td class="py-2.5 px-3 mono text-red-400">{a.get('target', '-')}</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">{a.get('reason', '')}</td>
+            </tr>
+            """
+    else:
+        analysis_rows = '<tr><td colspan="6" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr>'
+
+    # 生成結算表格
+    settle_rows = ""
+    if settle_records:
+        for r in settle_records:
+            res = r.get("result")
+            res_badge = (
+                '<span class="text-red-400 font-bold">✅ 獲利</span>'
+                if res == "win" else
+                '<span class="text-emerald-400 font-bold">❌ 虧損</span>'
+                if res == "loss" else
+                '<span class="text-gray-400">➖ 打平</span>'
+            )
+            net_p = r.get("net_profit", 0)
+            net_str = f"+${net_p:,}" if net_p > 0 else f"-${abs(net_p):,}" if net_p < 0 else "$0"
+            net_color = "text-red-400" if net_p > 0 else "text-emerald-400" if net_p < 0 else "text-gray-300"
+
+            settle_rows += f"""
+            <tr class="hover:bg-gray-800/30">
+                <td class="py-2 px-3 font-bold text-white">{r.get('symbol')}</td>
+                <td class="py-2 px-3 font-semibold">{r.get('signal')}</td>
+                <td class="py-2 px-3 mono">{r.get('entry_price')}</td>
+                <td class="py-2 px-3 mono">{r.get('exit_price')}</td>
+                <td class="py-2 px-3">{res_badge}</td>
+                <td class="py-2 px-3 mono {net_color} font-bold">{net_str}</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">{r.get('exit_reason')}</td>
+            </tr>
+            """
+    else:
+        settle_rows = '<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 (13:25)</td></tr>'
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 當沖雲端即時看盤儀表板</title>
+    <meta http-equiv="refresh" content="60">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {{ font-family: 'Noto Sans TC', sans-serif; background-color: #0d1117; color: #c9d1d9; }}
+        .mono {{ font-family: 'JetBrains Mono', monospace; }}
+    </style>
+</head>
+<body class="min-h-screen p-3 md:p-6">
+    <div class="max-w-5xl mx-auto space-y-5">
+        
+        <!-- Header -->
+        <header class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="inline-block w-3 h-3 rounded-full bg-emerald-400 animate-ping"></span>
+                    <h1 class="text-xl md:text-2xl font-bold text-white tracking-wide">台股 AI 當沖雲端即時看板</h1>
+                    <span class="bg-emerald-950 text-emerald-400 text-xs px-2.5 py-0.5 rounded-full border border-emerald-800 font-semibold">雲端全自動</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">工作日 09:15 / 10:30 雙波段選股 ➔ 每 10 分鐘 Google AI 深度分析 ➔ 13:25 回放結算</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <div class="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2">
+                    <span class="text-gray-400">當前狀態:</span>
+                    <span class="text-emerald-400 font-bold ml-1">{status_text}</span>
+                </div>
+                <div class="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2">
+                    <span class="text-gray-400">更新時間:</span>
+                    <span class="text-white mono ml-1">{now_str}</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI 數據卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div class="text-xs text-gray-400">當前調用 AI 模型</div>
+                <div class="text-sm font-bold text-indigo-400 mono mt-1 truncate">{active_model}</div>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div class="text-xs text-gray-400">監控標的檔數</div>
+                <div class="text-xl font-bold text-white mono mt-1">{len(wave2_stocks or wave1_stocks)} 檔</div>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div class="text-xs text-gray-400">今日發出訊號</div>
+                <div class="text-xl font-bold text-yellow-400 mono mt-1">{total_signals} 筆</div>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div class="text-xs text-gray-400">回測結算損益</div>
+                <div class="text-xl font-bold {pnl_class} mono mt-1">{pnl_text}</div>
+            </div>
+        </div>
+
+        <!-- 雙波段選股板塊 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
+                <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-blue-950 text-blue-400 p-1.5 rounded-lg text-sm">🌅</span>
+                        <div>
+                            <h2 class="font-bold text-white text-sm md:text-base">第一波段：早盤成交量排行</h2>
+                            <p class="text-[11px] text-gray-400">09:15 觸發 (ORB-15 區間成型)</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-blue-900/50 text-blue-300 border border-blue-700/50 px-2 py-0.5 rounded-md">早盤主流</span>
+                </div>
+                <ul class="space-y-2 text-sm">{wave1_html}</ul>
+            </div>
+
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
+                <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-purple-950 text-purple-400 p-1.5 rounded-lg text-sm">⚡</span>
+                        <div>
+                            <h2 class="font-bold text-white text-sm md:text-base">第二波段：中盤換手重挑</h2>
+                            <p class="text-[11px] text-gray-400">10:30 觸發 (鎖定中盤輪動主升股)</p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-purple-900/50 text-purple-300 border border-purple-700/50 px-2 py-0.5 rounded-md">盤中輪動</span>
+                </div>
+                <ul class="space-y-2 text-sm">{wave2_html}</ul>
+            </div>
+        </div>
+
+        <!-- 最新 10 分鐘分析結果 -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="bg-emerald-950 text-emerald-400 p-1.5 rounded-lg text-sm">🤖</span>
+                    <div>
+                        <h2 class="font-bold text-white text-base">即時當沖多空訊號 & 決策理由</h2>
+                        <p class="text-xs text-gray-400">每 10 分鐘調用 Gemini / Gemma 深度判定進出場價與停損利</p>
+                    </div>
+                </div>
+                <span class="text-xs text-gray-400 mono">每 60 秒自動刷新</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs md:text-sm">
+                    <thead>
+                        <tr class="text-gray-400 border-b border-gray-800 text-[11px]">
+                            <th class="py-2.5 px-3">標的</th>
+                            <th class="py-2.5 px-3">訊號</th>
+                            <th class="py-2.5 px-3">建議進場</th>
+                            <th class="py-2.5 px-3">建議停損</th>
+                            <th class="py-2.5 px-3">建議停利</th>
+                            <th class="py-2.5 px-3">AI 決策依據 (Prompt 優化重點)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800/60">{analysis_rows}</tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 13:25 收盤回放結算卡片 -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
+            <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="bg-amber-950 text-amber-400 p-1.5 rounded-lg text-sm">🏆</span>
+                    <div>
+                        <h2 class="font-bold text-white text-base">今日當沖回測結算 (收盤回放)</h2>
+                        <p class="text-xs text-gray-400">13:25 自動以當日 1分K 逐根回放比對真實賺賠 (扣除 6折手續費與 0.15% 減半證交稅)</p>
+                    </div>
+                </div>
+                <span class="text-xs text-amber-400 font-semibold">13:25 結算</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs md:text-sm">
+                    <thead>
+                        <tr class="text-gray-400 border-b border-gray-800 text-[11px]">
+                            <th class="py-2 px-3">代號</th>
+                            <th class="py-2 px-3">方向</th>
+                            <th class="py-2 px-3">進場價</th>
+                            <th class="py-2 px-3">出場價</th>
+                            <th class="py-2 px-3">結果</th>
+                            <th class="py-2 px-3">淨損益</th>
+                            <th class="py-2 px-3">出場原因</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800/60">{settle_rows}</tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center text-xs text-gray-600 py-3">
+            本儀表板由 GitHub Actions 全自動維護 · 專屬獨立網頁免登入即可瀏覽
+        </footer>
+    </div>
+</body>
+</html>
+"""
+    try:
+        with open("index.html", "w", encoding="utf-8") as f:
+            f.write(html_content)
+        print("📄 已成功更新獨立網頁儀表板：index.html")
+    except Exception as e:
+        print(f"[HTML Dashboard] 寫入失敗: {e}")
 
 def get_free_top_volume_stocks(limit: int = 5, min_price: float = 15.0) -> List[Dict]:
     """
@@ -108,7 +381,6 @@ def main():
     if not fugle_api_key or not gemini_api_key:
         sys.exit(1)
 
-    # 依優先順序設定模型降級鏈
     PREFERRED_MODELS = [
         "gemma-4-31b-it",
         "gemma-4-26b-a4b-it",
@@ -139,6 +411,7 @@ def main():
             print(f"   📌 {s['symbol']} {s['name']} (參考價: {s['price']})")
         
         ai_reply = "尚未測試"
+        test_analysis = []
         if test_stocks:
             test_sym = test_stocks[0]["symbol"]
             print(f"\n🔍 測試 Fugle 日K線抓取 ({test_sym})：")
@@ -153,28 +426,39 @@ def main():
             try:
                 ai_reply = gemini.quick_check(test_sym, test_stocks[0]["price"], 1.5)
                 print(f"   ✅ Gemini 回覆 [{gemini.active_model}]: {ai_reply.strip()}")
+                test_analysis.append({
+                    "symbol": test_sym,
+                    "name": test_stocks[0]["name"],
+                    "signal": "WATCH",
+                    "entry": test_stocks[0]["price"],
+                    "stop_loss": "-",
+                    "target": "-",
+                    "reason": f"測試連線成功: {ai_reply}"
+                })
             except Exception as e:
                 print(f"   ❌ Gemini 連線異常: {e}")
 
-        # 寫入 GitHub Step Summary 網頁儀表板
-        summary_md = f"""# 📈 當沖機器人雲端儀表板 (非開盤測試模式)
-> **測試時間 (台灣)**: `{now.strftime('%Y-%m-%d %H:%M:%S')}`  
-> **當前主用模型**: `{gemini.active_model}`  
+        # 渲染出初始 index.html
+        render_html_dashboard(
+            status_text="非開盤測試成功",
+            active_model=gemini.active_model,
+            wave1_stocks=test_stocks,
+            latest_analysis=test_analysis
+        )
 
-### 🔍 測試抓取成交量前列標的：
-| 股票代號 | 股票名稱 | 參考價 |
-| :---: | :---: | :---: |
-"""
-        for s in test_stocks:
-            summary_md += f"| **{s['symbol']}** | {s['name']} | `{s['price']}` |\n"
-        summary_md += f"\n**AI 測試分析簡評**: `{ai_reply}`\n\n✅ **雲端系統就緒！開盤日將在 09:15 與 10:30 分別挑選標的進行當沖分析。**"
-        update_github_summary(summary_md, append=False)
-
-        print("\n🎉 GitHub Actions 測試驗證全數通過！請查看該 Action 頁面的 Summary 標籤。")
+        print("\n🎉 GitHub Actions 測試驗證全數通過！專屬網頁 index.html 已更新。")
         return
 
     # ── 正式盤中雙波段運作流程 ─────────────────────────────────────
-    update_github_summary(f"# 🚀 台股當沖自動化即時看板 ({today_str})\n系統已於 `{now.strftime('%H:%M:%S')}` 啟動。", append=False)
+    wave1_stocks = []
+    wave2_stocks = []
+    latest_analysis_records = []
+    total_signals = 0
+
+    render_html_dashboard(
+        status_text="盤前準備中 (等待 09:15)",
+        active_model=gemini.active_model
+    )
 
     # 1. 等待至 09:15 (避開開盤 15 分鐘前置雜訊)
     while True:
@@ -187,13 +471,15 @@ def main():
 
     # 第一次選股 (09:15 早盤主力突破股)
     print(f"\n⏰ 達到 09:15，開始執行【第一波段：早盤動能成交量排行選股】...")
-    current_stocks = get_free_top_volume_stocks(limit=5)
+    wave1_stocks = get_free_top_volume_stocks(limit=5)
+    current_stocks = wave1_stocks
     symbols = [s["symbol"] for s in current_stocks]
     
-    first_wave_md = f"### ⏰ 09:15 第一波早盤選股 (鎖定成交量 Top {len(symbols)})\n"
-    for idx, s in enumerate(current_stocks, 1):
-        first_wave_md += f"- **{idx}. {s['symbol']} {s['name']}** (現價: `{s['price']}` 元)\n"
-    update_github_summary(first_wave_md, append=True)
+    render_html_dashboard(
+        status_text="早盤第一波監控中",
+        active_model=gemini.active_model,
+        wave1_stocks=wave1_stocks
+    )
 
     mid_wave_triggered = False
 
@@ -211,25 +497,26 @@ def main():
         # 中盤 10:30 重挑股票 (第二波段：盤中輪動飆股)
         if hm >= "10:30" and not mid_wave_triggered:
             print(f"\n⏰ 達到 10:30，開始執行【第二波段：中盤換手與輪動股票重挑】...")
-            mid_stocks = get_free_top_volume_stocks(limit=5)
-            new_symbols = [s["symbol"] for s in mid_stocks]
-            if new_symbols:
-                current_stocks = mid_stocks
-                symbols = new_symbols
+            wave2_stocks = get_free_top_volume_stocks(limit=5)
+            if wave2_stocks:
+                current_stocks = wave2_stocks
+                symbols = [s["symbol"] for s in current_stocks]
                 print(f"🔥 中盤 10:30 已更新監控標的：{', '.join(symbols)}")
                 
-                mid_wave_md = f"\n---\n### ⏰ 10:30 第二波中盤重挑 (更新成交量 Top {len(symbols)})\n"
-                for idx, s in enumerate(current_stocks, 1):
-                    mid_wave_md += f"- **{idx}. {s['symbol']} {s['name']}** (現價: `{s['price']}` 元)\n"
-                update_github_summary(mid_wave_md, append=True)
-                
             mid_wave_triggered = True
+            render_html_dashboard(
+                status_text="中盤第二波監控中",
+                active_model=gemini.active_model,
+                wave1_stocks=wave1_stocks,
+                wave2_stocks=wave2_stocks,
+                latest_analysis=latest_analysis_records,
+                total_signals=total_signals
+            )
 
         # 每 10 分鐘例行分析 (09:20, 09:30, 09:40 ... 13:20)
         if now.minute % 10 == 0:
             print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 執行 10 分鐘定時分析...")
-            round_summary = f"#### 📊 {now.strftime('%H:%M')} 例行分析結果 (模型: `{gemini.active_model}`)\n"
-            round_summary += "| 代號 | 訊號 | 建議進場 | 停損 | 停利 | AI 決策理由 |\n| :---: | :---: | :---: | :---: | :---: | :--- |\n"
+            latest_analysis_records = []
 
             for s_info in current_stocks:
                 symbol = s_info["symbol"]
@@ -266,16 +553,24 @@ def main():
                     stop_p = res.get("stop_loss", "-")
                     target_p = res.get("target", "-")
                     reason = (res.get("reason") or res.get("full_text", "")).replace("\n", " ").strip()
-                    if len(reason) > 50:
-                        reason = reason[:50] + "..."
+                    if len(reason) > 60:
+                        reason = reason[:60] + "..."
 
                     print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
                     
-                    sig_badge = f"🟢 **{sig}**" if "BUY" in sig else f"🔴 **{sig}**" if "SHORT" in sig else f"⚪ {sig}"
-                    round_summary += f"| **{symbol} {name}** | {sig_badge} | `{entry_p}` | `{stop_p}` | `{target_p}` | {reason} |\n"
+                    latest_analysis_records.append({
+                        "symbol": symbol,
+                        "name": name,
+                        "signal": sig,
+                        "entry": entry_p,
+                        "stop_loss": stop_p,
+                        "target": target_p,
+                        "reason": reason
+                    })
 
                     # 出現買賣訊號時寫入歷史紀錄
                     if raw_sig in {"STRONG_BUY", "BUY", "SHORT", "STRONG_SHORT"}:
+                        total_signals += 1
                         rec_id = cache_service.add_history_record(
                             symbol=symbol,
                             model=gemini.active_model,
@@ -295,7 +590,15 @@ def main():
                 except Exception as ex:
                     print(f"  [{symbol}] 分析異常: {ex}")
 
-            update_github_summary(round_summary, append=True)
+            # 即時渲染網頁 index.html
+            render_html_dashboard(
+                status_text=f"盤中分析中 ({now.strftime('%H:%M')})",
+                active_model=gemini.active_model,
+                wave1_stocks=wave1_stocks,
+                wave2_stocks=wave2_stocks,
+                latest_analysis=latest_analysis_records,
+                total_signals=total_signals
+            )
             time.sleep(65)
 
         time.sleep(10)
@@ -304,9 +607,8 @@ def main():
     pending_records = cache_service.get_pending_history_for_date(today_str)
     print(f"\n🎯 開始收盤分K回放結算，今日待結算筆數: {len(pending_records)}")
 
-    settle_report_md = f"\n---\n### 🏁 13:25 收盤回放結算報告\n"
+    today_settled_list = []
     if pending_records:
-        settle_report_md += "| 代號 | 訊號 | 進場價 | 出場價 | 結果 | 淨損益 | 出場原因 |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n"
         for rec in pending_records:
             sym = rec["symbol"]
             candles_raw = fugle.get_intraday_candles(sym, force_refresh=True)
@@ -316,23 +618,25 @@ def main():
 
         # 重新讀取更新後的結算紀錄
         all_data = cache_service._read_history()
-        today_records = [r for r in all_data.get("records", []) if r.get("date") == today_str]
-        for r in today_records:
-            res_str = "✅ 獲利" if r.get("result") == "win" else "❌ 虧損" if r.get("result") == "loss" else "➖ 打平"
-            pnl_str = f"`${r.get('net_profit', 0):,}`"
-            settle_report_md += f"| **{r.get('symbol')}** | `{r.get('signal')}` | `{r.get('entry_price')}` | `{r.get('exit_price')}` | {res_str} | {pnl_str} | {r.get('exit_reason')} |\n"
+        today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
 
         # 產出每日回測 CSV
         os.makedirs("history_records", exist_ok=True)
-        df = pd.DataFrame(today_records)
+        df = pd.DataFrame(today_settled_list)
         csv_path = f"history_records/backtest_{today_str}.csv"
         df.to_csv(csv_path, index=False, encoding="utf-8-sig")
         print(f"✅ 今日回測報表已成功產出：{csv_path}")
-        settle_report_md += f"\n📁 **完整明細與決策理由已儲存至**：`{csv_path}`"
-    else:
-        settle_report_md += "今日無開倉進場訊號，無須結算。\n"
 
-    update_github_summary(settle_report_md, append=True)
+    # 渲染最終收盤結算網頁
+    render_html_dashboard(
+        status_text="已收盤結算完成",
+        active_model=gemini.active_model,
+        wave1_stocks=wave1_stocks,
+        wave2_stocks=wave2_stocks,
+        latest_analysis=latest_analysis_records,
+        settle_records=today_settled_list,
+        total_signals=total_signals
+    )
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,4 @@
-﻿name: Taiwan Stock Daytrade AI Backtest
+name: Taiwan Stock Daytrade AI Backtest
 
 on:
   schedule:
@@ -41,7 +41,7 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add history_records/ analysis_history.json || true
+          git add history_records/ analysis_history.json index.html || true
           if git diff --staged --quiet; then
             echo "ℹ️ 目前無新增的回測報表，略過推送步驟。"
           else
