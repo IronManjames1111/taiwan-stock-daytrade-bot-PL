@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 headless_trader.py - 雲端無頭當沖機器人
 ─────────────────────────────────────────────
@@ -94,15 +94,21 @@ def main():
     if not fugle_api_key:
         print("❌ 錯誤：未設定 FUGLE_API_KEY 環境變數！")
         print("   請至 GitHub 倉庫 -> Settings -> Secrets and variables -> Actions 新增 FUGLE_API_KEY。")
-    if not gemini_api_key:
-        print("❌ 錯誤：未設定 GEMINI_API_KEY 環境變數！")
-        print("   請至 GitHub 倉庫 -> Settings -> Secrets and variables -> Actions 新增 GEMINI_API_KEY。")
-
     if not fugle_api_key or not gemini_api_key:
         sys.exit(1)
 
+    PREFERRED_MODELS = [
+        "gemma-4-31b-it",
+        "gemma-4-26b-a4b-it",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+    ]
+
     fugle = FugleService(api_key=fugle_api_key)
-    gemini = GeminiService(api_key=gemini_api_key, model=cfg.get("gemini_model", "gemini-2.0-flash"))
+    gemini = GeminiService(api_key=gemini_api_key, model_priority=PREFERRED_MODELS)
+    print(f"🤖 AI 模型優先選擇順序: {' -> '.join(PREFERRED_MODELS)}")
 
     now = get_tw_now()
     hm = now.strftime("%H:%M")
@@ -211,7 +217,7 @@ def main():
                     if raw_sig in {"STRONG_BUY", "BUY", "SHORT", "STRONG_SHORT"}:
                         rec_id = cache_service.add_history_record(
                             symbol=symbol,
-                            model=gemini.model,
+                            model=gemini.active_model,
                             risk_mode="auto",
                             signal=raw_sig,
                             direction=res.get("direction"),

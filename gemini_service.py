@@ -1382,12 +1382,23 @@ _RISK_MODE_PROMPT = {
 # ─────────────────────────────────────────────
 #  GeminiService
 # ─────────────────────────────────────────────
+DEFAULT_MODEL_PRIORITY = [
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+]
+
 class GeminiService:
     """Gemini API 封裝：多空雙向當沖分析 + 時段感知 + ORB + VWAP/ATR/OBV + 漲跌停感知 + 風險模式"""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str, model: str = None, model_priority: List[str] = None):
         self.api_key = api_key
-        self.model   = model
+        self.model_priority = model_priority or (list(DEFAULT_MODEL_PRIORITY) if not model else [model] + [m for m in DEFAULT_MODEL_PRIORITY if m != model])
+        self.model   = self.model_priority[0]
+        self.active_model = self.model
         self.force_direction = None
 
     def set_force_direction(self, direction: str | None):
@@ -1420,86 +1431,90 @@ class GeminiService:
             return []
 
     # ──────────────────────────────────────────
-    #  底層 API 呼叫（含重試）
+    #  底層 API 呼叫（支援多模型優先順序自動選擇與 Fallback）
     # ──────────────────────────────────────────
     def _call(self, prompt: str, max_tokens: int = 800) -> Optional[str]:
         if not self.api_key:
             return "❌ 尚未設定 Gemini API Key，請至設定頁面填入"
 
-        url     = GEMINI_API_URL.format(model=self.model)
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens,},
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens},
         }
 
-        for attempt in range(1, MAX_RETRIES + 1):
-            try:
-                print(f"[Gemini] 嘗試第 {attempt} 次請求...")
-                resp = requests.post(url, json=payload,
-                                     params={"key": self.api_key}, timeout=TIMEOUT_SEC)
+        # 依優先順序輪流嘗試模型
+        for model_idx, target_model in enumerate(self.model_priority):
+            url = GEMINI_API_URL.format(model=target_model)
+            print(f"[Gemini] 優先嘗試模型 ({model_idx+1}/{len(self.model_priority)}): {target_model}")
 
-                if resp.status_code == 200:
-                    resp_json  = resp.json()
-                    candidates = resp_json.get("candidates", [])
-                    if candidates:
-                        candidate     = candidates[0]
-                        finish_reason = candidate.get("finishReason", "UNKNOWN")
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    resp = requests.post(url, json=payload,
+                                         params={"key": self.api_key}, timeout=TIMEOUT_SEC)
 
-                        parts         = candidate.get("content", {}).get("parts", [])
-                        # Gemini 思考模式會回傳多個 parts：
-                        # parts[0] = {'text': '', 'thought': True}  ← 思考過程，跳過
-                        # parts[1] = {'text': '真正的回答'}          ← 這才是要的
-                        # 所以要找第一個 thought != True 且 text 非空的 part
-                        text = ""
-                        for part in parts:
-                            if not part.get("thought", False) and part.get("text", ""):
-                                text = part["text"]
-                                break
+                    if resp.status_code == 200:
+                        resp_json  = resp.json()
+                        candidates = resp_json.get("candidates", [])
+                        if candidates:
+                            candidate     = candidates[0]
+                            finish_reason = candidate.get("finishReason", "UNKNOWN")
+                            parts         = candidate.get("content", {}).get("parts", [])
 
-                        # ── 診斷：印出 finishReason 與 text 長度 ──
-                        print(f"[Gemini] 成功（第 {attempt} 次）finishReason={finish_reason} text長度={len(text)}")
+                            text = ""
+                            for part in parts:
+                                if not part.get("thought", False) and part.get("text", ""):
+                                    text = part["text"]
+                                    break
 
-                        if finish_reason == "SAFETY":
-                            print(f"[Gemini] ⚠️ 安全過濾器攔截！safetyRatings={candidate.get('safetyRatings')}")
-                            return "❌ Gemini 安全過濾器攔截，請簡化 prompt 或更換模型"
+                            self.active_model = target_model
+                            self.model = target_model
+                            print(f"[Gemini] 成功使用模型 [{target_model}]（第 {attempt} 次）text長度={len(text)}")
 
-                        if finish_reason == "MAX_TOKENS" or finish_reason == "RECITATION":
-                            print(f"[Gemini] ⚠️ 輸出被截斷！finishReason={finish_reason}，建議提高 max_tokens")
+                            if finish_reason == "SAFETY":
+                                print(f"[Gemini] ⚠️ 安全過濾器攔截！safetyRatings={candidate.get('safetyRatings')}")
+                                return "❌ Gemini 安全過濾器攔截，請簡化 prompt 或更換模型"
 
-                        if not text:
-                            print(f"[Gemini] ⚠️ text 為空！完整 candidate={candidate}")
-                            return "❌ Gemini 回傳空內容"  # 回傳明確錯誤，而非 None
+                            if finish_reason == "MAX_TOKENS" or finish_reason == "RECITATION":
+                                print(f"[Gemini] ⚠️ 輸出被截斷！finishReason={finish_reason}，建議提高 max_tokens")
 
-                        return text
-                    # candidates 為空
-                    print(f"[Gemini] ⚠️ candidates 為空！完整回應={resp_json}")
-                    block_reason = resp_json.get("promptFeedback", {}).get("blockReason", "")
-                    if block_reason:
-                        return f"❌ Gemini prompt 被封鎖：{block_reason}"
-                    return "❌ Gemini 無回應內容"
-                
-                elif resp.status_code == 429:
-                    time.sleep(RETRY_DELAY * attempt); continue
-                elif resp.status_code in (500, 503):
-                    time.sleep(RETRY_DELAY * attempt); continue
-                elif resp.status_code == 400:
-                    return "❌ Gemini API 金鑰無效或請求格式錯誤"
-                elif resp.status_code == 401:
-                    return "❌ Gemini API 金鑰未授權"
-                else:
-                    return f"❌ Gemini API 錯誤 {resp.status_code}"
-            except requests.exceptions.Timeout:
-                if attempt < MAX_RETRIES:
-                    time.sleep(RETRY_DELAY); continue
-                return "❌ Gemini API 連續逾時"
-            except requests.exceptions.ConnectionError:
-                if attempt < MAX_RETRIES:
-                    time.sleep(RETRY_DELAY); continue
-                return "❌ 無法連線至 Gemini API"
-            except Exception as e:
-                return f"❌ 例外錯誤: {e}"
+                            if not text:
+                                return "❌ Gemini 回傳空內容"
 
-        return "❌ 已達最大重試次數，請稍後再試"
+                            return text
+
+                        print(f"[Gemini] ⚠️ candidates 為空！完整回應={resp_json}")
+                        break # 跳出當前模型重試，嘗試下一個模型
+
+                    elif resp.status_code in (404, 400):
+                        print(f"[Gemini Fallback] 模型 [{target_model}] 不可用或不支援 (HTTP {resp.status_code})，自動嘗試下一個優先模型...")
+                        break # 直接換下一個候選模型
+
+                    elif resp.status_code == 429:
+                        print(f"[Gemini Fallback] 模型 [{target_model}] 配額超額 (429)，自動降級嘗試下一個模型...")
+                        break # 配額超限直接換下一個候選模型
+
+                    elif resp.status_code in (500, 503):
+                        time.sleep(RETRY_DELAY * attempt)
+                        continue
+                    else:
+                        print(f"[Gemini] 模型 [{target_model}] HTTP {resp.status_code}，嘗試下一個模型...")
+                        break
+
+                except requests.exceptions.Timeout:
+                    if attempt < MAX_RETRIES:
+                        time.sleep(RETRY_DELAY)
+                        continue
+                    break
+                except requests.exceptions.ConnectionError:
+                    if attempt < MAX_RETRIES:
+                        time.sleep(RETRY_DELAY)
+                        continue
+                    break
+                except Exception as e:
+                    print(f"[Gemini] 例外錯誤: {e}")
+                    break
+
+        return "❌ 所有候選模型皆無法使用，請確認 API 金鑰與配額"
 
     # ──────────────────────────────────────────
     #  組建分析 Prompt（v6.1 優化）
