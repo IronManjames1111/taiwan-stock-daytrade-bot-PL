@@ -28,6 +28,13 @@ from gemini_service import GeminiService
 import cache_service
 from config import load_config
 
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 TW_TZ = pytz.timezone("Asia/Taipei")
 
 def get_tw_now() -> datetime.datetime:
@@ -44,20 +51,23 @@ def update_github_summary(content: str, append: bool = True):
         except Exception as e:
             print(f"[Summary] 寫入失敗: {e}")
 
-def update_html_dashboard(
+def render_html_dashboard(
     wave1_stocks: List[Dict] = None,
     wave2_stocks: List[Dict] = None,
     latest_analysis: List[Dict] = None,
     settle_records: List[Dict] = None,
     active_model: str = "gemma-4-31b-it",
-    status_text: str = "運行中"
+    status_text: str = "運行中",
+    total_signals: int = None,
+    **kwargs
 ):
     """
     生成單一獨立網頁 index.html，供 GitHub Pages 直接託管展示
     具備密碼防護機制、暗黑風質感交易介面、手機響應式設計
     """
     now_str = get_tw_now().strftime("%Y-%m-%d %H:%M:%S")
-    total_signals = len([a for a in (latest_analysis or []) if a.get("signal") in ["BUY", "SHORT"]])
+    if total_signals is None:
+        total_signals = len([a for a in (latest_analysis or []) if a.get("signal") in ["BUY", "SHORT"]])
 
     # 取得密碼設定 (預設 888888)，清除前後空白與換行，計算安全 SHA-256 與 Base64
     raw_pwd = (os.getenv("DASHBOARD_PASSWORD") or "888888").strip()
@@ -84,7 +94,7 @@ def update_html_dashboard(
             wave1_html += f"""
             <li class="flex items-center justify-between p-2 rounded-xl bg-gray-800/40 border border-gray-800">
                 <span class="font-bold text-white"><span class="text-blue-400 mr-2">#{idx}</span>{s['symbol']} {s['name']}</span>
-                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元</span>
+                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元｜成交量: {s.get('volume', 0):,} 張</span>
             </li>
             """
     else:
@@ -97,7 +107,7 @@ def update_html_dashboard(
             wave2_html += f"""
             <li class="flex items-center justify-between p-2 rounded-xl bg-gray-800/40 border border-gray-800">
                 <span class="font-bold text-white"><span class="text-purple-400 mr-2">#{idx}</span>{s['symbol']} {s['name']}</span>
-                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元</span>
+                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元｜成交量: {s.get('volume', 0):,} 張</span>
             </li>
             """
     else:
@@ -434,60 +444,94 @@ def update_html_dashboard(
     try:
         with open("index.html", "w", encoding="utf-8") as f:
             f.write(html_content)
-        print("📄 已成功更新獨立網頁儀表板：index.html")
     except Exception as e:
         print(f"[HTML Dashboard] 寫入失敗: {e}")
+        return
 
-def get_free_top_volume_stocks(limit: int = 5, min_price: float = 15.0) -> List[Dict]:
+    try:
+        print("📄 已成功更新獨立網頁儀表板：index.html")
+    except Exception:
+        print("[HTML Dashboard] 已成功更新獨立網頁儀表板：index.html")
+
+# 保留別名相容性
+update_html_dashboard = render_html_dashboard
+
+def get_free_top_volume_stocks(limit: int = 5, min_price: float = 10.0) -> List[Dict]:
     """
-    免費自 Yahoo 奇摩股市抓取即時成交量排行榜
-    自動排除：00 開頭 ETF、權證、特別股，並限制最低股價
+    自 Yahoo 奇摩股市抓取即時成交量排行榜。
+    特點：
+    1. 動態定位代號 (.TW / .TWO)，防止因名次圖示或排版微調造成欄位偏移
+    2. 正確解析真實成交價 (price) 與成交量 (volume，單位：張)
+    3. 自動排除 00 開頭 ETF、特別股及 6 碼權證衍生品
+    4. 支援 min_price 門檻 (預設 10.0 元，兼顧流動性並避免過度排除如 14 元熱門股)
+    5. 自行依真實成交量由大到小降冪排序，確保精準取得前 limit 檔熱門標的
     """
     url = "https://tw.stock.yahoo.com/rank/volume"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
     }
     candidates = []
     try:
         resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code != 200:
-            print(f"[Yahoo排行] 請求失敗 HTTP {resp.status_code}")
-            return []
-        
+        resp.raise_for_status()
+
         soup = BeautifulSoup(resp.text, "html.parser")
         rows = soup.find_all("li", class_=lambda c: c and "List(n)" in c)
-        
-        for r in rows:
+
+        for row_idx, r in enumerate(rows):
             texts = [t.strip() for t in r.stripped_strings]
-            if len(texts) < 4:
+
+            # 動態尋找包含 .TW 或 .TWO 的代號欄位索引
+            sym_idx = next((i for i, t in enumerate(texts) if t.endswith(".TW") or t.endswith(".TWO")), -1)
+            if sym_idx == -1:
                 continue
-            symbol_raw = next((t for t in texts if ".TW" in t or ".TWO" in t), "")
-            if not symbol_raw:
-                continue
-            
+
+            symbol_raw = texts[sym_idx]
             symbol = symbol_raw.split(".")[0]
-            name = texts[0] if texts[0] != symbol_raw else symbol
-            
-            # 純4碼個股、排除 00 開頭 ETF
-            if not (len(symbol) == 4 and symbol.isdigit() and not symbol.startswith("00")):
+            name = texts[sym_idx - 1] if sym_idx > 0 else symbol
+            rank = texts[sym_idx - 2] if sym_idx >= 2 else str(row_idx + 1)
+
+            # 排除 ETF 等 00 開頭商品
+            if symbol.startswith("00"):
                 continue
-                
+
+            # 排除權證 (台股權證為6碼) 與非數字商品，保留 4~5 碼普通股票
+            if not symbol.isdigit() or len(symbol) > 5:
+                continue
+
             try:
-                price = float(texts[2].replace(",", ""))
-            except ValueError:
+                # 價格位於代號後方一位 (sym_idx + 1)
+                price = float(texts[sym_idx + 1].replace(",", ""))
+                # 成交量位於 sym_idx + 7 (亦常為倒數第二欄)
+                volume_str = texts[sym_idx + 7] if len(texts) > sym_idx + 7 else texts[-2]
+                volume = int(volume_str.replace(",", ""))
+            except (ValueError, IndexError):
                 continue
-                
+
             if price < min_price:
                 continue
 
-            candidates.append({"symbol": symbol, "name": name, "price": price})
-            if len(candidates) >= limit:
-                break
+            candidates.append({
+                "symbol": symbol,
+                "name": name,
+                "price": price,
+                "volume": volume,
+                "rank": rank,
+            })
 
+        # 明確依真實成交量 (volume) 重新排序，不單純盲目依賴網頁預設順序
+        candidates.sort(key=lambda item: item["volume"], reverse=True)
+        return candidates[:limit]
+
+    except requests.RequestException as e:
+        print(f"[Yahoo排行] 網路請求錯誤: {e}")
     except Exception as e:
-        print(f"[Yahoo排行] 解析錯誤: {e}")
-        
-    return candidates
+        print(f"[Yahoo排行] 資料解析錯誤: {e}")
+
+    return []
 
 def main():
     print("=" * 65)
@@ -532,7 +576,7 @@ def main():
         test_stocks = get_free_top_volume_stocks(limit=3)
         print("🔍 測試 Yahoo 成交量排行抓取：")
         for s in test_stocks:
-            print(f"   📌 {s['symbol']} {s['name']} (參考價: {s['price']})")
+            print(f"   📌 {s['symbol']} {s['name']} (參考價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
         
         ai_reply = "尚未測試"
         test_analysis = []
@@ -598,6 +642,9 @@ def main():
     wave1_stocks = get_free_top_volume_stocks(limit=5)
     current_stocks = wave1_stocks
     symbols = [s["symbol"] for s in current_stocks]
+    print(f"🔥 早盤 09:15 已鎖定標的：")
+    for s in wave1_stocks:
+        print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
     
     render_html_dashboard(
         status_text="早盤第一波監控中",
@@ -625,7 +672,9 @@ def main():
             if wave2_stocks:
                 current_stocks = wave2_stocks
                 symbols = [s["symbol"] for s in current_stocks]
-                print(f"🔥 中盤 10:30 已更新監控標的：{', '.join(symbols)}")
+                print(f"🔥 中盤 10:30 已更新監控標的：")
+                for s in wave2_stocks:
+                    print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
                 
             mid_wave_triggered = True
             render_html_dashboard(
@@ -663,7 +712,7 @@ def main():
                         indicators=indicators,
                         daily_candles=daily_candles,
                         prev_close=prev_close,
-                        risk_mode="auto",
+                        risk_mode="relaxed",
                         concise=True
                     )
 
@@ -698,7 +747,7 @@ def main():
                         rec_id = cache_service.add_history_record(
                             symbol=symbol,
                             model=gemini.active_model,
-                            risk_mode="auto",
+                            risk_mode="relaxed",
                             signal=raw_sig,
                             direction=res.get("direction"),
                             entry_price=entry_p,
