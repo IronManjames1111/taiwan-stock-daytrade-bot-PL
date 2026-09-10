@@ -1433,19 +1433,47 @@ class GeminiService:
     # ──────────────────────────────────────────
     #  底層 API 呼叫（支援多模型優先順序自動選擇與 Fallback）
     # ──────────────────────────────────────────
+    @staticmethod
+    def _thinking_config_for(target_model: str) -> Optional[dict]:
+        """
+        依模型世代回傳對應的 thinkingConfig，讓思考預算盡量讓給正式輸出：
+        - Gemma 4 系列（gemma-4-31b-it / gemma-4-26b-a4b-it）：
+          官方文件僅支援 "high"(開) / "minimal"(關) 兩檔，用 thinking_level="minimal"。
+          （註：Google 開發者論壇有回報此參數對 Gemma 4 不一定完全生效，
+          仍保留下方「空輸出+MAX_TOKENS 自動倍增 token 重試」機制作為保險。）
+        - Gemini 3.x 系列（gemini-3.5-flash / gemini-3.5-flash-lite 等）：
+          用 thinkingLevel="low"（不支援完全關閉，low 是最省 token 的可用檔位之一）。
+        - Gemini 2.5 系列：用 thinkingBudget=0（可完全關閉思考）。
+        - Gemini 2.0 系列：本身不支援 thinking，不附加 thinkingConfig。
+        """
+        name = target_model.lower()
+        if name.startswith("gemma-4"):
+            return {"thinkingLevel": "minimal"}
+        if name.startswith("gemini-3"):
+            return {"thinkingLevel": "low"}
+        if name.startswith("gemini-2.5"):
+            return {"thinkingBudget": 0}
+        return None  # gemini-2.0-* 等不支援 thinking 的模型，不附加設定
+
     def _call(self, prompt: str, max_tokens: int = 800) -> Optional[str]:
         if not self.api_key:
             return "❌ 尚未設定 Gemini API Key，請至設定頁面填入"
-
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens},
-        }
 
         # 依優先順序輪流嘗試模型
         for model_idx, target_model in enumerate(self.model_priority):
             url = GEMINI_API_URL.format(model=target_model)
             print(f"[Gemini] 優先嘗試模型 ({model_idx+1}/{len(self.model_priority)}): {target_model}")
+
+            generation_config = {"temperature": 0.2, "maxOutputTokens": max_tokens}
+            thinking_cfg = self._thinking_config_for(target_model)
+            if thinking_cfg:
+                generation_config["thinkingConfig"] = thinking_cfg
+                print(f"[Gemini] 套用 thinkingConfig={thinking_cfg} 於 [{target_model}]")
+
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": generation_config,
+            }
 
             for attempt in range(1, MAX_RETRIES + 1):
                 try:

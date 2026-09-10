@@ -361,7 +361,7 @@ def render_html_dashboard(
                     <span class="bg-amber-950 text-amber-400 p-1.5 rounded-lg text-sm">🏆</span>
                     <div>
                         <h2 class="font-bold text-white text-base">今日當沖回測結算 (收盤回放)</h2>
-                        <p class="text-xs text-gray-400">13:25 自動以當日 1分K 逐根回放比對真實賺賠 (扣除 6折手續費與 0.15% 減半證交稅)</p>
+                        <p class="text-xs text-gray-400">13:25 自動以當日 1分K 逐根回放比對真實賺賠 (扣除 2.8折手續費與 0.15% 減半證交稅)</p>
                     </div>
                 </div>
                 <span class="text-xs text-amber-400 font-semibold">13:25 結算</span>
