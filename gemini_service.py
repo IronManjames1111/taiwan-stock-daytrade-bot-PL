@@ -1476,6 +1476,14 @@ class GeminiService:
 
                             if finish_reason == "MAX_TOKENS" or finish_reason == "RECITATION":
                                 print(f"[Gemini] ⚠️ 輸出被截斷！finishReason={finish_reason}，建議提高 max_tokens")
+                                # Gemma 系列模型常把 token 額度耗在內部思考(thought)過程，
+                                # 導致正式輸出的 text 還沒生成就被截斷（text長度=0）。
+                                # 這種情況下不要直接放棄，先用加倍的 token 上限對同一模型重打一次。
+                                if not text and payload["generationConfig"]["maxOutputTokens"] < max_tokens * 4:
+                                    boosted = payload["generationConfig"]["maxOutputTokens"] * 2
+                                    print(f"[Gemini] 🔁 偵測到空輸出+截斷，改用 maxOutputTokens={boosted} 對 [{target_model}] 重試...")
+                                    payload["generationConfig"]["maxOutputTokens"] = boosted
+                                    continue  # 用新的 token 上限重打本次 attempt（不消耗下一個模型的機會）
 
                             if not text:
                                 return "❌ Gemini 回傳空內容"
@@ -2915,7 +2923,10 @@ K棒型態:{candle_pattern or "資料不足"}  動能:{momentum_text or "資料�
             concise         = concise,
             orderbook       = orderbook,
         )
-        max_toks  = 1000 if concise else 1500 #AI輸出文字
+        # Gemma 系列模型（gemma-4-31b-it / gemma-4-26b-a4b-it）常把大量 token 用在內部推理過程，
+        # 若上限設太低，會在還沒吐出 SIGNAL: 正文前就被截斷 (finishReason=MAX_TOKENS, text長度=0)，
+        # 導致該次分析直接視為失敗、股票只能標記為 watch。故提高上限留足緩衝空間。
+        max_toks  = 2500 if concise else 3000 #AI輸出文字
         full_text = self._call(prompt, max_tokens=max_toks) or "AI 分析失敗"
         result["full_text"] = full_text
 

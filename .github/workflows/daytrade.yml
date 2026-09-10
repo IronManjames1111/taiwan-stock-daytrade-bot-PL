@@ -5,6 +5,17 @@ on:
     # 台灣時間 (UTC+8) 週一至週五早上 08:55 啟動 (換算 UTC 為 00:55)
     - cron: '55 0 * * 1-5'
   workflow_dispatch: # 支援在 GitHub 網頁上手動點擊「Run workflow」隨時測試
+    inputs:
+      risk_mode:
+        description: '風險模式：aggressive / conservative / auto / relaxed(實驗性寬鬆模式)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - aggressive
+          - conservative
+          - relaxed
 
 permissions:
   contents: write # 允許 Actions 把回測報表 commit 並 push 回倉庫
@@ -34,18 +45,35 @@ jobs:
           FUGLE_API_KEY: ${{ secrets.FUGLE_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+          # 排程自動觸發時走 repo variable RISK_MODE（可在 Settings > Secrets and variables > Actions > Variables 設定，預設 auto）
+          # 手動點 Run workflow 時，可用下拉選單即時覆蓋（優先權更高）
+          RISK_MODE: ${{ inputs.risk_mode || vars.RISK_MODE || 'auto' }}
           PYTHONUNBUFFERED: "1"
         run: |
+          echo "本次執行風險模式：$RISK_MODE"
           python headless_trader.py
 
       - name: 提交並推送回測紀錄至 GitHub
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add history_records/ analysis_history.json index.html || true
+
+          # 逐一 add，避免任一路徑不存在時 fatal 中斷、連帶讓後面的檔案沒被加入 staging
+          # （之前 `git add history_records/ analysis_history.json index.html` 這種一次性寫法，
+          #   只要中間任何一個路徑不存在，該指令就會整行失敗，導致排在它後面的 index.html 永遠沒被 commit）
+          git add index.html 2>/dev/null || echo "⚠️ index.html 加入 staging 失敗（略過）"
+          git add history_records/ 2>/dev/null || echo "ℹ️ history_records/ 無內容可加入（略過）"
+          git add analysis_history.json 2>/dev/null || echo "ℹ️ analysis_history.json 不存在（略過，不影響其他檔案）"
+
+          echo "── 本次待推送的檔案 ──"
+          git status --short
+
           if git diff --staged --quiet; then
             echo "ℹ️ 目前無新增的回測報表，略過推送步驟。"
           else
-            git commit -m "自動更新當沖回測紀錄 [$(date +'%Y-%m-%d')]"
+            git commit -m "自動更新當沖回測紀錄 [$(date +'%Y-%m-%d %H:%M')]"
+            # 避免與同時間其他 run 或手動 commit 衝突，先 rebase 再 push
+            git pull --rebase origin main || true
             git push origin main
+            echo "✅ 已成功推送 index.html 等最新回測紀錄"
           fi

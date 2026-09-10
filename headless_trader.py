@@ -644,6 +644,18 @@ def main():
     gemini = GeminiService(api_key=gemini_api_key, model_priority=PREFERRED_MODELS)
     print(f"🤖 AI 模型優先選擇順序: {' -> '.join(PREFERRED_MODELS)}")
 
+    # ── 風險模式設定（可用 RISK_MODE 環境變數覆蓋，預設 auto）──────────
+    # 合法值：aggressive / conservative / auto / relaxed（實驗性寬鬆模式）
+    VALID_RISK_MODES = {"aggressive", "conservative", "auto", "relaxed"}
+    RISK_MODE = (os.getenv("RISK_MODE") or cfg.get("risk_mode") or "auto").strip().lower()
+    if RISK_MODE not in VALID_RISK_MODES:
+        print(f"⚠️ 未知的 RISK_MODE 設定值「{RISK_MODE}」，已自動回退為 auto")
+        RISK_MODE = "auto"
+    if RISK_MODE == "relaxed":
+        print("🧪 目前使用【實驗性寬鬆模式】：訊號門檻降低，訊號數量會明顯變多，僅建議測試用途。")
+    else:
+        print(f"⚙️ 目前使用風險模式：{RISK_MODE}")
+
     now = get_tw_now()
     hm = now.strftime("%H:%M")
     is_weekend = now.weekday() >= 5
@@ -794,7 +806,7 @@ def main():
                         indicators=indicators,
                         daily_candles=daily_candles,
                         prev_close=prev_close,
-                        risk_mode="auto",
+                        risk_mode=RISK_MODE,
                         concise=True
                     )
 
@@ -829,7 +841,7 @@ def main():
                         rec_id = cache_service.add_history_record(
                             symbol=symbol,
                             model=gemini.active_model,
-                            risk_mode="auto",
+                            risk_mode=RISK_MODE,
                             signal=raw_sig,
                             direction=res.get("direction"),
                             entry_price=entry_p,
