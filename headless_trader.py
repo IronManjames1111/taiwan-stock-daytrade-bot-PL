@@ -79,6 +79,22 @@ def render_html_dashboard(
     latest_analysis = latest_analysis or []
     settle_records = settle_records or []
 
+    # ── 下載功能：把本次看板的完整原始資料打包成 JSON，供頁面右上角下載按鈕使用 ──
+    export_payload = {
+        "generated_at": now_str,
+        "status_text": status_text,
+        "active_model": active_model,
+        "total_signals": total_signals,
+        "wave1_stocks": wave1_stocks,
+        "wave2_stocks": wave2_stocks,
+        "latest_analysis": latest_analysis,
+        "settle_records": settle_records,
+    }
+    # ensure_ascii=False 保留中文可讀；再用 json.dumps 序列化成字串安全地塞進 <script> 的 JS 常數
+    export_json_str = json.dumps(export_payload, ensure_ascii=False, indent=2)
+    # </script> 若原封不動出現在字串內會提前結束 script 標籤，需要跳脫
+    export_json_js_safe = export_json_str.replace("</", "<\\/")
+
     # 計算損益卡片文字
     pnl_text = "尚未結算"
     pnl_class = "text-gray-400"
@@ -246,6 +262,14 @@ def render_html_dashboard(
                     <span class="text-gray-400">更新時間:</span>
                     <span class="text-white mono ml-1">{now_str}</span>
                 </div>
+                <button type="button" onclick="downloadJSON()"
+                    class="bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-800/60 text-indigo-300 rounded-xl px-3 py-2 font-semibold transition cursor-pointer">
+                    ⬇️ 下載 JSON
+                </button>
+                <button type="button" onclick="downloadCSV()"
+                    class="bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800/60 text-emerald-300 rounded-xl px-3 py-2 font-semibold transition cursor-pointer">
+                    ⬇️ 下載 CSV
+                </button>
             </div>
         </header>
 
@@ -370,6 +394,64 @@ def render_html_dashboard(
     <script>
         const PWD_HASH = "{pwd_hash}";
         const PWD_B64 = "{pwd_b64}";
+
+        // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
+        const EXPORT_DATA = {export_json_js_safe};
+
+        function triggerDownload(content, filename, mimeType) {{
+            const blob = new Blob([content], {{ type: mimeType }});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }}
+
+        function downloadJSON() {{
+            const ts = EXPORT_DATA.generated_at.replace(/[: ]/g, "-");
+            const content = JSON.stringify(EXPORT_DATA, null, 2);
+            triggerDownload(content, `daytrade_${{ts}}.json`, "application/json;charset=utf-8");
+        }}
+
+        // 將單一儲存格值轉為安全的 CSV 欄位 (處理逗號、雙引號、換行)
+        function csvCell(val) {{
+            if (val === null || val === undefined) return "";
+            const str = String(val);
+            if (/[",\\n]/.test(str)) {{
+                return '"' + str.replace(/"/g, '""') + '"';
+            }}
+            return str;
+        }}
+
+        function csvSection(title, rows) {{
+            if (!rows || rows.length === 0) {{
+                return `${{title}}\\n(無資料)\\n\\n`;
+            }}
+            const headers = Object.keys(rows[0]);
+            const lines = [headers.join(",")];
+            for (const row of rows) {{
+                lines.push(headers.map(h => csvCell(row[h])).join(","));
+            }}
+            return `${{title}}\\n${{lines.join("\\n")}}\\n\\n`;
+        }}
+
+        function downloadCSV() {{
+            const ts = EXPORT_DATA.generated_at.replace(/[: ]/g, "-");
+            let csv = "\\uFEFF"; // UTF-8 BOM，確保 Excel 開啟中文不亂碼
+            csv += `AI 當沖雲端即時看板匯出報表\\n`;
+            csv += `產生時間,${{csvCell(EXPORT_DATA.generated_at)}}\\n`;
+            csv += `目前狀態,${{csvCell(EXPORT_DATA.status_text)}}\\n`;
+            csv += `AI 模型,${{csvCell(EXPORT_DATA.active_model)}}\\n`;
+            csv += `累計訊號數,${{csvCell(EXPORT_DATA.total_signals)}}\\n\\n`;
+            csv += csvSection("【波段一 09:15 選股】", EXPORT_DATA.wave1_stocks);
+            csv += csvSection("【波段二 10:30 選股】", EXPORT_DATA.wave2_stocks);
+            csv += csvSection("【AI 即時分析訊號】", EXPORT_DATA.latest_analysis);
+            csv += csvSection("【收盤結算紀錄】", EXPORT_DATA.settle_records);
+            triggerDownload(csv, `daytrade_${{ts}}.csv`, "text/csv;charset=utf-8");
+        }}
 
         async function sha256(str) {{
             try {{
@@ -712,7 +794,7 @@ def main():
                         indicators=indicators,
                         daily_candles=daily_candles,
                         prev_close=prev_close,
-                        risk_mode="relaxed",
+                        risk_mode="auto",
                         concise=True
                     )
 
@@ -747,7 +829,7 @@ def main():
                         rec_id = cache_service.add_history_record(
                             symbol=symbol,
                             model=gemini.active_model,
-                            risk_mode="relaxed",
+                            risk_mode="auto",
                             signal=raw_sig,
                             direction=res.get("direction"),
                             entry_price=entry_p,
