@@ -1438,7 +1438,7 @@ class GeminiService:
         """
         依模型世代回傳對應的 thinkingConfig，讓思考預算盡量讓給正式輸出：
         - Gemma 4 系列（gemma-4-31b-it / gemma-4-26b-a4b-it）：
-          官方文件僅支援 "high"(開) / "minimal"(關) 兩檔，用 thinking_level="minimal"。
+          官方文件僅支援 "high"(開) / "low"(關) 兩檔，用 thinking_level="low"。
           （註：Google 開發者論壇有回報此參數對 Gemma 4 不一定完全生效，
           仍保留下方「空輸出+MAX_TOKENS 自動倍增 token 重試」機制作為保險。）
         - Gemini 3.x 系列（gemini-3.5-flash / gemini-3.5-flash-lite 等）：
@@ -1448,7 +1448,7 @@ class GeminiService:
         """
         name = target_model.lower()
         if name.startswith("gemma-4"):
-            return {"thinkingLevel": "minimal"}
+            return {"thinkingLevel": "low"}
         if name.startswith("gemini-3"):
             return {"thinkingLevel": "low"}
         if name.startswith("gemini-2.5"):
