@@ -1438,7 +1438,7 @@ class GeminiService:
         """
         依模型世代回傳對應的 thinkingConfig，讓思考預算盡量讓給正式輸出：
         - Gemma 4 系列（gemma-4-31b-it / gemma-4-26b-a4b-it）：
-          官方文件僅支援 "high"(開) / "low"(關) 兩檔，用 thinking_level="low"。
+          官方文件僅支援 "high"(開) / "minimal"(關) 兩檔，用 thinking_level="minimal"。
           （註：Google 開發者論壇有回報此參數對 Gemma 4 不一定完全生效，
           仍保留下方「空輸出+MAX_TOKENS 自動倍增 token 重試」機制作為保險。）
         - Gemini 3.x 系列（gemini-3.5-flash / gemini-3.5-flash-lite 等）：
@@ -1448,14 +1448,14 @@ class GeminiService:
         """
         name = target_model.lower()
         if name.startswith("gemma-4"):
-            return {"thinkingLevel": "low"}
+            return {"thinkingLevel": "minimal"}
         if name.startswith("gemini-3"):
             return {"thinkingLevel": "low"}
         if name.startswith("gemini-2.5"):
             return {"thinkingBudget": 0}
         return None  # gemini-2.0-* 等不支援 thinking 的模型，不附加設定
 
-    def _call(self, prompt: str, max_tokens: int = 800) -> Optional[str]:
+    def _call(self, prompt: str, max_tokens: int = 65536) -> Optional[str]:
         if not self.api_key:
             return "❌ 尚未設定 Gemini API Key，請至設定頁面填入"
 
@@ -1507,8 +1507,8 @@ class GeminiService:
                                 # Gemma 系列模型常把 token 額度耗在內部思考(thought)過程，
                                 # 導致正式輸出的 text 還沒生成就被截斷（text長度=0）。
                                 # 這種情況下不要直接放棄，先用加倍的 token 上限對同一模型重打一次。
-                                if not text and payload["generationConfig"]["maxOutputTokens"] < max_tokens * 4:
-                                    boosted = payload["generationConfig"]["maxOutputTokens"] * 2
+                                if not text and payload["generationConfig"]["maxOutputTokens"] < 65536:
+                                    boosted = min(payload["generationConfig"]["maxOutputTokens"] * 2, 65536)
                                     print(f"[Gemini] 🔁 偵測到空輸出+截斷，改用 maxOutputTokens={boosted} 對 [{target_model}] 重試...")
                                     payload["generationConfig"]["maxOutputTokens"] = boosted
                                     continue  # 用新的 token 上限重打本次 attempt（不消耗下一個模型的機會）
@@ -2954,7 +2954,7 @@ K棒型態:{candle_pattern or "資料不足"}  動能:{momentum_text or "資料�
         # Gemma 系列模型（gemma-4-31b-it / gemma-4-26b-a4b-it）常把大量 token 用在內部推理過程，
         # 若上限設太低，會在還沒吐出 SIGNAL: 正文前就被截斷 (finishReason=MAX_TOKENS, text長度=0)，
         # 導致該次分析直接視為失敗、股票只能標記為 watch。故提高上限留足緩衝空間。
-        max_toks  = 2500 if concise else 3000 #AI輸出文字
+        max_toks  = 65536 #AI輸出文字：改為模型可用上限，不再主動限制輸出長度
         full_text = self._call(prompt, max_tokens=max_toks) or "AI 分析失敗"
         result["full_text"] = full_text
 
