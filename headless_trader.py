@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-headless_trader.py - 雲端無頭當沖機器人 (v3.0 獨立網頁看板版)
+headless_trader.py - 雲端無頭當沖機器人 (v4.0 單輪執行 + 狀態持久化版)
 ─────────────────────────────────────────────────────────────
 • 09:15 早盤第一次抓取成交量排行前 5 檔 (避開開盤假突破雜訊)
 • 10:30 中盤第二次重新抓取成交量排行前 5 檔 (鎖定盤中換手輪動飆股)
@@ -8,6 +8,20 @@ headless_trader.py - 雲端無頭當沖機器人 (v3.0 獨立網頁看板版)
 • 自動生成獨立網頁 index.html (透過 GitHub Pages 提供免登入固定專屬網址)
 • 同步輸出 GitHub Step Summary 即時 Markdown 看板
 • 13:25 收盤自動回放當日 1分K 結算盈虧，產出 CSV 報表保存至 GitHub
+
+v4.0 架構變更說明：
+────────────────
+舊版本用單一個 GitHub Actions job、從 09:15 內部 while 迴圈一路等到 13:25 才結束，
+中間雖然每 10 分鐘會呼叫 render_html_dashboard() 更新本地 index.html，
+但 git commit / push 只在整個 script 執行完畢後才跑一次 —— 導致：
+  1) 使用者在收盤前完全看不到網站上的即時進度（只有結算後才看得到）
+  2) latest_analysis_records 每輪都被整個清空重建，畫面上只顯示「最新一輪」的少數幾檔，
+     不是當日所有分析紀錄的累積結果
+
+新版本改為「單輪執行、執行完立即結束」，並將 wave1/wave2 股票池、累積分析紀錄、
+是否已觸發過中盤重挑等狀態存入 dashboard_state.json，寫回 repo 供下一次 workflow
+觸發時讀取接續使用。搭配 GitHub Actions 端的高頻率 cron（每 5 分鐘一次）與每輪
+執行完立即 commit/push，讓網站可以做到近乎即時更新。
 """
 
 import os
@@ -129,30 +143,35 @@ def render_html_dashboard(
     else:
         wave2_html = '<li class="text-gray-500 text-xs py-2">10:30 自動重新掃描成交量排行...</li>'
 
-    # 生成分析表格
+    # 生成分析表格（依訊號分類貼上 data-filter-group 屬性，供前端做多/做空/觀望篩選使用）
     analysis_rows = ""
     if latest_analysis:
         for a in latest_analysis:
             sig = a.get("signal", "WATCH")
-            sig_badge = (
-                '<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">🟢 做多</span>'
-                if "BUY" in sig else
-                '<span class="px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-bold">🔴 放空</span>'
-                if "SHORT" in sig else
-                '<span class="px-2 py-0.5 rounded bg-gray-800 text-gray-400">⚪ 觀望</span>'
-            )
+            if "BUY" in sig:
+                filter_group = "long"
+                sig_badge = '<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">🟢 做多</span>'
+            elif "SHORT" in sig:
+                filter_group = "short"
+                sig_badge = '<span class="px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-bold">🔴 放空</span>'
+            else:
+                filter_group = "watch"
+                sig_badge = '<span class="px-2 py-0.5 rounded bg-gray-800 text-gray-400">⚪ 觀望</span>'
+
+            updated_at = a.get("updated_at", "")
             analysis_rows += f"""
-            <tr class="hover:bg-gray-800/30">
+            <tr class="hover:bg-gray-800/30 analysis-row" data-filter-group="{filter_group}">
                 <td class="py-2.5 px-3 font-bold text-white">{a.get('symbol')} {a.get('name', '')}</td>
                 <td class="py-2.5 px-3">{sig_badge}</td>
                 <td class="py-2.5 px-3 mono text-gray-200">{a.get('entry', '-')}</td>
                 <td class="py-2.5 px-3 mono text-emerald-400">{a.get('stop_loss', '-')}</td>
                 <td class="py-2.5 px-3 mono text-red-400">{a.get('target', '-')}</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">{a.get('reason', '')}</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono">{updated_at}</td>
             </tr>
             """
     else:
-        analysis_rows = '<tr><td colspan="6" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr>'
+        analysis_rows = '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr>'
 
     # 生成結算表格
     settle_rows = ""
@@ -203,6 +222,12 @@ def render_html_dashboard(
             30%, 50%, 70% {{ transform: translate3d(-4px, 0, 0); }}
             40%, 60% {{ transform: translate3d(4px, 0, 0); }}
         }}
+        /* 訊號篩選按鈕：預設(未選取)樣式，JS 會依目前選取狀態動態切換 active 樣式 */
+        .filter-btn {{ background-color: #1f2937; border-color: #374151; color: #9ca3af; }}
+        .filter-btn.active-all {{ background-color: #312e81; border-color: #6366f1; color: #c7d2fe; }}
+        .filter-btn.active-long {{ background-color: #022c22; border-color: #10b981; color: #6ee7b7; }}
+        .filter-btn.active-short {{ background-color: #450a0a; border-color: #ef4444; color: #fca5a5; }}
+        .filter-btn.active-watch {{ background-color: #1f2937; border-color: #9ca3af; color: #e5e7eb; }}
     </style>
 </head>
 <body class="min-h-screen p-3 md:p-6 flex flex-col justify-between">
@@ -326,15 +351,36 @@ def render_html_dashboard(
 
         <!-- 最新 10 分鐘分析結果 -->
         <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-            <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-4">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-800 pb-3 mb-4 gap-3">
                 <div class="flex items-center gap-2">
                     <span class="bg-emerald-950 text-emerald-400 p-1.5 rounded-lg text-sm">🤖</span>
                     <div>
                         <h2 class="font-bold text-white text-base">即時當沖多空訊號 & 決策理由</h2>
-                        <p class="text-xs text-gray-400">每 10 分鐘調用 Gemini / Gemma 深度判定進出場價與停損利</p>
+                        <p class="text-xs text-gray-400">每 10 分鐘調用 Gemini / Gemma 深度判定進出場價與停損利，累積顯示當日所有分析紀錄</p>
                     </div>
                 </div>
                 <span class="text-xs text-gray-400 mono">每 60 秒自動刷新</span>
+            </div>
+
+            <!-- 🔎 訊號篩選按鈕：做多 / 做空 / 觀望 / 全部 -->
+            <div class="flex flex-wrap items-center gap-2 mb-4">
+                <span class="text-xs text-gray-500 mr-1">篩選訊號：</span>
+                <button type="button" onclick="setSignalFilter('all')" id="filter-btn-all"
+                    class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
+                    全部 <span id="count-all" class="mono"></span>
+                </button>
+                <button type="button" onclick="setSignalFilter('long')" id="filter-btn-long"
+                    class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
+                    🟢 做多 <span id="count-long" class="mono"></span>
+                </button>
+                <button type="button" onclick="setSignalFilter('short')" id="filter-btn-short"
+                    class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
+                    🔴 做空 <span id="count-short" class="mono"></span>
+                </button>
+                <button type="button" onclick="setSignalFilter('watch')" id="filter-btn-watch"
+                    class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
+                    ⚪ 觀望 <span id="count-watch" class="mono"></span>
+                </button>
             </div>
 
             <div class="overflow-x-auto">
@@ -347,10 +393,12 @@ def render_html_dashboard(
                             <th class="py-2.5 px-3">建議停損</th>
                             <th class="py-2.5 px-3">建議停利</th>
                             <th class="py-2.5 px-3">AI 決策依據 (Prompt 優化重點)</th>
+                            <th class="py-2.5 px-3">更新時間</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-800/60">{analysis_rows}</tbody>
+                    <tbody id="analysis-tbody" class="divide-y divide-gray-800/60">{analysis_rows}</tbody>
                 </table>
+                <p id="filter-empty-msg" class="hidden text-center text-gray-500 text-xs py-6">此篩選條件下目前沒有符合的標的</p>
             </div>
         </div>
 
@@ -518,7 +566,54 @@ def render_html_dashboard(
             if (savedToken === PWD_B64 || savedToken === PWD_HASH) {{
                 unlockUI();
             }}
+            initSignalFilter();
         }});
+
+        // ── 訊號篩選：做多 / 做空 / 觀望 / 全部 ─────────────────────────
+        // 篩選狀態保存在 localStorage，重新整理頁面（每 60 秒自動刷新）後仍會記住上次的選擇
+        function initSignalFilter() {{
+            const saved = localStorage.getItem("daytrade_signal_filter") || "all";
+            setSignalFilter(saved);
+        }}
+
+        function setSignalFilter(group) {{
+            localStorage.setItem("daytrade_signal_filter", group);
+
+            const rows = document.querySelectorAll("#analysis-tbody .analysis-row");
+            const counts = {{ all: 0, long: 0, short: 0, watch: 0 }};
+            let visibleCount = 0;
+
+            rows.forEach(row => {{
+                const rowGroup = row.getAttribute("data-filter-group");
+                if (rowGroup && counts.hasOwnProperty(rowGroup)) {{
+                    counts[rowGroup]++;
+                    counts.all++;
+                }}
+                const shouldShow = (group === "all") || (rowGroup === group);
+                row.style.display = shouldShow ? "" : "none";
+                if (shouldShow) visibleCount++;
+            }});
+
+            // 更新按鈕上的統計數字
+            ["all", "long", "short", "watch"].forEach(g => {{
+                const el = document.getElementById(`count-${{g}}`);
+                if (el) el.textContent = `(${{counts[g]}})`;
+            }});
+
+            // 更新按鈕選取樣式
+            ["all", "long", "short", "watch"].forEach(g => {{
+                const btn = document.getElementById(`filter-btn-${{g}}`);
+                if (!btn) return;
+                btn.classList.remove("active-all", "active-long", "active-short", "active-watch");
+                if (g === group) btn.classList.add(`active-${{g}}`);
+            }});
+
+            // 空狀態提示：若表格原本就沒有任何資料列（尚未產生分析），不顯示「無符合資料」訊息
+            const emptyMsg = document.getElementById("filter-empty-msg");
+            if (emptyMsg) {{
+                emptyMsg.classList.toggle("hidden", !(rows.length > 0 && visibleCount === 0));
+            }}
+        }}
     </script>
 </body>
 </html>
@@ -537,6 +632,58 @@ def render_html_dashboard(
 
 # 保留別名相容性
 update_html_dashboard = render_html_dashboard
+
+STATE_FILE = "dashboard_state.json"
+
+def load_dashboard_state(today_str: str) -> Dict:
+    """
+    讀取上一輪次留下的看板狀態。若狀態檔不存在，或存的是「不同日期」的舊資料
+    (例如今天是新的交易日，但檔案還留著昨天收盤的紀錄)，則回傳全新的空白狀態，
+    避免不同交易日的資料互相混雜。
+    """
+    default_state = {
+        "date": today_str,
+        "wave1_stocks": [],
+        "wave2_stocks": [],
+        "mid_wave_triggered": False,
+        "latest_analysis_records": [],  # 累積型：同一檔股票用 symbol 當 key 覆蓋更新，不同股票會並存
+        "total_signals": 0,
+        "last_analysis_minute_bucket": None,  # 記錄上次執行過 10 分鐘分析的時間戳記，避免同一個 5 分鐘窗被重複觸發兩次
+    }
+    if not os.path.exists(STATE_FILE):
+        return default_state
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            state = json.load(f)
+        if state.get("date") != today_str:
+            print(f"ℹ️ 偵測到狀態檔案為前一交易日 ({state.get('date')}) 的資料，重置為今日 ({today_str}) 全新狀態。")
+            return default_state
+        return state
+    except Exception as e:
+        print(f"⚠️ 讀取 {STATE_FILE} 失敗，改用全新狀態: {e}")
+        return default_state
+
+def save_dashboard_state(state: Dict):
+    try:
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ 寫入 {STATE_FILE} 失敗: {e}")
+
+def upsert_analysis_record(records: List[Dict], new_record: Dict) -> List[Dict]:
+    """
+    將本次分析結果併入累積清單：同一檔股票(symbol)存在就覆蓋更新為最新結果，
+    不存在就新增一筆，藉此讓網站顯示「當日所有被分析過的股票」而不是只有最新一輪的幾檔。
+    """
+    updated = False
+    for i, r in enumerate(records):
+        if r.get("symbol") == new_record.get("symbol"):
+            records[i] = new_record
+            updated = True
+            break
+    if not updated:
+        records.append(new_record)
+    return records
 
 def get_free_top_volume_stocks(limit: int = 5, min_price: float = 10.0) -> List[Dict]:
     """
@@ -711,199 +858,232 @@ def main():
         print("\n🎉 GitHub Actions 測試驗證全數通過！專屬網頁 index.html 已更新。")
         return
 
-    # ── 正式盤中雙波段運作流程 ─────────────────────────────────────
-    wave1_stocks = []
-    wave2_stocks = []
-    latest_analysis_records = []
-    total_signals = 0
+    # ── 正式盤中運作流程（v4.0：單輪執行模式）──────────────────────
+    # 讀取上一輪次留下的狀態（同一交易日內累積），這是讓分析紀錄能夠「累加」
+    # 而不是每次觸發都從零開始、只顯示最新幾筆的關鍵。
+    state = load_dashboard_state(today_str)
+    wave1_stocks = state["wave1_stocks"]
+    wave2_stocks = state["wave2_stocks"]
+    mid_wave_triggered = state["mid_wave_triggered"]
+    latest_analysis_records = state["latest_analysis_records"]
+    total_signals = state["total_signals"]
+    last_bucket = state["last_analysis_minute_bucket"]
 
-    render_html_dashboard(
-        status_text="盤前準備中 (等待 09:15)",
-        active_model=gemini.active_model
-    )
+    current_stocks = wave2_stocks if wave2_stocks else wave1_stocks
 
-    # 1. 等待至 09:15 (避開開盤 15 分鐘前置雜訊)
-    while True:
-        now = get_tw_now()
-        hm = now.strftime("%H:%M")
-        if hm >= "09:15":
-            break
-        print(f"[{now.strftime('%H:%M:%S')}] 等待開盤至 09:15:00 (ORB-15 區間成型)...")
-        time.sleep(15)
+    # 盤前 (08:50~09:14)：只更新「準備中」狀態，不抓股也不分析
+    if hm < "09:15":
+        print(f"[{now.strftime('%H:%M:%S')}] 尚未到 09:15 開盤選股時間，僅更新盤前準備狀態。")
+        render_html_dashboard(
+            status_text="盤前準備中 (等待 09:15)",
+            active_model=gemini.active_model,
+            wave1_stocks=wave1_stocks,
+            wave2_stocks=wave2_stocks,
+            latest_analysis=latest_analysis_records,
+            total_signals=total_signals
+        )
+        save_dashboard_state(state)
+        return
 
-    # 第一次選股 (09:15 早盤主力突破股)
-    print(f"\n⏰ 達到 09:15，開始執行【第一波段：早盤動能成交量排行選股】...")
-    wave1_stocks = get_free_top_volume_stocks(limit=5)
-    current_stocks = wave1_stocks
-    symbols = [s["symbol"] for s in current_stocks]
-    print(f"🔥 早盤 09:15 已鎖定標的：")
-    for s in wave1_stocks:
-        print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
-    
-    render_html_dashboard(
-        status_text="早盤第一波監控中",
-        active_model=gemini.active_model,
-        wave1_stocks=wave1_stocks
-    )
+    # 09:15 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
+    if hm >= "09:15" and not wave1_stocks:
+        print(f"\n⏰ 達到 09:15，開始執行【第一波段：早盤動能成交量排行選股】...")
+        wave1_stocks = get_free_top_volume_stocks(limit=5)
+        current_stocks = wave1_stocks
+        print(f"🔥 早盤 09:15 已鎖定標的：")
+        for s in wave1_stocks:
+            print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
 
-    mid_wave_triggered = False
+        state["wave1_stocks"] = wave1_stocks
+        render_html_dashboard(
+            status_text="早盤第一波監控中",
+            active_model=gemini.active_model,
+            wave1_stocks=wave1_stocks,
+            latest_analysis=latest_analysis_records,
+            total_signals=total_signals
+        )
+        save_dashboard_state(state)
+        # 選股完當輪就結束，讓 workflow 立即 commit/push，下一次 5 分鐘後的觸發再繼續分析
+        print("✅ 本輪次（選股）執行完畢。")
+        return
 
-    # 2. 09:15 ~ 13:25 盤中輪詢迴圈
-    print("\n📈 進入每 10 分鐘例行分析迴圈...")
-    while True:
-        now = get_tw_now()
-        hm = now.strftime("%H:%M")
+    # 10:30 觸發：第二波段重挑股票 (只做一次)
+    if hm >= "10:30" and not mid_wave_triggered:
+        print(f"\n⏰ 達到 10:30，開始執行【第二波段：中盤換手與輪動股票重挑】...")
+        wave2_stocks = get_free_top_volume_stocks(limit=5)
+        if wave2_stocks:
+            current_stocks = wave2_stocks
+            print(f"🔥 中盤 10:30 已更新監控標的：")
+            for s in wave2_stocks:
+                print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
 
-        # 達到 13:25 收盤結算時間
-        if hm >= "13:25":
-            print(f"\n🔔 [{now.strftime('%H:%M:%S')}] 達到 13:25 收盤時間，開始回放結算！")
-            break
+        mid_wave_triggered = True
+        state["wave2_stocks"] = wave2_stocks
+        state["mid_wave_triggered"] = True
+        render_html_dashboard(
+            status_text="中盤第二波監控中",
+            active_model=gemini.active_model,
+            wave1_stocks=wave1_stocks,
+            wave2_stocks=wave2_stocks,
+            latest_analysis=latest_analysis_records,
+            total_signals=total_signals
+        )
+        save_dashboard_state(state)
+        print("✅ 本輪次（中盤重挑）執行完畢。")
+        return
 
-        # 中盤 10:30 重挑股票 (第二波段：盤中輪動飆股)
-        if hm >= "10:30" and not mid_wave_triggered:
-            print(f"\n⏰ 達到 10:30，開始執行【第二波段：中盤換手與輪動股票重挑】...")
-            wave2_stocks = get_free_top_volume_stocks(limit=5)
-            if wave2_stocks:
-                current_stocks = wave2_stocks
-                symbols = [s["symbol"] for s in current_stocks]
-                print(f"🔥 中盤 10:30 已更新監控標的：")
-                for s in wave2_stocks:
-                    print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
-                
-            mid_wave_triggered = True
-            render_html_dashboard(
-                status_text="中盤第二波監控中",
-                active_model=gemini.active_model,
-                wave1_stocks=wave1_stocks,
-                wave2_stocks=wave2_stocks,
-                latest_analysis=latest_analysis_records,
-                total_signals=total_signals
+    # 13:25 (或之後)：收盤回放結算 (只做一次；用 settle_records 是否已存在判斷本日是否已結算過)
+    if hm >= "13:25":
+        pending_records = cache_service.get_pending_history_for_date(today_str)
+        print(f"\n🎯 開始收盤分K回放結算，今日待結算筆數: {len(pending_records)}")
+
+        today_settled_list = []
+        if pending_records:
+            for rec in pending_records:
+                sym = rec["symbol"]
+                candles_raw = fugle.get_intraday_candles(sym, force_refresh=True)
+                day_candles = candles_raw.get("data", []) if candles_raw else []
+                if day_candles:
+                    cache_service.settle_history_record_with_candles(rec["id"], day_candles)
+
+            all_data = cache_service._read_history()
+            today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
+
+            os.makedirs("history_records", exist_ok=True)
+            df = pd.DataFrame(today_settled_list)
+            csv_path = f"history_records/backtest_{today_str}.csv"
+            df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+            print(f"✅ 今日回測報表已成功產出：{csv_path}")
+        else:
+            # 沒有待結算資料，也可能代表今天已經結算過了；仍讀取既有結算清單顯示在網站上
+            all_data = cache_service._read_history()
+            today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
+
+        render_html_dashboard(
+            status_text="已收盤結算完成",
+            active_model=gemini.active_model,
+            wave1_stocks=wave1_stocks,
+            wave2_stocks=wave2_stocks,
+            latest_analysis=latest_analysis_records,
+            settle_records=today_settled_list,
+            total_signals=total_signals
+        )
+        save_dashboard_state(state)
+        print("✅ 本輪次（收盤結算）執行完畢。")
+        return
+
+    # 09:15 ~ 13:25 盤中：每 10 分鐘執行一次分析 (09:20, 09:30 ... 13:20)
+    # 用 last_analysis_minute_bucket 記錄「上一次已經跑過分析的整 10 分鐘時間戳記」，
+    # 避免同一個 10 分鐘區間內，因為 cron 每 5 分鐘觸發一次而被重複執行兩次。
+    current_bucket = now.strftime("%Y-%m-%d %H:%M") if now.minute % 10 == 0 else None
+    should_analyze = current_bucket is not None and current_bucket != last_bucket
+
+    if not should_analyze:
+        print(f"[{now.strftime('%H:%M:%S')}] 尚未到下一個 10 分鐘分析時間點，本輪次僅同步目前看板狀態。")
+        render_html_dashboard(
+            status_text=f"盤中監控中 ({now.strftime('%H:%M')})",
+            active_model=gemini.active_model,
+            wave1_stocks=wave1_stocks,
+            wave2_stocks=wave2_stocks,
+            latest_analysis=latest_analysis_records,
+            total_signals=total_signals
+        )
+        save_dashboard_state(state)
+        return
+
+    print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 執行 10 分鐘定時分析...")
+    for s_info in current_stocks:
+        symbol = s_info["symbol"]
+        name = s_info["name"]
+        try:
+            candles_raw = fugle.get_intraday_candles(symbol, force_refresh=True)
+            candles = candles_raw.get("data", []) if candles_raw else []
+            if not candles or len(candles) < 5:
+                continue
+
+            indicators = fugle.get_technical_indicators(candles, is_intraday=True)
+            daily_raw = fugle.get_historical_candles(symbol)
+            daily_candles = daily_raw.get("data", []) if daily_raw else []
+            quote = fugle.get_intraday_quote(symbol) or {}
+            prev_close = quote.get("previousClose")
+
+            res = gemini.analyze_with_signal(
+                symbol=symbol,
+                candles=candles,
+                indicators=indicators,
+                daily_candles=daily_candles,
+                prev_close=prev_close,
+                risk_mode=RISK_MODE,
+                concise=True
             )
 
-        # 每 10 分鐘例行分析 (09:20, 09:30, 09:40 ... 13:20)
-        if now.minute % 10 == 0:
-            print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 執行 10 分鐘定時分析...")
-            latest_analysis_records = []
+            sig = res.get("signal", "WATCH")
+            raw_sig = res.get("raw_signal", sig)
+            entry_p = res.get("entry")
+            if isinstance(entry_p, str):
+                try: entry_p = float(entry_p.split()[0].replace("元",""))
+                except: entry_p = candles[-1]["close"]
 
-            for s_info in current_stocks:
-                symbol = s_info["symbol"]
-                name = s_info["name"]
-                try:
-                    candles_raw = fugle.get_intraday_candles(symbol, force_refresh=True)
-                    candles = candles_raw.get("data", []) if candles_raw else []
-                    if not candles or len(candles) < 5:
-                        continue
+            stop_p = res.get("stop_loss", "-")
+            target_p = res.get("target", "-")
+            reason = (res.get("reason") or res.get("full_text", "")).replace("\n", " ").strip()
+            if len(reason) > 60:
+                reason = reason[:60] + "..."
 
-                    indicators = fugle.get_technical_indicators(candles, is_intraday=True)
-                    daily_raw = fugle.get_historical_candles(symbol)
-                    daily_candles = daily_raw.get("data", []) if daily_raw else []
-                    quote = fugle.get_intraday_quote(symbol) or {}
-                    prev_close = quote.get("previousClose")
+            print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
 
-                    res = gemini.analyze_with_signal(
-                        symbol=symbol,
-                        candles=candles,
-                        indicators=indicators,
-                        daily_candles=daily_candles,
-                        prev_close=prev_close,
-                        risk_mode=RISK_MODE,
-                        concise=True
-                    )
+            # 用 upsert 併入累積清單：同一檔股票覆蓋更新，不同股票並存，
+            # 讓網站顯示的是「當日所有被分析過的股票」而不是只有這一輪的幾檔
+            latest_analysis_records = upsert_analysis_record(latest_analysis_records, {
+                "symbol": symbol,
+                "name": name,
+                "signal": sig,
+                "entry": entry_p,
+                "stop_loss": stop_p,
+                "target": target_p,
+                "reason": reason,
+                "updated_at": now.strftime("%H:%M:%S")
+            })
 
-                    sig = res.get("signal", "WATCH")
-                    raw_sig = res.get("raw_signal", sig)
-                    entry_p = res.get("entry")
-                    if isinstance(entry_p, str):
-                        try: entry_p = float(entry_p.split()[0].replace("元",""))
-                        except: entry_p = candles[-1]["close"]
+            # 出現買賣訊號時寫入歷史紀錄
+            if raw_sig in {"STRONG_BUY", "BUY", "SHORT", "STRONG_SHORT"}:
+                total_signals += 1
+                rec_id = cache_service.add_history_record(
+                    symbol=symbol,
+                    model=gemini.active_model,
+                    risk_mode=RISK_MODE,
+                    signal=raw_sig,
+                    direction=res.get("direction"),
+                    entry_price=entry_p,
+                    stop_loss=res.get("stop_loss"),
+                    take_profit=res.get("target"),
+                    shares=cfg.get("trade_shares", 1000),
+                    analysis_reason=res.get("full_text", "")
+                )
+                print(f"   👉 [已記錄交易] {symbol} {raw_sig} 寫入歷史紀錄 (ID: {rec_id})")
 
-                    stop_p = res.get("stop_loss", "-")
-                    target_p = res.get("target", "-")
-                    reason = (res.get("reason") or res.get("full_text", "")).replace("\n", " ").strip()
-                    if len(reason) > 60:
-                        reason = reason[:60] + "..."
+            time.sleep(2)
 
-                    print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
-                    
-                    latest_analysis_records.append({
-                        "symbol": symbol,
-                        "name": name,
-                        "signal": sig,
-                        "entry": entry_p,
-                        "stop_loss": stop_p,
-                        "target": target_p,
-                        "reason": reason
-                    })
+        except Exception as ex:
+            print(f"  [{symbol}] 分析異常: {ex}")
 
-                    # 出現買賣訊號時寫入歷史紀錄
-                    if raw_sig in {"STRONG_BUY", "BUY", "SHORT", "STRONG_SHORT"}:
-                        total_signals += 1
-                        rec_id = cache_service.add_history_record(
-                            symbol=symbol,
-                            model=gemini.active_model,
-                            risk_mode=RISK_MODE,
-                            signal=raw_sig,
-                            direction=res.get("direction"),
-                            entry_price=entry_p,
-                            stop_loss=res.get("stop_loss"),
-                            take_profit=res.get("target"),
-                            shares=cfg.get("trade_shares", 1000),
-                            analysis_reason=res.get("full_text", "")
-                        )
-                        print(f"   👉 [已記錄交易] {symbol} {raw_sig} 寫入歷史紀錄 (ID: {rec_id})")
+    state["wave1_stocks"] = wave1_stocks
+    state["wave2_stocks"] = wave2_stocks
+    state["mid_wave_triggered"] = mid_wave_triggered
+    state["latest_analysis_records"] = latest_analysis_records
+    state["total_signals"] = total_signals
+    state["last_analysis_minute_bucket"] = current_bucket
 
-                    time.sleep(2)
-
-                except Exception as ex:
-                    print(f"  [{symbol}] 分析異常: {ex}")
-
-            # 即時渲染網頁 index.html
-            render_html_dashboard(
-                status_text=f"盤中分析中 ({now.strftime('%H:%M')})",
-                active_model=gemini.active_model,
-                wave1_stocks=wave1_stocks,
-                wave2_stocks=wave2_stocks,
-                latest_analysis=latest_analysis_records,
-                total_signals=total_signals
-            )
-            time.sleep(65)
-
-        time.sleep(10)
-
-    # 3. 13:25 收盤回放結算
-    pending_records = cache_service.get_pending_history_for_date(today_str)
-    print(f"\n🎯 開始收盤分K回放結算，今日待結算筆數: {len(pending_records)}")
-
-    today_settled_list = []
-    if pending_records:
-        for rec in pending_records:
-            sym = rec["symbol"]
-            candles_raw = fugle.get_intraday_candles(sym, force_refresh=True)
-            day_candles = candles_raw.get("data", []) if candles_raw else []
-            if day_candles:
-                cache_service.settle_history_record_with_candles(rec["id"], day_candles)
-
-        # 重新讀取更新後的結算紀錄
-        all_data = cache_service._read_history()
-        today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
-
-        # 產出每日回測 CSV
-        os.makedirs("history_records", exist_ok=True)
-        df = pd.DataFrame(today_settled_list)
-        csv_path = f"history_records/backtest_{today_str}.csv"
-        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-        print(f"✅ 今日回測報表已成功產出：{csv_path}")
-
-    # 渲染最終收盤結算網頁
     render_html_dashboard(
-        status_text="已收盤結算完成",
+        status_text=f"盤中分析中 ({now.strftime('%H:%M')})",
         active_model=gemini.active_model,
         wave1_stocks=wave1_stocks,
         wave2_stocks=wave2_stocks,
         latest_analysis=latest_analysis_records,
-        settle_records=today_settled_list,
         total_signals=total_signals
     )
+    save_dashboard_state(state)
+    print("✅ 本輪次（10 分鐘分析）執行完畢。")
 
 if __name__ == "__main__":
     main()

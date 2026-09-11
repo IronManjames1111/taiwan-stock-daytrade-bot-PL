@@ -1,10 +1,10 @@
 name: Taiwan Stock Daytrade AI Backtest
 
 on:
-  schedule:
-    # 台灣時間 (UTC+8) 週一至週五早上 08:55 啟動 (換算 UTC 為 00:55)
-    - cron: '55 0 * * 1-5'
-  workflow_dispatch: # 支援在 GitHub 網頁上手動點擊「Run workflow」隨時測試
+  # 原本使用 GitHub 內建的 schedule 觸發不穩定 (可能延遲或被整批跳過)，
+  # 改由外部服務 cron-job.org 每 5 分鐘呼叫 GitHub REST API 的方式觸發 workflow_dispatch，
+  # 可靠度更高也更好掌控觸發時間。因此這裡移除 schedule，只保留 workflow_dispatch。
+  workflow_dispatch: # 支援在 GitHub 網頁上手動點擊「Run workflow」，以及 cron-job.org 透過 API 觸發
     inputs:
       risk_mode:
         description: '風險模式：aggressive / conservative / auto / relaxed(實驗性寬鬆模式)'
@@ -19,6 +19,12 @@ on:
 
 permissions:
   contents: write # 允許 Actions 把回測報表 commit 並 push 回倉庫
+
+concurrency:
+  # 避免高頻率排程與手動觸發同時搶跑、互相衝突 push；同一時間只允許一個 run 在跑，
+  # 新的觸發會排隊等待，而不是取消前一個 run（cancel-in-progress: false）。
+  group: daytrade-runner
+  cancel-in-progress: false
 
 jobs:
   run-trader:
@@ -40,7 +46,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 執行當沖自動分析與收盤回測
+      - name: 執行本輪次當沖分析（單輪執行，跑完立即結束）
+        # 註：actions/checkout 已還原倉庫內既有的 dashboard_state.json / history_records，
+        # headless_trader.py 會自動讀取這些檔案接續累積本日的分析狀態。
         env:
           FUGLE_API_KEY: ${{ secrets.FUGLE_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -64,6 +72,7 @@ jobs:
           git add index.html 2>/dev/null || echo "⚠️ index.html 加入 staging 失敗（略過）"
           git add history_records/ 2>/dev/null || echo "ℹ️ history_records/ 無內容可加入（略過）"
           git add analysis_history.json 2>/dev/null || echo "ℹ️ analysis_history.json 不存在（略過，不影響其他檔案）"
+          git add dashboard_state.json 2>/dev/null || echo "ℹ️ dashboard_state.json 不存在（略過，不影響其他檔案）"
 
           echo "── 本次待推送的檔案 ──"
           git status --short
