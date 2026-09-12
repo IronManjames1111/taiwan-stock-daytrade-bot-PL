@@ -80,6 +80,7 @@ def render_html_dashboard(
     具備密碼防護機制、暗黑風質感交易介面、手機響應式設計
     """
     now_str = get_tw_now().strftime("%Y-%m-%d %H:%M:%S")
+    today_str = get_tw_now().strftime("%Y-%m-%d")
     if total_signals is None:
         total_signals = len([a for a in (latest_analysis or []) if a.get("signal") in ["BUY", "SHORT"]])
 
@@ -94,8 +95,11 @@ def render_html_dashboard(
     settle_records = settle_records or []
 
     # ── 下載功能：把本次看板的完整原始資料打包成 JSON，供頁面右上角下載按鈕使用 ──
+    # today_str 一併放入 payload：供前端日期切換選單判斷「目前選的是不是今天」，
+    # 以及切回今日時可以直接從這份記憶體資料還原畫面，不需要重新 fetch。
     export_payload = {
         "generated_at": now_str,
+        "today_str": today_str,
         "status_text": status_text,
         "active_model": active_model,
         "total_signals": total_signals,
@@ -115,16 +119,16 @@ def render_html_dashboard(
     if settle_records:
         net_total = sum(r.get("net_profit", 0) for r in settle_records)
         pnl_text = f"+${net_total:,}" if net_total > 0 else f"-${abs(net_total):,}" if net_total < 0 else "$0"
-        pnl_class = "text-red-400" if net_total > 0 else "text-emerald-400" if net_total < 0 else "text-gray-300"
+        pnl_class = "text-[#ff5470]" if net_total > 0 else "text-[#00d68f]" if net_total < 0 else "text-gray-300"
 
     # 生成波段一列表
     wave1_html = ""
     if wave1_stocks:
         for idx, s in enumerate(wave1_stocks, 1):
             wave1_html += f"""
-            <li class="flex items-center justify-between p-2 rounded-xl bg-gray-800/40 border border-gray-800">
-                <span class="font-bold text-white"><span class="text-blue-400 mr-2">#{idx}</span>{s['symbol']} {s['name']}</span>
-                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元｜成交量: {s.get('volume', 0):,} 張</span>
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#{idx}</span>{s['symbol']} {s['name']}</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">{s['price']} 元 · {s.get('volume', 0):,} 張</span>
             </li>
             """
     else:
@@ -135,86 +139,142 @@ def render_html_dashboard(
     if wave2_stocks:
         for idx, s in enumerate(wave2_stocks, 1):
             wave2_html += f"""
-            <li class="flex items-center justify-between p-2 rounded-xl bg-gray-800/40 border border-gray-800">
-                <span class="font-bold text-white"><span class="text-purple-400 mr-2">#{idx}</span>{s['symbol']} {s['name']}</span>
-                <span class="mono text-gray-300 bg-gray-800 px-2 py-0.5 rounded text-xs">現價: {s['price']} 元｜成交量: {s.get('volume', 0):,} 張</span>
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#{idx}</span>{s['symbol']} {s['name']}</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">{s['price']} 元 · {s.get('volume', 0):,} 張</span>
             </li>
             """
     else:
         wave2_html = '<li class="text-gray-500 text-xs py-2">10:30 自動重新掃描成交量排行...</li>'
 
     # 生成分析表格（依訊號分類貼上 data-filter-group 屬性，供前端做多/做空/觀望篩選使用）
-    analysis_rows = ""
+    # 配色依台股慣例「紅漲綠跌」：做多(偏多/漲) 用紅、放空(偏空/跌) 用綠，跟一般西式股市剛好相反
+    analysis_rows = ""      # 桌面版表格列
+    analysis_cards = ""     # 手機版直式資訊卡（避免長文字被表格固定欄寬硬擠導致換行跑版）
     if latest_analysis:
         for a in latest_analysis:
             sig = a.get("signal", "WATCH")
             if "BUY" in sig:
                 filter_group = "long"
-                sig_badge = '<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">🟢 做多</span>'
+                sig_badge = '<span class="sig-badge sig-long">🔺 做多</span>'
             elif "SHORT" in sig:
                 filter_group = "short"
-                sig_badge = '<span class="px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-bold">🔴 放空</span>'
+                sig_badge = '<span class="sig-badge sig-short">🔻 放空</span>'
             else:
                 filter_group = "watch"
-                sig_badge = '<span class="px-2 py-0.5 rounded bg-gray-800 text-gray-400">⚪ 觀望</span>'
+                sig_badge = '<span class="sig-badge sig-watch">— 觀望</span>'
 
             updated_at = a.get("updated_at", "")
+            symbol = a.get("symbol", "")
+            name = a.get("name", "")
+            entry = a.get("entry", "-")
+            stop_loss = a.get("stop_loss", "-")
+            target = a.get("target", "-")
+            reason = a.get("reason", "")
+
             analysis_rows += f"""
-            <tr class="hover:bg-gray-800/30 analysis-row" data-filter-group="{filter_group}">
-                <td class="py-2.5 px-3 font-bold text-white">{a.get('symbol')} {a.get('name', '')}</td>
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="{filter_group}">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">{symbol} {name}</td>
                 <td class="py-2.5 px-3">{sig_badge}</td>
-                <td class="py-2.5 px-3 mono text-gray-200">{a.get('entry', '-')}</td>
-                <td class="py-2.5 px-3 mono text-emerald-400">{a.get('stop_loss', '-')}</td>
-                <td class="py-2.5 px-3 mono text-red-400">{a.get('target', '-')}</td>
-                <td class="py-2.5 px-3 text-gray-300 text-xs">{a.get('reason', '')}</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono">{updated_at}</td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">{entry}</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">{stop_loss}</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">{target}</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">{reason}</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">{updated_at}</td>
             </tr>
+            """
+
+            analysis_cards += f"""
+            <div class="data-card analysis-row" data-filter-group="{filter_group}">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">{symbol} {name}</span>
+                    {sig_badge}
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">{entry}</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">{stop_loss}</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">{target}</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">{updated_at}</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">{reason}</div>
+            </div>
             """
     else:
         analysis_rows = '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr>'
+        analysis_cards = '<div class="text-center text-gray-500 text-xs py-6">盤中每 10 分鐘自動更新分析看板...</div>'
 
     # 生成結算表格
-    settle_rows = ""
+    settle_rows = ""       # 桌面版表格列
+    settle_cards = ""      # 手機版直式資訊卡
     if settle_records:
         for r in settle_records:
             res = r.get("result")
             res_badge = (
-                '<span class="text-red-400 font-bold">✅ 獲利</span>'
+                '<span class="sig-badge sig-long">✅ 獲利</span>'
                 if res == "win" else
-                '<span class="text-emerald-400 font-bold">❌ 虧損</span>'
+                '<span class="sig-badge sig-short">❌ 虧損</span>'
                 if res == "loss" else
-                '<span class="text-gray-400">➖ 打平</span>'
+                '<span class="sig-badge sig-watch">— 打平</span>'
             )
             net_p = r.get("net_profit", 0)
             net_str = f"+${net_p:,}" if net_p > 0 else f"-${abs(net_p):,}" if net_p < 0 else "$0"
-            net_color = "text-red-400" if net_p > 0 else "text-emerald-400" if net_p < 0 else "text-gray-300"
+            net_color = "text-[#ff5470]" if net_p > 0 else "text-[#00d68f]" if net_p < 0 else "text-gray-300"
+            symbol = r.get("symbol", "")
+            signal = r.get("signal", "")
+            entry_price = r.get("entry_price", "-")
+            exit_price = r.get("exit_price", "-")
+            exit_reason = r.get("exit_reason", "-")
 
             settle_rows += f"""
-            <tr class="hover:bg-gray-800/30">
-                <td class="py-2 px-3 font-bold text-white">{r.get('symbol')}</td>
-                <td class="py-2 px-3 font-semibold">{r.get('signal')}</td>
-                <td class="py-2 px-3 mono">{r.get('entry_price')}</td>
-                <td class="py-2 px-3 mono">{r.get('exit_price')}</td>
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">{symbol}</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">{signal}</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">{entry_price}</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">{exit_price}</td>
                 <td class="py-2 px-3">{res_badge}</td>
-                <td class="py-2 px-3 mono {net_color} font-bold">{net_str}</td>
-                <td class="py-2 px-3 text-gray-400 text-xs">{r.get('exit_reason')}</td>
+                <td class="py-2 px-3 mono {net_color} font-bold whitespace-nowrap">{net_str}</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">{exit_reason}</td>
             </tr>
+            """
+
+            settle_cards += f"""
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">{symbol}　<span class="text-gray-400 font-normal text-xs">{signal}</span></span>
+                    {res_badge}
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">{entry_price} → {exit_price}</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono {net_color} font-bold">{net_str}</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">{exit_reason}</span></div>
+            </div>
             """
     else:
         settle_rows = '<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 (13:25)</td></tr>'
+        settle_cards = '<div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 (13:25)</div>'
 
     html_content = f"""<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 當沖雲端即時看盤儀表板</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>台股當沖 AI 終端</title>
     <meta http-equiv="refresh" content="60">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body {{ font-family: 'Noto Sans TC', sans-serif; background-color: #0d1117; color: #c9d1d9; }}
-        .mono {{ font-family: 'JetBrains Mono', monospace; }}
+        :root {{
+            --bg: #0a0e14;
+            --surface: #10161f;
+            --surface-raised: #161d29;
+            --line: #202834;
+            --long: #ff5470;
+            --long-dim: #2a1017;
+            --short: #00d68f;
+            --short-dim: #06231b;
+            --watch: #8b93a1;
+            --watch-dim: #171c24;
+            --accent: #4d8dff;
+        }}
+        body {{ font-family: 'Noto Sans TC', -apple-system, sans-serif; background-color: var(--bg) !important; color: #dde3ea; }}
+        .mono {{ font-family: 'JetBrains Mono', ui-monospace, monospace; }}
         .shake {{ animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }}
         @keyframes shake {{
             10%, 90% {{ transform: translate3d(-1px, 0, 0); }}
@@ -222,11 +282,46 @@ def render_html_dashboard(
             30%, 50%, 70% {{ transform: translate3d(-4px, 0, 0); }}
             40%, 60% {{ transform: translate3d(4px, 0, 0); }}
         }}
+        @keyframes pulse-dot {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.3; }} }}
+        .live-dot {{ animation: pulse-dot 1.6s ease-in-out infinite; }}
+
+        /* ── 終端機式視覺覆寫：取代原本清一色的灰卡片樣板 ────────────── */
+        .panel {{ background: var(--surface) !important; border-color: var(--line) !important; }}
+        .panel-raised {{ background: var(--surface-raised) !important; border-color: var(--line) !important; }}
+
+        /* 訊號徽章：white-space nowrap 是修正「觀望」等文字在窄螢幕斷行跑版的關鍵 */
+        .sig-badge {{
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 5px; font-size: 12px; font-weight: 700;
+            white-space: nowrap;
+        }}
+        .sig-long {{ background: var(--long-dim); color: var(--long); border: 1px solid rgba(255,84,112,.35); }}
+        .sig-short {{ background: var(--short-dim); color: var(--short); border: 1px solid rgba(0,214,143,.35); }}
+        .sig-watch {{ background: var(--watch-dim); color: var(--watch); border: 1px solid rgba(139,147,161,.3); }}
+
         /* 訊號篩選按鈕：預設(未選取)樣式，JS 會依目前選取狀態動態切換 active 樣式 */
-        .filter-btn {{ background-color: #1f2937; border-color: #374151; color: #9ca3af; }}
-        .filter-btn.active-all {{ background-color: #312e81; border-color: #6366f1; color: #c7d2fe; }}
-        .filter-btn.active-long {{ background-color: #022c22; border-color: #10b981; color: #6ee7b7; }}
-        .filter-btn.active-short {{ background-color: #450a0a; border-color: #ef4444; color: #fca5a5; }}
+        .filter-btn {{ background-color: var(--surface-raised); border-color: var(--line); color: #94a0b0; white-space: nowrap; }}
+        .filter-btn.active-all {{ background-color: rgba(77,141,255,.12); border-color: var(--accent); color: #a9c6ff; }}
+        .filter-btn.active-long {{ background-color: var(--long-dim); border-color: var(--long); color: var(--long); }}
+        .filter-btn.active-short {{ background-color: var(--short-dim); border-color: var(--short); color: var(--short); }}
+        .filter-btn.active-watch {{ background-color: var(--watch-dim); border-color: var(--watch); color: var(--watch); }}
+
+        /* 桌面顯示表格，手機改顯示直式資訊卡：這是解決手機排版跑版的核心結構調整，
+           而不是硬把長文字塞進固定表格欄寬 */
+        .analysis-table-wrap {{ display: none; }}
+        .analysis-cards-wrap {{ display: block; }}
+        @media (min-width: 768px) {{
+            .analysis-table-wrap {{ display: block; }}
+            .analysis-cards-wrap {{ display: none; }}
+        }}
+
+        .data-card {{ background: var(--surface-raised); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }}
+        .data-card + .data-card {{ margin-top: 8px; }}
+        .data-row {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 3px 0; font-size: 12.5px; }}
+        .data-row .dlabel {{ color: #6b7685; white-space: nowrap; flex-shrink: 0; }}
+        .data-row .dvalue {{ color: #dde3ea; text-align: right; word-break: break-word; }}
+    </style>
+</head>
         .filter-btn.active-watch {{ background-color: #1f2937; border-color: #9ca3af; color: #e5e7eb; }}
     </style>
 </head>
@@ -269,155 +364,162 @@ def render_html_dashboard(
     <div id="main-content" class="max-w-5xl mx-auto w-full space-y-5 hidden">
         
         <!-- Header -->
-        <header class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <header class="panel border rounded-2xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="inline-block w-3 h-3 rounded-full bg-emerald-400 animate-ping"></span>
-                    <h1 class="text-xl md:text-2xl font-bold text-white tracking-wide">台股 AI 當沖雲端即時看板</h1>
-                    <span class="bg-emerald-950 text-emerald-400 text-xs px-2.5 py-0.5 rounded-full border border-emerald-800 font-semibold">雲端全自動</span>
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#00d68f] live-dot"></span>
+                    <h1 class="text-lg md:text-xl font-bold text-white tracking-tight">台股 AI 當沖雲端終端</h1>
+                    <span class="bg-[#06231b] text-[#00d68f] text-[11px] px-2 py-0.5 rounded-full border border-[#00d68f]/25 font-semibold whitespace-nowrap">雲端全自動</span>
                 </div>
-                <p class="text-xs text-gray-400 mt-1">工作日 09:15 / 10:30 雙波段選股 ➔ 每 10 分鐘 Google AI 深度分析 ➔ 13:25 回放結算</p>
+                <p class="text-xs text-gray-500 mt-1">09:15 / 10:30 雙波段選股　·　每 10 分鐘 AI 分析　·　13:25 回放結算</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs">
-                <div class="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2">
-                    <span class="text-gray-400">當前狀態:</span>
-                    <span class="text-emerald-400 font-bold ml-1">{status_text}</span>
+                <div class="panel-raised rounded-lg px-3 py-2 border">
+                    <span class="text-gray-500">狀態</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">{status_text}</span>
                 </div>
-                <div class="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2">
-                    <span class="text-gray-400">更新時間:</span>
-                    <span class="text-white mono ml-1">{now_str}</span>
+                <div class="panel-raised rounded-lg px-3 py-2 border">
+                    <span class="text-gray-500">更新</span>
+                    <span class="text-white mono ml-1.5">{now_str}</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
-                    class="bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-800/60 text-indigo-300 rounded-xl px-3 py-2 font-semibold transition cursor-pointer">
-                    ⬇️ 下載 JSON
+                    class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
+                    ⬇ JSON
                 </button>
                 <button type="button" onclick="downloadCSV()"
-                    class="bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800/60 text-emerald-300 rounded-xl px-3 py-2 font-semibold transition cursor-pointer">
-                    ⬇️ 下載 CSV
+                    class="bg-[#06231b] hover:bg-[#0a2e24] border border-[#00d68f]/30 text-[#5ce8b8] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
+                    ⬇ CSV
                 </button>
             </div>
         </header>
 
+        <!-- 📅 歷史日期切換：預設顯示今日即時資料，切換後改為唯讀顯示該日的完整分析與結算紀錄 -->
+        <div class="panel border rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-3">
+            <div class="flex items-center gap-2 text-xs text-gray-500 shrink-0">
+                <span>查看日期</span>
+            </div>
+            <select id="history-date-select" onchange="onHistoryDateChange(this.value)"
+                class="panel-raised border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#4d8dff] mono">
+                <option value="__today__">今日即時（{today_str}）</option>
+            </select>
+            <span id="history-loading-msg" class="hidden text-xs text-gray-500">載入中...</span>
+            <span id="history-error-msg" class="hidden text-xs text-[#ff5470]">該日期尚無資料或載入失敗</span>
+        </div>
+
         <!-- KPI 數據卡片 -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-                <div class="text-xs text-gray-400">當前調用 AI 模型</div>
-                <div class="text-sm font-bold text-indigo-400 mono mt-1 truncate">{active_model}</div>
+            <div class="panel border rounded-xl p-4">
+                <div class="text-[11px] text-gray-500">AI 模型</div>
+                <div class="text-sm font-bold text-[#8db3ff] mono mt-1 truncate">{active_model}</div>
             </div>
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-                <div class="text-xs text-gray-400">監控標的檔數</div>
+            <div class="panel border rounded-xl p-4">
+                <div class="text-[11px] text-gray-500">監控標的</div>
                 <div class="text-xl font-bold text-white mono mt-1">{len(wave2_stocks or wave1_stocks)} 檔</div>
             </div>
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-                <div class="text-xs text-gray-400">今日發出訊號</div>
-                <div class="text-xl font-bold text-yellow-400 mono mt-1">{total_signals} 筆</div>
+            <div class="panel border rounded-xl p-4">
+                <div class="text-[11px] text-gray-500">今日訊號</div>
+                <div class="text-xl font-bold text-[#f5b942] mono mt-1">{total_signals} 筆</div>
             </div>
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-                <div class="text-xs text-gray-400">回測結算損益</div>
+            <div class="panel border rounded-xl p-4">
+                <div class="text-[11px] text-gray-500">結算損益</div>
                 <div class="text-xl font-bold {pnl_class} mono mt-1">{pnl_text}</div>
             </div>
         </div>
 
         <!-- 雙波段選股板塊 -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-                <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
-                    <div class="flex items-center gap-2">
-                        <span class="bg-blue-950 text-blue-400 p-1.5 rounded-lg text-sm">🌅</span>
-                        <div>
-                            <h2 class="font-bold text-white text-sm md:text-base">第一波段：早盤成交量排行</h2>
-                            <p class="text-[11px] text-gray-400">09:15 觸發 (ORB-15 區間成型)</p>
-                        </div>
+            <div class="panel border rounded-2xl p-5">
+                <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
+                    <div>
+                        <h2 class="font-bold text-white text-sm">早盤成交量排行</h2>
+                        <p class="text-[11px] text-gray-500 mt-0.5">09:15 觸發（ORB-15 區間成型）</p>
                     </div>
-                    <span class="text-xs bg-blue-900/50 text-blue-300 border border-blue-700/50 px-2 py-0.5 rounded-md">早盤主流</span>
+                    <span class="text-[11px] bg-[#0f1c33] text-[#8db3ff] border border-[#4d8dff]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段一</span>
                 </div>
                 <ul class="space-y-2 text-sm">{wave1_html}</ul>
             </div>
 
-            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-                <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
-                    <div class="flex items-center gap-2">
-                        <span class="bg-purple-950 text-purple-400 p-1.5 rounded-lg text-sm">⚡</span>
-                        <div>
-                            <h2 class="font-bold text-white text-sm md:text-base">第二波段：中盤換手重挑</h2>
-                            <p class="text-[11px] text-gray-400">10:30 觸發 (鎖定中盤輪動主升股)</p>
-                        </div>
+            <div class="panel border rounded-2xl p-5">
+                <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
+                    <div>
+                        <h2 class="font-bold text-white text-sm">中盤換手重挑</h2>
+                        <p class="text-[11px] text-gray-500 mt-0.5">10:30 觸發（鎖定盤中輪動主升股）</p>
                     </div>
-                    <span class="text-xs bg-purple-900/50 text-purple-300 border border-purple-700/50 px-2 py-0.5 rounded-md">盤中輪動</span>
+                    <span class="text-[11px] bg-[#1f1433] text-[#c4a6ff] border border-[#a78bfa]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段二</span>
                 </div>
                 <ul class="space-y-2 text-sm">{wave2_html}</ul>
             </div>
         </div>
 
         <!-- 最新 10 分鐘分析結果 -->
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-800 pb-3 mb-4 gap-3">
-                <div class="flex items-center gap-2">
-                    <span class="bg-emerald-950 text-emerald-400 p-1.5 rounded-lg text-sm">🤖</span>
-                    <div>
-                        <h2 class="font-bold text-white text-base">即時當沖多空訊號 & 決策理由</h2>
-                        <p class="text-xs text-gray-400">每 10 分鐘調用 Gemini / Gemma 深度判定進出場價與停損利，累積顯示當日所有分析紀錄</p>
-                    </div>
+        <div class="panel border rounded-2xl p-5">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-white/5 pb-3 mb-4 gap-2">
+                <div>
+                    <h2 class="font-bold text-white text-base">即時多空訊號</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">每 10 分鐘 AI 判定進出場價與停損停利，累積顯示當日所有分析紀錄</p>
                 </div>
-                <span class="text-xs text-gray-400 mono">每 60 秒自動刷新</span>
+                <span class="text-[11px] text-gray-500 mono whitespace-nowrap">每 60 秒自動刷新</span>
             </div>
 
             <!-- 🔎 訊號篩選按鈕：做多 / 做空 / 觀望 / 全部 -->
             <div class="flex flex-wrap items-center gap-2 mb-4">
-                <span class="text-xs text-gray-500 mr-1">篩選訊號：</span>
                 <button type="button" onclick="setSignalFilter('all')" id="filter-btn-all"
                     class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
                     全部 <span id="count-all" class="mono"></span>
                 </button>
                 <button type="button" onclick="setSignalFilter('long')" id="filter-btn-long"
                     class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
-                    🟢 做多 <span id="count-long" class="mono"></span>
+                    🔺 做多 <span id="count-long" class="mono"></span>
                 </button>
                 <button type="button" onclick="setSignalFilter('short')" id="filter-btn-short"
                     class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
-                    🔴 做空 <span id="count-short" class="mono"></span>
+                    🔻 做空 <span id="count-short" class="mono"></span>
                 </button>
                 <button type="button" onclick="setSignalFilter('watch')" id="filter-btn-watch"
                     class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer">
-                    ⚪ 觀望 <span id="count-watch" class="mono"></span>
+                    — 觀望 <span id="count-watch" class="mono"></span>
                 </button>
             </div>
 
-            <div class="overflow-x-auto">
+            <!-- 桌面版：表格 -->
+            <div class="analysis-table-wrap overflow-x-auto">
                 <table class="w-full text-left text-xs md:text-sm">
                     <thead>
-                        <tr class="text-gray-400 border-b border-gray-800 text-[11px]">
+                        <tr class="text-gray-500 border-b border-white/5 text-[11px]">
                             <th class="py-2.5 px-3">標的</th>
                             <th class="py-2.5 px-3">訊號</th>
-                            <th class="py-2.5 px-3">建議進場</th>
-                            <th class="py-2.5 px-3">建議停損</th>
-                            <th class="py-2.5 px-3">建議停利</th>
-                            <th class="py-2.5 px-3">AI 決策依據 (Prompt 優化重點)</th>
+                            <th class="py-2.5 px-3">進場</th>
+                            <th class="py-2.5 px-3">停損</th>
+                            <th class="py-2.5 px-3">停利</th>
+                            <th class="py-2.5 px-3">AI 決策依據</th>
                             <th class="py-2.5 px-3">更新時間</th>
                         </tr>
                     </thead>
-                    <tbody id="analysis-tbody" class="divide-y divide-gray-800/60">{analysis_rows}</tbody>
+                    <tbody id="analysis-tbody" class="divide-y divide-white/5">{analysis_rows}</tbody>
                 </table>
-                <p id="filter-empty-msg" class="hidden text-center text-gray-500 text-xs py-6">此篩選條件下目前沒有符合的標的</p>
             </div>
+
+            <!-- 手機版：直式資訊卡（避免長文字被表格固定欄寬硬擠導致換行跑版） -->
+            <div id="analysis-cards" class="analysis-cards-wrap">{analysis_cards}</div>
+
+            <p id="filter-empty-msg" class="hidden text-center text-gray-500 text-xs py-6">此篩選條件下目前沒有符合的標的</p>
         </div>
 
         <!-- 13:25 收盤回放結算卡片 -->
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-            <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
-                <div class="flex items-center gap-2">
-                    <span class="bg-amber-950 text-amber-400 p-1.5 rounded-lg text-sm">🏆</span>
-                    <div>
-                        <h2 class="font-bold text-white text-base">今日當沖回測結算 (收盤回放)</h2>
-                        <p class="text-xs text-gray-400">13:25 自動以當日 1分K 逐根回放比對真實賺賠 (扣除 2.8折手續費與 0.15% 減半證交稅)</p>
-                    </div>
+        <div class="panel border rounded-2xl p-5">
+            <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
+                <div>
+                    <h2 class="font-bold text-white text-base">今日回測結算</h2>
+                    <p class="text-[11px] text-gray-500 mt-0.5">13:25 以當日 1 分K 逐根回放比對實際賺賠（已扣手續費與證交稅）</p>
                 </div>
-                <span class="text-xs text-amber-400 font-semibold">13:25 結算</span>
+                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">13:25 結算</span>
             </div>
-            <div class="overflow-x-auto">
+
+            <!-- 桌面版：表格 -->
+            <div class="analysis-table-wrap overflow-x-auto">
                 <table class="w-full text-left text-xs md:text-sm">
                     <thead>
-                        <tr class="text-gray-400 border-b border-gray-800 text-[11px]">
+                        <tr class="text-gray-500 border-b border-white/5 text-[11px]">
                             <th class="py-2 px-3">代號</th>
                             <th class="py-2 px-3">方向</th>
                             <th class="py-2 px-3">進場價</th>
@@ -427,9 +529,12 @@ def render_html_dashboard(
                             <th class="py-2 px-3">出場原因</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-800/60">{settle_rows}</tbody>
+                    <tbody id="settle-tbody" class="divide-y divide-white/5">{settle_rows}</tbody>
                 </table>
             </div>
+
+            <!-- 手機版：直式資訊卡 -->
+            <div id="settle-cards" class="analysis-cards-wrap">{settle_cards}</div>
         </div>
 
         <!-- Footer -->
@@ -567,7 +672,202 @@ def render_html_dashboard(
                 unlockUI();
             }}
             initSignalFilter();
+            initHistoryDateSelect();
         }});
+
+        // ── 歷史日期切換 ─────────────────────────────────────────────
+        // GitHub Pages 是純靜態網站，前端無法列出資料夾內容，
+        // 因此透過 history_records/index.json 這份索引檔取得「有哪些日期可查」，
+        // 選擇日期後改讀取 history_records/analysis_YYYY-MM-DD.json 動態重新渲染表格。
+        // 今日資料則直接使用 EXPORT_DATA（頁面產生當下就內嵌好的資料），不需要額外 fetch。
+        const TODAY_STR = EXPORT_DATA.today_str;
+
+        async function initHistoryDateSelect() {{
+            const select = document.getElementById("history-date-select");
+            try {{
+                const resp = await fetch("history_records/index.json", {{ cache: "no-store" }});
+                if (!resp.ok) throw new Error("index.json 不存在");
+                const data = await resp.json();
+                const dates = (data.dates || []).filter(d => d !== TODAY_STR);
+
+                dates.forEach(d => {{
+                    const opt = document.createElement("option");
+                    opt.value = d;
+                    opt.textContent = d;
+                    select.appendChild(opt);
+                }});
+            }} catch (e) {{
+                // 索引檔還不存在是正常情況 (代表尚未有任何一天收盤結算過)，靜默處理即可，
+                // 下拉選單維持只有「今日即時」一個選項
+                console.log("尚無歷史日期索引可載入 (可能是第一個交易日，尚未收盤結算過)");
+            }}
+        }}
+
+        async function onHistoryDateChange(value) {{
+            const loadingMsg = document.getElementById("history-loading-msg");
+            const errorMsg = document.getElementById("history-error-msg");
+            errorMsg.classList.add("hidden");
+
+            if (value === "__today__") {{
+                // 切回今日：直接用頁面產生當下就內嵌好的 EXPORT_DATA 還原，不需要重新 fetch
+                renderAnalysisTable(EXPORT_DATA.latest_analysis, true);
+                renderSettleTable(EXPORT_DATA.settle_records);
+                setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
+                return;
+            }}
+
+            loadingMsg.classList.remove("hidden");
+            try {{
+                const resp = await fetch(`history_records/analysis_${{value}}.json`, {{ cache: "no-store" }});
+                if (!resp.ok) throw new Error("該日期無資料");
+                const snapshot = await resp.json();
+
+                renderAnalysisTable(snapshot.analysis_records || [], false);
+                renderSettleTable(snapshot.settle_records || []);
+                setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
+            }} catch (e) {{
+                errorMsg.classList.remove("hidden");
+                document.getElementById("analysis-tbody").innerHTML =
+                    '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">此日期尚無分析資料</td></tr>';
+                document.getElementById("settle-tbody").innerHTML =
+                    '<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">此日期尚無結算資料</td></tr>';
+            }} finally {{
+                loadingMsg.classList.add("hidden");
+            }}
+        }}
+
+        function escapeHtml(str) {{
+            const div = document.createElement("div");
+            div.textContent = str ?? "";
+            return div.innerHTML;
+        }}
+
+        // 依訊號分類重新產生分析表格/卡片的 HTML，邏輯對應 Python 端 render_html_dashboard()
+        // 的組裝方式，確保今日即時畫面與歷史查詢畫面呈現一致。同時更新桌面表格與手機卡片
+        // 兩種畫面，因為 CSS 是用 media query 切換顯示/隱藏，兩者都要有內容。
+        function renderAnalysisTable(records, isToday) {{
+            const tbody = document.getElementById("analysis-tbody");
+            const cardsWrap = document.getElementById("analysis-cards");
+            const emptyRowHtml = isToday
+                ? '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr>'
+                : '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">此日期尚無分析資料</td></tr>';
+            const emptyCardHtml = isToday
+                ? '<div class="text-center text-gray-500 text-xs py-6">盤中每 10 分鐘自動更新分析看板...</div>'
+                : '<div class="text-center text-gray-500 text-xs py-6">此日期尚無分析資料</div>';
+
+            if (!records || records.length === 0) {{
+                tbody.innerHTML = emptyRowHtml;
+                cardsWrap.innerHTML = emptyCardHtml;
+                return;
+            }}
+
+            let rowsHtml = "";
+            let cardsHtml = "";
+            records.forEach(a => {{
+                const sig = a.signal || "WATCH";
+                let filterGroup, badge;
+                if (sig.includes("BUY")) {{
+                    filterGroup = "long";
+                    badge = '<span class="sig-badge sig-long">🔺 做多</span>';
+                }} else if (sig.includes("SHORT")) {{
+                    filterGroup = "short";
+                    badge = '<span class="sig-badge sig-short">🔻 放空</span>';
+                }} else {{
+                    filterGroup = "watch";
+                    badge = '<span class="sig-badge sig-watch">— 觀望</span>';
+                }}
+
+                const symbol = escapeHtml(a.symbol);
+                const name = escapeHtml(a.name || "");
+                const entry = escapeHtml(a.entry ?? "-");
+                const stopLoss = escapeHtml(a.stop_loss ?? "-");
+                const target = escapeHtml(a.target ?? "-");
+                const reason = escapeHtml(a.reason || "");
+                const updatedAt = escapeHtml(a.updated_at || "");
+
+                rowsHtml += `
+                <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="${{filterGroup}}">
+                    <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">${{symbol}} ${{name}}</td>
+                    <td class="py-2.5 px-3">${{badge}}</td>
+                    <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">${{entry}}</td>
+                    <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">${{stopLoss}}</td>
+                    <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">${{target}}</td>
+                    <td class="py-2.5 px-3 text-gray-300 text-xs">${{reason}}</td>
+                    <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">${{updatedAt}}</td>
+                </tr>`;
+
+                cardsHtml += `
+                <div class="data-card analysis-row" data-filter-group="${{filterGroup}}">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-white text-sm">${{symbol}} ${{name}}</span>
+                        ${{badge}}
+                    </div>
+                    <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">${{entry}}</span></div>
+                    <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">${{stopLoss}}</span></div>
+                    <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">${{target}}</span></div>
+                    <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">${{updatedAt}}</span></div>
+                    <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">${{reason}}</div>
+                </div>`;
+            }});
+            tbody.innerHTML = rowsHtml;
+            cardsWrap.innerHTML = cardsHtml;
+        }}
+
+        // 依結算結果重新產生結算表格/卡片的 HTML，欄位對應 cache_service 產生的歷史紀錄格式。
+        // 配色依台股慣例「紅漲綠跌」：獲利用紅、虧損用綠，跟一般西式股市配色相反。
+        function renderSettleTable(records) {{
+            const tbody = document.getElementById("settle-tbody");
+            const cardsWrap = document.getElementById("settle-cards");
+            if (!records || records.length === 0) {{
+                const emptyMsg = '此日期尚無結算資料';
+                tbody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">${{emptyMsg}}</td></tr>`;
+                cardsWrap.innerHTML = `<div class="text-center text-gray-500 text-xs py-4">${{emptyMsg}}</div>`;
+                return;
+            }}
+
+            let rowsHtml = "";
+            let cardsHtml = "";
+            records.forEach(r => {{
+                const isWin = (r.pnl_amount ?? 0) > 0;
+                const isLoss = (r.pnl_amount ?? 0) < 0;
+                const resultClass = isWin ? "text-[#ff5470]" : (isLoss ? "text-[#00d68f]" : "text-gray-400");
+                const badgeClass = isWin ? "sig-long" : (isLoss ? "sig-short" : "sig-watch");
+                const resultText = r.result || (isWin ? "獲利" : (isLoss ? "虧損" : "持平"));
+                const pnlDisplay = (r.pnl_amount !== null && r.pnl_amount !== undefined)
+                    ? `${{r.pnl_amount > 0 ? "+" : ""}}${{r.pnl_amount}}` : "-";
+                const badge = `<span class="sig-badge ${{badgeClass}}">${{escapeHtml(resultText)}}</span>`;
+
+                const symbol = escapeHtml(r.symbol);
+                const direction = escapeHtml(r.direction || "-");
+                const entryPrice = escapeHtml(r.entry_price ?? "-");
+                const exitPrice = escapeHtml(r.exit_price ?? "-");
+                const exitReason = escapeHtml(r.exit_reason || "-");
+
+                rowsHtml += `
+                <tr class="hover:bg-white/[0.02]">
+                    <td class="py-2 px-3 font-bold text-white whitespace-nowrap">${{symbol}}</td>
+                    <td class="py-2 px-3 whitespace-nowrap">${{direction}}</td>
+                    <td class="py-2 px-3 mono whitespace-nowrap">${{entryPrice}}</td>
+                    <td class="py-2 px-3 mono whitespace-nowrap">${{exitPrice}}</td>
+                    <td class="py-2 px-3">${{badge}}</td>
+                    <td class="py-2 px-3 mono font-semibold ${{resultClass}} whitespace-nowrap">${{pnlDisplay}}</td>
+                    <td class="py-2 px-3 text-gray-400 text-xs">${{exitReason}}</td>
+                </tr>`;
+
+                cardsHtml += `
+                <div class="data-card">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-white text-sm">${{symbol}}　<span class="text-gray-400 font-normal text-xs">${{direction}}</span></span>
+                        ${{badge}}
+                    </div>
+                    <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">${{entryPrice}} → ${{exitPrice}}</span></div>
+                    <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono font-bold ${{resultClass}}">${{pnlDisplay}}</span></div>
+                    <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">${{exitReason}}</span></div>
+                </div>`;
+            }});
+            tbody.innerHTML = rowsHtml;
+            cardsWrap.innerHTML = cardsHtml;
+        }}
 
         // ── 訊號篩選：做多 / 做空 / 觀望 / 全部 ─────────────────────────
         // 篩選狀態保存在 localStorage，重新整理頁面（每 60 秒自動刷新）後仍會記住上次的選擇
@@ -579,7 +879,9 @@ def render_html_dashboard(
         function setSignalFilter(group) {{
             localStorage.setItem("daytrade_signal_filter", group);
 
-            const rows = document.querySelectorAll("#analysis-tbody .analysis-row");
+            // 桌面表格與手機卡片都有各自一份 .analysis-row，兩者需要同步套用篩選狀態，
+            // 否則手機版切換篩選按鈕會沒有反應（這是先前版本的疏漏，這次一併修正）
+            const rows = document.querySelectorAll(".analysis-row");
             const counts = {{ all: 0, long: 0, short: 0, watch: 0 }};
             let visibleCount = 0;
 
@@ -594,10 +896,10 @@ def render_html_dashboard(
                 if (shouldShow) visibleCount++;
             }});
 
-            // 更新按鈕上的統計數字
+            // counts 統計了表格版+卡片版兩份重複的列，這裡除以 2 還原成實際筆數
             ["all", "long", "short", "watch"].forEach(g => {{
                 const el = document.getElementById(`count-${{g}}`);
-                if (el) el.textContent = `(${{counts[g]}})`;
+                if (el) el.textContent = `(${{Math.floor(counts[g] / 2)}})`;
             }});
 
             // 更新按鈕選取樣式
@@ -684,6 +986,55 @@ def upsert_analysis_record(records: List[Dict], new_record: Dict) -> List[Dict]:
     if not updated:
         records.append(new_record)
     return records
+
+def save_daily_history_snapshot(date_str: str, analysis_records: List[Dict], settle_records: List[Dict]):
+    """
+    收盤結算時呼叫：將當天的完整分析紀錄 (含觀望) 與結算損益，
+    寫成 history_records/analysis_YYYY-MM-DD.json，並更新
+    history_records/index.json 這份「有哪些日期可查」的索引檔。
+
+    GitHub Pages 是純靜態網站，前端 JavaScript 沒辦法直接列出
+    history_records/ 資料夾底下有哪些檔案，所以需要額外維護
+    這份 index.json，供 index.html 的日期下拉選單讀取。
+    """
+    os.makedirs("history_records", exist_ok=True)
+
+    snapshot = {
+        "date": date_str,
+        "analysis_records": analysis_records,
+        "settle_records": settle_records,
+        "saved_at": get_tw_now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    snapshot_path = f"history_records/analysis_{date_str}.json"
+    try:
+        with open(snapshot_path, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, ensure_ascii=False, indent=2)
+        print(f"✅ 已保存當日分析快照：{snapshot_path}")
+    except Exception as e:
+        print(f"⚠️ 寫入 {snapshot_path} 失敗: {e}")
+
+    # 更新日期索引檔：讀取既有索引，把今天加進去 (若已存在則不重複加入)，
+    # 並依日期新到舊排序，方便前端下拉選單直接照順序顯示。
+    index_path = "history_records/index.json"
+    dates = []
+    if os.path.exists(index_path):
+        try:
+            with open(index_path, "r", encoding="utf-8") as f:
+                dates = json.load(f).get("dates", [])
+        except Exception as e:
+            print(f"⚠️ 讀取既有 {index_path} 失敗，將重新建立: {e}")
+            dates = []
+
+    if date_str not in dates:
+        dates.append(date_str)
+    dates.sort(reverse=True)
+
+    try:
+        with open(index_path, "w", encoding="utf-8") as f:
+            json.dump({"dates": dates}, f, ensure_ascii=False, indent=2)
+        print(f"✅ 已更新歷史日期索引：{index_path} (共 {len(dates)} 天)")
+    except Exception as e:
+        print(f"⚠️ 寫入 {index_path} 失敗: {e}")
 
 def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool_size: int = 25) -> List[Dict]:
     """
@@ -887,7 +1238,7 @@ def main():
 
         # 渲染出初始 index.html
         render_html_dashboard(
-            status_text="非開盤測試成功",
+            status_text="非盤中連線測試（僅測3檔，平日盤中將完整執行8檔選股）",
             active_model=gemini.active_model,
             wave1_stocks=test_stocks,
             latest_analysis=test_analysis
@@ -996,6 +1347,11 @@ def main():
             # 沒有待結算資料，也可能代表今天已經結算過了；仍讀取既有結算清單顯示在網站上
             all_data = cache_service._read_history()
             today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
+
+        # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內) 一併保存成
+        # history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時查看完整分析過程，
+        # 而不是只能看到 backtest CSV 裡「有實際下單訊號」的部分。
+        save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list)
 
         render_html_dashboard(
             status_text="已收盤結算完成",
