@@ -685,7 +685,7 @@ def upsert_analysis_record(records: List[Dict], new_record: Dict) -> List[Dict]:
         records.append(new_record)
     return records
 
-def get_free_top_volume_stocks(limit: int = 5, min_price: float = 10.0) -> List[Dict]:
+def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool_size: int = 25) -> List[Dict]:
     """
     自 Yahoo 奇摩股市抓取即時成交量排行榜。
     特點：
@@ -694,8 +694,16 @@ def get_free_top_volume_stocks(limit: int = 5, min_price: float = 10.0) -> List[
     3. 自動排除 00 開頭 ETF、特別股及 6 碼權證衍生品
     4. 支援 min_price 門檻 (預設 10.0 元，兼顧流動性並避免過度排除如 14 元熱門股)
     5. 自行依真實成交量由大到小降冪排序，確保精準取得前 limit 檔熱門標的
+
+    v4.1 修正說明：
+    ────────────
+    舊版只抓榜單第一頁（通常僅 10~20 筆原始資料），扣掉其中常見的 00 開頭 ETF
+    （如 0050、00919 等，成交量經常擠進榜單前段）與少數權證後，篩選完往往只
+    剩 3 檔左右可用，遠低於預期的 limit 檔數。
+    新版改為「先擴大抓取候選池（自動翻頁直到候選池 >= min_pool_size 或無更多資料），
+    篩選完再依成交量排序取前 limit 檔」，確保篩選後仍有足夠檔數可選。
     """
-    url = "https://tw.stock.yahoo.com/rank/volume"
+    base_url = "https://tw.stock.yahoo.com/rank/volume"
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -703,57 +711,87 @@ def get_free_top_volume_stocks(limit: int = 5, min_price: float = 10.0) -> List[
         )
     }
     candidates = []
+    max_pages = 6  # 保護機制：最多翻 6 頁 (約 120~180 筆原始資料)，避免候選池目標設太高時無限翻頁
+
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        resp.raise_for_status()
+        for page in range(1, max_pages + 1):
+            # Yahoo 股市排行頁面以 ?page=N 分頁，第 1 頁可省略參數
+            url = base_url if page == 1 else f"{base_url}?page={page}"
+            resp = requests.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        rows = soup.find_all("li", class_=lambda c: c and "List(n)" in c)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            rows = soup.find_all("li", class_=lambda c: c and "List(n)" in c)
 
-        for row_idx, r in enumerate(rows):
-            texts = [t.strip() for t in r.stripped_strings]
+            if not rows:
+                # 這一頁已經沒有資料列，代表榜單到底了，不用再往後翻頁
+                print(f"[Yahoo排行] 第 {page} 頁無資料，停止翻頁 (榜單已到底)")
+                break
 
-            # 動態尋找包含 .TW 或 .TWO 的代號欄位索引
-            sym_idx = next((i for i, t in enumerate(texts) if t.endswith(".TW") or t.endswith(".TWO")), -1)
-            if sym_idx == -1:
-                continue
+            page_found = 0
+            for row_idx, r in enumerate(rows):
+                texts = [t.strip() for t in r.stripped_strings]
 
-            symbol_raw = texts[sym_idx]
-            symbol = symbol_raw.split(".")[0]
-            name = texts[sym_idx - 1] if sym_idx > 0 else symbol
-            rank = texts[sym_idx - 2] if sym_idx >= 2 else str(row_idx + 1)
+                # 動態尋找包含 .TW 或 .TWO 的代號欄位索引
+                sym_idx = next((i for i, t in enumerate(texts) if t.endswith(".TW") or t.endswith(".TWO")), -1)
+                if sym_idx == -1:
+                    continue
 
-            # 排除 ETF 等 00 開頭商品
-            if symbol.startswith("00"):
-                continue
+                symbol_raw = texts[sym_idx]
+                symbol = symbol_raw.split(".")[0]
 
-            # 排除權證 (台股權證為6碼) 與非數字商品，保留 4~5 碼普通股票
-            if not symbol.isdigit() or len(symbol) > 5:
-                continue
+                # 避免同一檔股票因翻頁重疊等因素被重複加入候選池
+                if any(c["symbol"] == symbol for c in candidates):
+                    continue
 
-            try:
-                # 價格位於代號後方一位 (sym_idx + 1)
-                price = float(texts[sym_idx + 1].replace(",", ""))
-                # 成交量位於 sym_idx + 7 (亦常為倒數第二欄)
-                volume_str = texts[sym_idx + 7] if len(texts) > sym_idx + 7 else texts[-2]
-                volume = int(volume_str.replace(",", ""))
-            except (ValueError, IndexError):
-                continue
+                name = texts[sym_idx - 1] if sym_idx > 0 else symbol
+                rank = texts[sym_idx - 2] if sym_idx >= 2 else str(row_idx + 1)
 
-            if price < min_price:
-                continue
+                # 排除 ETF 等 00 開頭商品
+                if symbol.startswith("00"):
+                    continue
 
-            candidates.append({
-                "symbol": symbol,
-                "name": name,
-                "price": price,
-                "volume": volume,
-                "rank": rank,
-            })
+                # 排除權證 (台股權證為6碼) 與非數字商品，保留 4~5 碼普通股票
+                if not symbol.isdigit() or len(symbol) > 5:
+                    continue
+
+                try:
+                    # 價格位於代號後方一位 (sym_idx + 1)
+                    price = float(texts[sym_idx + 1].replace(",", ""))
+                    # 成交量位於 sym_idx + 7 (亦常為倒數第二欄)
+                    volume_str = texts[sym_idx + 7] if len(texts) > sym_idx + 7 else texts[-2]
+                    volume = int(volume_str.replace(",", ""))
+                except (ValueError, IndexError):
+                    continue
+
+                if price < min_price:
+                    continue
+
+                candidates.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "price": price,
+                    "volume": volume,
+                    "rank": rank,
+                })
+                page_found += 1
+
+            print(f"[Yahoo排行] 第 {page} 頁篩選後新增 {page_found} 檔，候選池累計 {len(candidates)} 檔")
+
+            # 候選池已經夠大，不用再翻下一頁
+            if len(candidates) >= min_pool_size:
+                break
 
         # 明確依真實成交量 (volume) 重新排序，不單純盲目依賴網頁預設順序
         candidates.sort(key=lambda item: item["volume"], reverse=True)
-        return candidates[:limit]
+        result = candidates[:limit]
+
+        if len(result) < limit:
+            # 候選池篩選後仍不足 limit 檔，印出警告方便從 log 判斷原因
+            # (常見原因：當天大量個股跌破 min_price 門檻、或 Yahoo 頁面結構有變動導致解析失敗)
+            print(f"⚠️ [Yahoo排行] 篩選後僅取得 {len(result)} 檔，未達目標 {limit} 檔 (候選池總數: {len(candidates)})")
+
+        return result
 
     except requests.RequestException as e:
         print(f"[Yahoo排行] 網路請求錯誤: {e}")
@@ -888,7 +926,7 @@ def main():
     # 09:15 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
     if hm >= "09:15" and not wave1_stocks:
         print(f"\n⏰ 達到 09:15，開始執行【第一波段：早盤動能成交量排行選股】...")
-        wave1_stocks = get_free_top_volume_stocks(limit=5)
+        wave1_stocks = get_free_top_volume_stocks(limit=8)
         current_stocks = wave1_stocks
         print(f"🔥 早盤 09:15 已鎖定標的：")
         for s in wave1_stocks:
@@ -910,7 +948,7 @@ def main():
     # 10:30 觸發：第二波段重挑股票 (只做一次)
     if hm >= "10:30" and not mid_wave_triggered:
         print(f"\n⏰ 達到 10:30，開始執行【第二波段：中盤換手與輪動股票重挑】...")
-        wave2_stocks = get_free_top_volume_stocks(limit=5)
+        wave2_stocks = get_free_top_volume_stocks(limit=8)
         if wave2_stocks:
             current_stocks = wave2_stocks
             print(f"🔥 中盤 10:30 已更新監控標的：")
