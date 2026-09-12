@@ -322,9 +322,6 @@ def render_html_dashboard(
         .data-row .dvalue {{ color: #dde3ea; text-align: right; word-break: break-word; }}
     </style>
 </head>
-        .filter-btn.active-watch {{ background-color: #1f2937; border-color: #9ca3af; color: #e5e7eb; }}
-    </style>
-</head>
 <body class="min-h-screen p-3 md:p-6 flex flex-col justify-between">
 
     <!-- 🔐 密碼保護鎖定遮罩 -->
