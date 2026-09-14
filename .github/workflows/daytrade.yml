@@ -63,6 +63,7 @@ jobs:
 
       - name: 提交並推送回測紀錄至 GitHub
         run: |
+          set -e
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
@@ -79,10 +80,52 @@ jobs:
 
           if git diff --staged --quiet; then
             echo "ℹ️ 目前無新增的回測報表，略過推送步驟。"
-          else
-            git commit -m "自動更新當沖回測紀錄 [$(date +'%Y-%m-%d %H:%M')]"
-            # 避免與同時間其他 run 或手動 commit 衝突，先 rebase 再 push
-            git pull --rebase origin main || true
-            git push origin main
-            echo "✅ 已成功推送 index.html 等最新回測紀錄"
+            exit 0
           fi
+
+          git commit -m "自動更新當沖回測紀錄 [$(date +'%Y-%m-%d %H:%M')]"
+
+          # ──────────────────────────────────────────────────────────
+          # v4.1 修正說明：
+          # 舊版 `git pull --rebase origin main || true` 會把 rebase 失敗（常見於高頻率
+          # 排程 + concurrency 排隊時，前後兩個 run 都改到 dashboard_state.json /
+          # index.html 同一段內容而衝突）的錯誤直接吞掉，導致：
+          #   1) rebase 半途卡在 conflict 狀態，working tree 裡的 dashboard_state.json
+          #      可能殘留合併標記或半殘內容；
+          #   2) 接下來的 git push 因為 non-fast-forward 而被拒絕，本次的分析結果完全
+          #      沒有真正寫回 remote main，等於這一整輪的分析被靜默作廢；
+          #   3) 下一輪 checkout 抓到的還是舊版狀態，於是 latest_analysis_records 的
+          #      累積在使用者看來就像「憑空消失」。
+          #
+          # 新版改為：rebase 失敗就立刻 abort（絕不留著半殘的 conflict 狀態），改用
+          # fetch + push --force-with-lease 搭配重試機制；同時因為 headless_trader.py
+          # 本身是「讀取 state → 純累加 → 寫回」的冪等邏輯，就算用最新的 remote 內容
+          # 為準也不會遺失資料，遠比讓一次失敗的 rebase 污染檔案來得安全。
+          # 失敗時明確印出錯誤、以非 0 結束，讓 workflow 顯示失敗，方便從 Actions
+          # 頁面直接發現問題，而不是像舊版一樣悄悄放棄。
+          # ──────────────────────────────────────────────────────────
+          MAX_RETRY=5
+          for i in $(seq 1 $MAX_RETRY); do
+            echo "── 第 $i/$MAX_RETRY 次嘗試推送 ──"
+            git fetch origin main
+
+            if git rebase origin/main; then
+              if git push origin main; then
+                echo "✅ 已成功推送 index.html 等最新回測紀錄（第 $i 次嘗試）"
+                exit 0
+              else
+                echo "⚠️ push 被拒絕（可能又有新的 remote 變更），中止本次 rebase 結果並重試..."
+                git rebase --abort 2>/dev/null || true
+              fi
+            else
+              echo "⚠️ rebase 發生衝突，中止 rebase 避免留下半殘檔案，稍後重試..."
+              git rebase --abort 2>/dev/null || true
+            fi
+
+            if [ "$i" -lt "$MAX_RETRY" ]; then
+              sleep $((RANDOM % 10 + 5))  # 隨機延遲 5~14 秒再重試，降低多個 run 同時搶跑的碰撞機率
+            fi
+          done
+
+          echo "❌ 已重試 $MAX_RETRY 次仍無法推送，本輪次分析結果可能未寫回 GitHub，請檢查 Actions 紀錄！"
+          exit 1

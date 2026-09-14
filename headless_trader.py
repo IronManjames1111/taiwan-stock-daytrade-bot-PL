@@ -947,27 +947,55 @@ def load_dashboard_state(today_str: str) -> Dict:
         "mid_wave_triggered": False,
         "latest_analysis_records": [],  # 累積型：同一檔股票用 symbol 當 key 覆蓋更新，不同股票會並存
         "total_signals": 0,
-        "last_analysis_minute_bucket": None,  # 記錄上次執行過 10 分鐘分析的時間戳記，避免同一個 5 分鐘窗被重複觸發兩次
+        "last_analysis_minute_bucket": None,  # 記錄上次執行過分析的時間戳記 (YYYY-MM-DD HH:MM)，用於判斷距今是否已滿 10 分鐘
+        "settled_today": False,  # 今日是否已完成 13:25 收盤結算，避免收盤後的非盤中測試模式覆蓋掉正式看板
     }
     if not os.path.exists(STATE_FILE):
+        print(f"ℹ️ {STATE_FILE} 不存在，視為今日第一次執行，建立全新狀態。")
         return default_state
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
-            state = json.load(f)
+            raw = f.read()
+        if not raw.strip():
+            print(f"⚠️ {STATE_FILE} 是空檔案（可能是上一輪寫入中斷），改用全新狀態。")
+            return default_state
+        state = json.loads(raw)
         if state.get("date") != today_str:
             print(f"ℹ️ 偵測到狀態檔案為前一交易日 ({state.get('date')}) 的資料，重置為今日 ({today_str}) 全新狀態。")
             return default_state
+        # 補齊欄位：若讀到的是舊版 state（缺少新增欄位），用預設值補上，避免 KeyError
+        for key, default_val in default_state.items():
+            if key not in state:
+                state[key] = default_val
+        # 基本合理性檢查：latest_analysis_records 應該是 list，若型別跑掉（代表檔案可能在
+        # 一次失敗的 git rebase/merge 中被寫壞），寧可用空狀態重跑，也不要帶著壞資料繼續污染。
+        if not isinstance(state.get("latest_analysis_records"), list):
+            print(f"⚠️ {STATE_FILE} 內 latest_analysis_records 型別異常，判定檔案已損毀，改用全新狀態。")
+            return default_state
+        print(f"✅ 成功讀取上一輪狀態：累積分析 {len(state.get('latest_analysis_records', []))} 檔、"
+              f"已記錄訊號 {state.get('total_signals', 0)} 筆、上次分析時間戳記={state.get('last_analysis_minute_bucket')}")
         return state
     except Exception as e:
         print(f"⚠️ 讀取 {STATE_FILE} 失敗，改用全新狀態: {e}")
         return default_state
 
 def save_dashboard_state(state: Dict):
+    """
+    寫入 dashboard_state.json。採用「先寫暫存檔、成功後再原子性覆蓋」的方式，
+    避免寫到一半被中斷（例如 runner 被砍掉）導致檔案內容殘缺、下一輪讀到半殘 JSON。
+    """
+    tmp_path = STATE_FILE + ".tmp"
     try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, STATE_FILE)
     except Exception as e:
         print(f"⚠️ 寫入 {STATE_FILE} 失敗: {e}")
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
 
 def upsert_analysis_record(records: List[Dict], new_record: Dict) -> List[Dict]:
     """
@@ -1199,6 +1227,15 @@ def main():
     # 模式判斷：若非盤中時間 (如晚上手動測試或週末)，執行快速測試模式
     is_market_session = ("08:50" <= hm <= "13:30") and not is_weekend
     if not is_market_session:
+        # 在進入測試模式、覆蓋 index.html 之前，先檢查今天是否已經完成過 13:25 收盤結算。
+        # 若已結算過，代表今天的正式流程已跑完，之後 cron 若仍持續每 5 分鐘觸發（收盤後、
+        # 隔天開盤前皆然），絕對不能再讓測試模式把正式的收盤結算頁面覆蓋掉。
+        existing_state = load_dashboard_state(today_str)
+        if existing_state.get("settled_today"):
+            print(f"\nℹ️ 今日 ({today_str}) 已完成 13:25 收盤結算，非盤中時段不再執行測試模式、"
+                  f"也不覆蓋 index.html，直接結束本輪。")
+            return
+
         print("\n⚠️ 目前非台股盤中交易時間 (09:00~13:30)，進入【連線與即時看板測試模式】...")
         test_stocks = get_free_top_volume_stocks(limit=3)
         print("🔍 測試 Yahoo 成交量排行抓取：")
@@ -1350,6 +1387,10 @@ def main():
         # 而不是只能看到 backtest CSV 裡「有實際下單訊號」的部分。
         save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list)
 
+        # 標記今日已完成收盤結算：往後收盤後若 cron 仍持續觸發，main() 開頭的
+        # 非盤中測試模式會讀到這個旗標，直接跳過、不再覆蓋這份正式的收盤結算頁面。
+        state["settled_today"] = True
+
         render_html_dashboard(
             status_text="已收盤結算完成",
             active_model=gemini.active_model,
@@ -1363,14 +1404,40 @@ def main():
         print("✅ 本輪次（收盤結算）執行完畢。")
         return
 
-    # 09:15 ~ 13:25 盤中：每 10 分鐘執行一次分析 (09:20, 09:30 ... 13:20)
-    # 用 last_analysis_minute_bucket 記錄「上一次已經跑過分析的整 10 分鐘時間戳記」，
-    # 避免同一個 10 分鐘區間內，因為 cron 每 5 分鐘觸發一次而被重複執行兩次。
-    current_bucket = now.strftime("%Y-%m-%d %H:%M") if now.minute % 10 == 0 else None
-    should_analyze = current_bucket is not None and current_bucket != last_bucket
+    # 09:15 ~ 13:25 盤中：每 10 分鐘執行一次分析 (目標 09:20, 09:30 ... 13:20)
+    # v4.1 修正說明：
+    # ────────────
+    # 舊版用 `now.minute % 10 == 0` 判斷「是否剛好命中整 10 分鐘」，前提是 GitHub Actions
+    # 每次都能準時在整 10 分鐘那一刻開始執行。但實際上 workflow_dispatch 從被 cron-job.org
+    # 呼叫、到 runner 排隊分配、再到 python 腳本真正開始跑，中間常有數十秒到數分鐘不等的
+    # queue latency；只要延遲跨過了那一分鐘，現在時間就不再是 10 的倍數，導致 current_bucket
+    # 直接變成 None、本輪整個跳過分析——而且因為沒有補跑機制，這個 10 分鐘窗口就永久錯過了。
+    # 這是先前「一整天只分析到一次」的根本原因。
+    #
+    # 新版改用「距離上次分析是否已經過了至少 10 分鐘」的時間差來判斷，不再要求分鐘數剛好
+    # 對上整數，只要間隔滿足就觸發，對排隊延遲有完整容錯空間。
+    last_bucket_dt = None
+    if last_bucket:
+        try:
+            last_bucket_dt = TW_TZ.localize(datetime.datetime.strptime(last_bucket, "%Y-%m-%d %H:%M"))
+        except Exception as e:
+            print(f"⚠️ 解析上次分析時間戳記「{last_bucket}」失敗，視為尚未分析過: {e}")
+            last_bucket_dt = None
+
+    ANALYSIS_INTERVAL_SECONDS = 10 * 60
+    if last_bucket_dt is None:
+        should_analyze = True
+        seconds_since_last = None
+    else:
+        seconds_since_last = (now - last_bucket_dt).total_seconds()
+        should_analyze = seconds_since_last >= ANALYSIS_INTERVAL_SECONDS
+
+    current_bucket = now.strftime("%Y-%m-%d %H:%M") if should_analyze else last_bucket
 
     if not should_analyze:
-        print(f"[{now.strftime('%H:%M:%S')}] 尚未到下一個 10 分鐘分析時間點，本輪次僅同步目前看板狀態。")
+        remain = ANALYSIS_INTERVAL_SECONDS - seconds_since_last if seconds_since_last is not None else None
+        remain_msg = f"，距下次分析還需約 {int(remain // 60)} 分 {int(remain % 60)} 秒" if remain is not None else ""
+        print(f"[{now.strftime('%H:%M:%S')}] 距上次分析 ({last_bucket}) 尚未滿 10 分鐘{remain_msg}，本輪次僅同步目前看板狀態。")
         render_html_dashboard(
             status_text=f"盤中監控中 ({now.strftime('%H:%M')})",
             active_model=gemini.active_model,
