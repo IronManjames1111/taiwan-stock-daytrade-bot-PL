@@ -121,11 +121,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">盤中分析中 (10:55)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">盤中監控中 (11:00)</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-09-15 11:00:12</span>
+                    <span class="text-white mono ml-1.5">2026-09-15 11:00:45</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -155,7 +155,7 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">AI 模型</div>
-                <div class="text-sm font-bold text-[#8db3ff] mono mt-1 truncate">gemma-4-26b-a4b-it</div>
+                <div class="text-sm font-bold text-[#8db3ff] mono mt-1 truncate">gemma-4-31b-it</div>
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">監控標的</div>
@@ -573,10 +573,10 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-09-15 11:00:12",
+  "generated_at": "2026-09-15 11:00:45",
   "today_str": "2026-09-15",
-  "status_text": "盤中分析中 (10:55)",
-  "active_model": "gemma-4-26b-a4b-it",
+  "status_text": "盤中監控中 (11:00)",
+  "active_model": "gemma-4-31b-it",
   "total_signals": 0,
   "wave1_stocks": [
     {
