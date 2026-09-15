@@ -121,11 +121,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">非盤中連線測試（僅測3檔，平日盤中將完整執行8檔選股）</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">盤前準備中 (等待 09:15)</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-09-14 21:26:05</span>
+                    <span class="text-white mono ml-1.5">2026-09-15 09:00:46</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -145,7 +145,7 @@
             </div>
             <select id="history-date-select" onchange="onHistoryDateChange(this.value)"
                 class="panel-raised border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#4d8dff] mono">
-                <option value="__today__">今日即時（2026-09-14）</option>
+                <option value="__today__">今日即時（2026-09-15）</option>
             </select>
             <span id="history-loading-msg" class="hidden text-xs text-gray-500">載入中...</span>
             <span id="history-error-msg" class="hidden text-xs text-[#ff5470]">該日期尚無資料或載入失敗</span>
@@ -159,7 +159,7 @@
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">監控標的</div>
-                <div class="text-xl font-bold text-white mono mt-1">3 檔</div>
+                <div class="text-xl font-bold text-white mono mt-1">0 檔</div>
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">今日訊號</div>
@@ -181,22 +181,7 @@
                     </div>
                     <span class="text-[11px] bg-[#0f1c33] text-[#8db3ff] border border-[#4d8dff]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段一</span>
                 </div>
-                <ul class="space-y-2 text-sm">
-            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
-                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#1</span>2409 友達</span>
-                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">28.7 元 · 310,745 張</span>
-            </li>
-            
-            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
-                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#2</span>2303 聯電</span>
-                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">142.5 元 · 130,923 張</span>
-            </li>
-            
-            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
-                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#3</span>2344 華邦電</span>
-                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">160.0 元 · 118,674 張</span>
-            </li>
-            </ul>
+                <ul class="space-y-2 text-sm"><li class="text-gray-500 text-xs py-2">等待開盤 09:15 抓取中...</li></ul>
             </div>
 
             <div class="panel border rounded-2xl p-5">
@@ -255,34 +240,12 @@
                             <th class="py-2.5 px-3">更新時間</th>
                         </tr>
                     </thead>
-                    <tbody id="analysis-tbody" class="divide-y divide-white/5">
-            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
-                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">2409 友達</td>
-                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
-                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">28.7</td>
-                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 text-gray-300 text-xs">測試連線成功: [強勢] 漲幅穩健，尾盤衝高機會大。</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap"></td>
-            </tr>
-            </tbody>
+                    <tbody id="analysis-tbody" class="divide-y divide-white/5"><tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr></tbody>
                 </table>
             </div>
 
             <!-- 手機版：直式資訊卡（避免長文字被表格固定欄寬硬擠導致換行跑版） -->
-            <div id="analysis-cards" class="analysis-cards-wrap">
-            <div class="data-card analysis-row" data-filter-group="watch">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="font-bold text-white text-sm">2409 友達</span>
-                    <span class="sig-badge sig-watch">— 觀望</span>
-                </div>
-                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">28.7</span></div>
-                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
-                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500"></span></div>
-                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">測試連線成功: [強勢] 漲幅穩健，尾盤衝高機會大。</div>
-            </div>
-            </div>
+            <div id="analysis-cards" class="analysis-cards-wrap"><div class="text-center text-gray-500 text-xs py-6">盤中每 10 分鐘自動更新分析看板...</div></div>
 
             <p id="filter-empty-msg" class="hidden text-center text-gray-500 text-xs py-6">此篩選條件下目前沒有符合的標的</p>
         </div>
@@ -332,46 +295,14 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-09-14 21:26:05",
-  "today_str": "2026-09-14",
-  "status_text": "非盤中連線測試（僅測3檔，平日盤中將完整執行8檔選股）",
+  "generated_at": "2026-09-15 09:00:46",
+  "today_str": "2026-09-15",
+  "status_text": "盤前準備中 (等待 09:15)",
   "active_model": "gemma-4-31b-it",
   "total_signals": 0,
-  "wave1_stocks": [
-    {
-      "symbol": "2409",
-      "name": "友達",
-      "price": 28.7,
-      "volume": 310745,
-      "rank": "1"
-    },
-    {
-      "symbol": "2303",
-      "name": "聯電",
-      "price": 142.5,
-      "volume": 130923,
-      "rank": "8"
-    },
-    {
-      "symbol": "2344",
-      "name": "華邦電",
-      "price": 160.0,
-      "volume": 118674,
-      "rank": "10"
-    }
-  ],
+  "wave1_stocks": [],
   "wave2_stocks": [],
-  "latest_analysis": [
-    {
-      "symbol": "2409",
-      "name": "友達",
-      "signal": "WATCH",
-      "entry": 28.7,
-      "stop_loss": "-",
-      "target": "-",
-      "reason": "測試連線成功: [強勢] 漲幅穩健，尾盤衝高機會大。"
-    }
-  ],
+  "latest_analysis": [],
   "settle_records": []
 };
 
