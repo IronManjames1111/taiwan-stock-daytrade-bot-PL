@@ -69,6 +69,7 @@ def render_html_dashboard(
     wave1_stocks: List[Dict] = None,
     wave2_stocks: List[Dict] = None,
     latest_analysis: List[Dict] = None,
+    analysis_log: List[Dict] = None,
     settle_records: List[Dict] = None,
     active_model: str = "gemma-4-31b-it",
     status_text: str = "運行中",
@@ -78,6 +79,10 @@ def render_html_dashboard(
     """
     生成單一獨立網頁 index.html，供 GitHub Pages 直接託管展示
     具備密碼防護機制、暗黑風質感交易介面、手機響應式設計
+
+    latest_analysis：每檔股票「目前最新狀態」的清單（同一檔股票只有一筆），供總覽表格顯示。
+    analysis_log：當天「每一輪分析」的完整歷程（同一檔股票可能有多筆，依時間序列），
+    供「展開查看歷史分析」功能依 symbol 分組後顯示，修復先前中間分析輪次被覆蓋遺失的問題。
     """
     now_str = get_tw_now().strftime("%Y-%m-%d %H:%M:%S")
     today_str = get_tw_now().strftime("%Y-%m-%d")
@@ -92,11 +97,14 @@ def render_html_dashboard(
     wave1_stocks = wave1_stocks or []
     wave2_stocks = wave2_stocks or []
     latest_analysis = latest_analysis or []
+    analysis_log = analysis_log or []
     settle_records = settle_records or []
 
     # ── 下載功能：把本次看板的完整原始資料打包成 JSON，供頁面右上角下載按鈕使用 ──
     # today_str 一併放入 payload：供前端日期切換選單判斷「目前選的是不是今天」，
     # 以及切回今日時可以直接從這份記憶體資料還原畫面，不需要重新 fetch。
+    # analysis_log 同樣放入 payload：供「展開查看歷史分析」功能依 symbol 篩選、
+    # 按時間序列呈現當天每一輪的完整分析紀錄（不是只有最新一筆）。
     export_payload = {
         "generated_at": now_str,
         "today_str": today_str,
@@ -106,6 +114,7 @@ def render_html_dashboard(
         "wave1_stocks": wave1_stocks,
         "wave2_stocks": wave2_stocks,
         "latest_analysis": latest_analysis,
+        "analysis_log": analysis_log,
         "settle_records": settle_records,
     }
     # ensure_ascii=False 保留中文可讀；再用 json.dumps 序列化成字串安全地塞進 <script> 的 JS 常數
@@ -172,20 +181,32 @@ def render_html_dashboard(
             target = a.get("target", "-")
             reason = a.get("reason", "")
 
+            # 統計這檔股票今天總共被分析過幾輪（來自 analysis_log 完整歷程），
+            # 只有 >1 筆時才顯示「展開歷史」按鈕，避免只分析過一次的股票也顯示無意義的按鈕
+            log_count = sum(1 for lg in analysis_log if lg.get("symbol") == symbol)
+            history_btn = (
+                f'<button type="button" class="history-toggle-btn" data-symbol="{symbol}" '
+                f'onclick="toggleHistoryLog(this, \'{symbol}\')">📜 歷史 {log_count} 筆</button>'
+                if log_count > 1 else ""
+            )
+
             analysis_rows += f"""
-            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="{filter_group}">
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="{filter_group}" data-symbol="{symbol}">
                 <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">{symbol} {name}</td>
                 <td class="py-2.5 px-3">{sig_badge}</td>
                 <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">{entry}</td>
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">{stop_loss}</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">{target}</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">{reason}</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">{updated_at}</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">{updated_at}{history_btn}</td>
+            </tr>
+            <tr class="history-log-row hidden" data-symbol-log="{symbol}">
+                <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
             </tr>
             """
 
             analysis_cards += f"""
-            <div class="data-card analysis-row" data-filter-group="{filter_group}">
+            <div class="data-card analysis-row" data-filter-group="{filter_group}" data-symbol="{symbol}">
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-bold text-white text-sm">{symbol} {name}</span>
                     {sig_badge}
@@ -195,6 +216,7 @@ def render_html_dashboard(
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">{target}</span></div>
                 <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">{updated_at}</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">{reason}</div>
+                {f'<div class="mt-2 pt-2 border-t border-white/5">{history_btn}<div class="history-log-container" data-symbol-log-card="{symbol}"></div></div>' if history_btn else ''}
             </div>
             """
     else:
@@ -320,6 +342,24 @@ def render_html_dashboard(
         .data-row {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 3px 0; font-size: 12.5px; }}
         .data-row .dlabel {{ color: #6b7685; white-space: nowrap; flex-shrink: 0; }}
         .data-row .dvalue {{ color: #dde3ea; text-align: right; word-break: break-word; }}
+
+        /* 「展開查看歷史分析」按鈕與展開內容：修復先前同一檔股票只留最後一筆分析結果、
+           中間所有分析輪次都被覆蓋看不到的問題。按鈕預設低調（小字+底線），展開後轉為
+           強調色，讓使用者清楚知道目前是展開狀態。 */
+        .history-toggle-btn {{
+            display: inline-block; margin-left: 8px; font-size: 11px; color: var(--accent);
+            text-decoration: underline; text-underline-offset: 2px; cursor: pointer; background: none; border: none; padding: 0;
+            white-space: nowrap;
+        }}
+        .history-toggle-btn.active {{ color: #a9c6ff; font-weight: 700; }}
+        .history-log-row.hidden {{ display: none; }}
+        .history-log-container {{
+            background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+            padding: 8px 10px; max-height: 260px; overflow-y: auto;
+        }}
+        .history-log-container:not(.open):empty {{ display: none; }}
+        .history-log-entry {{ padding: 6px 2px; border-bottom: 1px dashed var(--line); }}
+        .history-log-entry:last-child {{ border-bottom: none; }}
     </style>
 </head>
 <body class="min-h-screen p-3 md:p-6 flex flex-col justify-between">
@@ -598,7 +638,8 @@ def render_html_dashboard(
             csv += `累計訊號數,${{csvCell(EXPORT_DATA.total_signals)}}\\n\\n`;
             csv += csvSection("【波段一 09:15 選股】", EXPORT_DATA.wave1_stocks);
             csv += csvSection("【波段二 10:30 選股】", EXPORT_DATA.wave2_stocks);
-            csv += csvSection("【AI 即時分析訊號】", EXPORT_DATA.latest_analysis);
+            csv += csvSection("【AI 即時分析訊號 (每檔股票最新狀態)】", EXPORT_DATA.latest_analysis);
+            csv += csvSection("【AI 完整分析歷程 (每一輪分析，不覆蓋)】", EXPORT_DATA.analysis_log);
             csv += csvSection("【收盤結算紀錄】", EXPORT_DATA.settle_records);
             triggerDownload(csv, `daytrade_${{ts}}.csv`, "text/csv;charset=utf-8");
         }}
@@ -668,6 +709,10 @@ def render_html_dashboard(
             if (savedToken === PWD_B64 || savedToken === PWD_HASH) {{
                 unlockUI();
             }}
+            // 今日的分析表格本身是後端 Python 產生時就直接寫入靜態 HTML 的（非透過
+            // renderAnalysisTable 動態產生），所以這裡要單獨把 CURRENT_LOG_BY_SYMBOL
+            // 初始化好，「展開歷史」按鈕在使用者尚未切換過日期前也才能正確查到資料。
+            CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(EXPORT_DATA.analysis_log || []);
             initSignalFilter();
             initHistoryDateSelect();
         }});
@@ -707,7 +752,7 @@ def render_html_dashboard(
 
             if (value === "__today__") {{
                 // 切回今日：直接用頁面產生當下就內嵌好的 EXPORT_DATA 還原，不需要重新 fetch
-                renderAnalysisTable(EXPORT_DATA.latest_analysis, true);
+                renderAnalysisTable(EXPORT_DATA.latest_analysis, true, EXPORT_DATA.analysis_log || []);
                 renderSettleTable(EXPORT_DATA.settle_records);
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
                 return;
@@ -719,7 +764,7 @@ def render_html_dashboard(
                 if (!resp.ok) throw new Error("該日期無資料");
                 const snapshot = await resp.json();
 
-                renderAnalysisTable(snapshot.analysis_records || [], false);
+                renderAnalysisTable(snapshot.analysis_records || [], false, snapshot.analysis_log || []);
                 renderSettleTable(snapshot.settle_records || []);
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
             }} catch (e) {{
@@ -742,7 +787,23 @@ def render_html_dashboard(
         // 依訊號分類重新產生分析表格/卡片的 HTML，邏輯對應 Python 端 render_html_dashboard()
         // 的組裝方式，確保今日即時畫面與歷史查詢畫面呈現一致。同時更新桌面表格與手機卡片
         // 兩種畫面，因為 CSS 是用 media query 切換顯示/隱藏，兩者都要有內容。
-        function renderAnalysisTable(records, isToday) {{
+        //
+        // logRecords：當天（或所選歷史日期）「每一輪分析」的完整歷程，同一檔股票可能有多筆。
+        // 用來在畫面上提供「展開查看歷史分析」功能，修復先前 latest_analysis 只保留最後一筆、
+        // 中間分析輪次全部遺失看不到的問題。渲染時暫存到 CURRENT_LOG_BY_SYMBOL，供展開按鈕查詢。
+        let CURRENT_LOG_BY_SYMBOL = {{}};
+
+        function buildLogBySymbol(logRecords) {{
+            const map = {{}};
+            (logRecords || []).forEach(lg => {{
+                const sym = lg.symbol || "";
+                if (!map[sym]) map[sym] = [];
+                map[sym].push(lg);
+            }});
+            return map;
+        }}
+
+        function renderAnalysisTable(records, isToday, logRecords) {{
             const tbody = document.getElementById("analysis-tbody");
             const cardsWrap = document.getElementById("analysis-cards");
             const emptyRowHtml = isToday
@@ -751,6 +812,8 @@ def render_html_dashboard(
             const emptyCardHtml = isToday
                 ? '<div class="text-center text-gray-500 text-xs py-6">盤中每 10 分鐘自動更新分析看板...</div>'
                 : '<div class="text-center text-gray-500 text-xs py-6">此日期尚無分析資料</div>';
+
+            CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(logRecords);
 
             if (!records || records.length === 0) {{
                 tbody.innerHTML = emptyRowHtml;
@@ -782,19 +845,27 @@ def render_html_dashboard(
                 const reason = escapeHtml(a.reason || "");
                 const updatedAt = escapeHtml(a.updated_at || "");
 
+                const logCount = (CURRENT_LOG_BY_SYMBOL[a.symbol] || []).length;
+                const historyBtn = logCount > 1
+                    ? `<button type="button" class="history-toggle-btn" onclick="toggleHistoryLog(this, '${{symbol}}')">📜 歷史 ${{logCount}} 筆</button>`
+                    : "";
+
                 rowsHtml += `
-                <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="${{filterGroup}}">
+                <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="${{filterGroup}}" data-symbol="${{symbol}}">
                     <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">${{symbol}} ${{name}}</td>
                     <td class="py-2.5 px-3">${{badge}}</td>
                     <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">${{entry}}</td>
                     <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">${{stopLoss}}</td>
                     <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">${{target}}</td>
                     <td class="py-2.5 px-3 text-gray-300 text-xs">${{reason}}</td>
-                    <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">${{updatedAt}}</td>
+                    <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">${{updatedAt}}${{historyBtn}}</td>
+                </tr>
+                <tr class="history-log-row hidden" data-symbol-log="${{symbol}}">
+                    <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
                 </tr>`;
 
                 cardsHtml += `
-                <div class="data-card analysis-row" data-filter-group="${{filterGroup}}">
+                <div class="data-card analysis-row" data-filter-group="${{filterGroup}}" data-symbol="${{symbol}}">
                     <div class="flex items-center justify-between mb-2">
                         <span class="font-bold text-white text-sm">${{symbol}} ${{name}}</span>
                         ${{badge}}
@@ -804,10 +875,55 @@ def render_html_dashboard(
                     <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">${{target}}</span></div>
                     <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">${{updatedAt}}</span></div>
                     <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">${{reason}}</div>
+                    ${{historyBtn ? `<div class="mt-2 pt-2 border-t border-white/5">${{historyBtn}}<div class="history-log-container" data-symbol-log-card="${{symbol}}"></div></div>` : ""}}
                 </div>`;
             }});
             tbody.innerHTML = rowsHtml;
             cardsWrap.innerHTML = cardsHtml;
+        }}
+
+        // 產生「展開歷史」清單的內容：把某檔股票今天所有輪次的分析結果，
+        // 依時間序列由舊到新條列出來，讓使用者能看到訊號/進場價如何隨盤勢變化。
+        function renderHistoryLogEntries(symbol) {{
+            const entries = CURRENT_LOG_BY_SYMBOL[symbol] || [];
+            if (entries.length === 0) {{
+                return '<div class="text-gray-500 text-xs py-2">尚無歷史分析紀錄</div>';
+            }}
+            return entries.map(lg => {{
+                const sig = lg.signal || "WATCH";
+                const badgeClass = sig.includes("BUY") ? "sig-long" : sig.includes("SHORT") ? "sig-short" : "sig-watch";
+                const badgeText = sig.includes("BUY") ? "🔺 做多" : sig.includes("SHORT") ? "🔻 放空" : "— 觀望";
+                return `
+                <div class="history-log-entry">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="mono text-gray-500 text-[11px] whitespace-nowrap">${{escapeHtml(lg.updated_at || "")}}</span>
+                        <span class="sig-badge ${{badgeClass}} text-[10px]">${{badgeText}}</span>
+                        <span class="mono text-gray-300 text-[11px] whitespace-nowrap">進場 ${{escapeHtml(lg.entry ?? "-")}}</span>
+                    </div>
+                    <div class="text-gray-400 text-[11px] mt-1 leading-relaxed">${{escapeHtml(lg.reason || "")}}</div>
+                </div>`;
+            }}).join("");
+        }}
+
+        // 點擊「📜 歷史 N 筆」按鈕：切換展開/收合該檔股票的完整分析歷程。
+        // 桌面表格用隱藏列 (history-log-row)，手機卡片用卡片內的容器 (history-log-container)，
+        // 兩處都要同步處理，因為兩者透過 CSS media query 切換顯示，使用者可能用任一種畫面操作。
+        function toggleHistoryLog(btnEl, symbol) {{
+            const isCard = btnEl.closest(".data-card") !== null;
+            if (isCard) {{
+                const container = btnEl.parentElement.querySelector(`[data-symbol-log-card="${{symbol}}"]`);
+                if (!container) return;
+                const isOpen = container.classList.toggle("open");
+                container.innerHTML = isOpen ? renderHistoryLogEntries(symbol) : "";
+                btnEl.classList.toggle("active", isOpen);
+            }} else {{
+                const logRow = document.querySelector(`tr.history-log-row[data-symbol-log="${{symbol}}"]`);
+                if (!logRow) return;
+                const container = logRow.querySelector(".history-log-container");
+                const isOpen = logRow.classList.toggle("hidden") === false;
+                container.innerHTML = isOpen ? renderHistoryLogEntries(symbol) : "";
+                btnEl.classList.toggle("active", isOpen);
+            }}
         }}
 
         // 依結算結果重新產生結算表格/卡片的 HTML，欄位對應 cache_service 產生的歷史紀錄格式。
@@ -945,7 +1061,8 @@ def load_dashboard_state(today_str: str) -> Dict:
         "wave1_stocks": [],
         "wave2_stocks": [],
         "mid_wave_triggered": False,
-        "latest_analysis_records": [],  # 累積型：同一檔股票用 symbol 當 key 覆蓋更新，不同股票會並存
+        "latest_analysis_records": [],  # 累積型：同一檔股票用 symbol 當 key 覆蓋更新，只代表「目前最新狀態」
+        "analysis_log": [],  # 完整歷程型：每一輪分析都 append 一筆，不覆蓋，供回溯當天每檔股票的完整分析歷程
         "total_signals": 0,
         "last_analysis_minute_bucket": None,  # 記錄上次執行過分析的時間戳記 (YYYY-MM-DD HH:MM)，用於判斷距今是否已滿 10 分鐘
         "settled_today": False,  # 今日是否已完成 13:25 收盤結算，避免收盤後的非盤中測試模式覆蓋掉正式看板
@@ -967,12 +1084,17 @@ def load_dashboard_state(today_str: str) -> Dict:
         for key, default_val in default_state.items():
             if key not in state:
                 state[key] = default_val
-        # 基本合理性檢查：latest_analysis_records 應該是 list，若型別跑掉（代表檔案可能在
-        # 一次失敗的 git rebase/merge 中被寫壞），寧可用空狀態重跑，也不要帶著壞資料繼續污染。
+        # 基本合理性檢查：latest_analysis_records / analysis_log 應該是 list，若型別跑掉
+        # （代表檔案可能在一次失敗的 git rebase/merge 中被寫壞），寧可用空狀態重跑，
+        # 也不要帶著壞資料繼續污染。
         if not isinstance(state.get("latest_analysis_records"), list):
             print(f"⚠️ {STATE_FILE} 內 latest_analysis_records 型別異常，判定檔案已損毀，改用全新狀態。")
             return default_state
+        if not isinstance(state.get("analysis_log"), list):
+            print(f"⚠️ {STATE_FILE} 內 analysis_log 型別異常，判定檔案已損毀，改用全新狀態。")
+            return default_state
         print(f"✅ 成功讀取上一輪狀態：累積分析 {len(state.get('latest_analysis_records', []))} 檔、"
+              f"完整分析歷程 {len(state.get('analysis_log', []))} 筆、"
               f"已記錄訊號 {state.get('total_signals', 0)} 筆、上次分析時間戳記={state.get('last_analysis_minute_bucket')}")
         return state
     except Exception as e:
@@ -1000,7 +1122,11 @@ def save_dashboard_state(state: Dict):
 def upsert_analysis_record(records: List[Dict], new_record: Dict) -> List[Dict]:
     """
     將本次分析結果併入累積清單：同一檔股票(symbol)存在就覆蓋更新為最新結果，
-    不存在就新增一筆，藉此讓網站顯示「當日所有被分析過的股票」而不是只有最新一輪的幾檔。
+    不存在就新增一筆，藉此讓網站的「即時總覽」顯示每一檔股票目前最新狀態，
+    而不是每一輪的舊資料一直往下疊。
+
+    注意：這個函式只維護「最新狀態」快照，不是完整歷程。完整的每一輪分析
+    紀錄由 append_analysis_log() 另外累積保存，兩者並存、互不取代。
     """
     updated = False
     for i, r in enumerate(records):
@@ -1012,7 +1138,25 @@ def upsert_analysis_record(records: List[Dict], new_record: Dict) -> List[Dict]:
         records.append(new_record)
     return records
 
-def save_daily_history_snapshot(date_str: str, analysis_records: List[Dict], settle_records: List[Dict]):
+def append_analysis_log(log: List[Dict], new_record: Dict) -> List[Dict]:
+    """
+    將本次分析結果「附加」進完整歷程清單，同一檔股票被重複分析多次時，
+    每一輪都各自保留一筆（不覆蓋），讓使用者能回溯當天某檔股票每 10 分鐘
+    的分析變化，而不是只看到收盤前最後一次的結果。
+
+    這是為了修復先前的問題：upsert_analysis_record() 的覆蓋式更新，
+    導致同一檔股票中間所有分析輪次都被悄悄蓋掉、收盤快照也只存到
+    「最後一筆」，看起來就像「明明分析了一整天、卻只保存了一筆」。
+    """
+    log.append(new_record)
+    return log
+
+def save_daily_history_snapshot(
+    date_str: str,
+    analysis_records: List[Dict],
+    settle_records: List[Dict],
+    analysis_log: List[Dict] = None,
+):
     """
     收盤結算時呼叫：將當天的完整分析紀錄 (含觀望) 與結算損益，
     寫成 history_records/analysis_YYYY-MM-DD.json，並更新
@@ -1021,12 +1165,17 @@ def save_daily_history_snapshot(date_str: str, analysis_records: List[Dict], set
     GitHub Pages 是純靜態網站，前端 JavaScript 沒辦法直接列出
     history_records/ 資料夾底下有哪些檔案，所以需要額外維護
     這份 index.json，供 index.html 的日期下拉選單讀取。
+
+    analysis_records：每檔股票的「最新狀態」快照（供總覽表格顯示）。
+    analysis_log：當天每一輪分析的完整歷程（不覆蓋），供「展開查看歷史分析」
+    功能依 symbol 分組、按時間序列呈現，修復先前只保存最後一筆的問題。
     """
     os.makedirs("history_records", exist_ok=True)
 
     snapshot = {
         "date": date_str,
         "analysis_records": analysis_records,
+        "analysis_log": analysis_log or [],
         "settle_records": settle_records,
         "saved_at": get_tw_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -1270,12 +1419,15 @@ def main():
             except Exception as e:
                 print(f"   ❌ Gemini 連線異常: {e}")
 
-        # 渲染出初始 index.html
+        # 渲染出初始 index.html。這裡額外把 existing_state 內既有的 analysis_log 一併帶入，
+        # 避免非盤中測試模式重新整理畫面時，把白天盤中已經累積的「展開查看歷史分析」
+        # 按鈕暫時性地清空不見（latest_analysis 維持原本邏輯不變，僅補上 analysis_log）。
         render_html_dashboard(
             status_text="非盤中連線測試（僅測3檔，平日盤中將完整執行8檔選股）",
             active_model=gemini.active_model,
             wave1_stocks=test_stocks,
-            latest_analysis=test_analysis
+            latest_analysis=test_analysis,
+            analysis_log=existing_state.get("analysis_log", [])
         )
 
         print("\n🎉 GitHub Actions 測試驗證全數通過！專屬網頁 index.html 已更新。")
@@ -1289,6 +1441,7 @@ def main():
     wave2_stocks = state["wave2_stocks"]
     mid_wave_triggered = state["mid_wave_triggered"]
     latest_analysis_records = state["latest_analysis_records"]
+    analysis_log = state["analysis_log"]
     total_signals = state["total_signals"]
     last_bucket = state["last_analysis_minute_bucket"]
 
@@ -1303,6 +1456,7 @@ def main():
             wave1_stocks=wave1_stocks,
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
+            analysis_log=analysis_log,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1323,6 +1477,7 @@ def main():
             active_model=gemini.active_model,
             wave1_stocks=wave1_stocks,
             latest_analysis=latest_analysis_records,
+            analysis_log=analysis_log,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1349,6 +1504,7 @@ def main():
             wave1_stocks=wave1_stocks,
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
+            analysis_log=analysis_log,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1382,10 +1538,11 @@ def main():
             all_data = cache_service._read_history()
             today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
 
-        # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內) 一併保存成
+        # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內) 與完整分析歷程
+        # (analysis_log，同一檔股票每一輪都保留、不覆蓋) 一併保存成
         # history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時查看完整分析過程，
-        # 而不是只能看到 backtest CSV 裡「有實際下單訊號」的部分。
-        save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list)
+        # 而不是只能看到 backtest CSV 裡「有實際下單訊號」的部分，也不會只剩最後一筆。
+        save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log)
 
         # 標記今日已完成收盤結算：往後收盤後若 cron 仍持續觸發，main() 開頭的
         # 非盤中測試模式會讀到這個旗標，直接跳過、不再覆蓋這份正式的收盤結算頁面。
@@ -1397,6 +1554,7 @@ def main():
             wave1_stocks=wave1_stocks,
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
+            analysis_log=analysis_log,
             settle_records=today_settled_list,
             total_signals=total_signals
         )
@@ -1444,6 +1602,7 @@ def main():
             wave1_stocks=wave1_stocks,
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
+            analysis_log=analysis_log,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1490,9 +1649,7 @@ def main():
 
             print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
 
-            # 用 upsert 併入累積清單：同一檔股票覆蓋更新，不同股票並存，
-            # 讓網站顯示的是「當日所有被分析過的股票」而不是只有這一輪的幾檔
-            latest_analysis_records = upsert_analysis_record(latest_analysis_records, {
+            analysis_record = {
                 "symbol": symbol,
                 "name": name,
                 "signal": sig,
@@ -1501,7 +1658,17 @@ def main():
                 "target": target_p,
                 "reason": reason,
                 "updated_at": now.strftime("%H:%M:%S")
-            })
+            }
+
+            # 用 upsert 併入「即時總覽」清單：同一檔股票覆蓋更新為最新狀態，
+            # 讓即時看板顯示的是「當日所有被分析過的股票目前最新結果」
+            latest_analysis_records = upsert_analysis_record(latest_analysis_records, analysis_record)
+
+            # 同時 append 進「完整歷程」清單：同一檔股票每一輪都各自保留一筆，不覆蓋。
+            # 這是修復先前問題的關鍵——之前只有 upsert 這份會覆蓋掉中間所有分析輪次，
+            # 收盤快照也只存到覆蓋後的最後一筆。現在完整歷程獨立保存，收盤與盤中
+            # 查詢都能回溯每檔股票今天每一次分析的變化。
+            analysis_log = append_analysis_log(analysis_log, analysis_record)
 
             # 出現買賣訊號時寫入歷史紀錄
             if raw_sig in {"STRONG_BUY", "BUY", "SHORT", "STRONG_SHORT"}:
@@ -1529,6 +1696,7 @@ def main():
     state["wave2_stocks"] = wave2_stocks
     state["mid_wave_triggered"] = mid_wave_triggered
     state["latest_analysis_records"] = latest_analysis_records
+    state["analysis_log"] = analysis_log
     state["total_signals"] = total_signals
     state["last_analysis_minute_bucket"] = current_bucket
 
@@ -1538,6 +1706,7 @@ def main():
         wave1_stocks=wave1_stocks,
         wave2_stocks=wave2_stocks,
         latest_analysis=latest_analysis_records,
+        analysis_log=analysis_log,
         total_signals=total_signals
     )
     save_dashboard_state(state)
