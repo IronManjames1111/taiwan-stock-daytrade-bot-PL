@@ -121,11 +121,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">早盤第一波監控中</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">盤中分析中 (09:20)</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-09-16 09:15:32</span>
+                    <span class="text-white mono ml-1.5">2026-09-16 09:25:59</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -280,12 +280,188 @@
                             <th class="py-2.5 px-3">更新時間</th>
                         </tr>
                     </thead>
-                    <tbody id="analysis-tbody" class="divide-y divide-white/5"><tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr></tbody>
+                    <tbody id="analysis-tbody" class="divide-y divide-white/5">
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">2409 友達</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">28.65</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">SIGNAL: WATCH 建議: 觸發硬性否決，禁買 方向: 觀望 進場: 多28.6～28.7 空28.6～28.7...</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">2344 華邦電</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">165</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">SIGNAL: WATCH 建議: 近期高點且縮量，不宜追價</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">6770 力積電</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">68.6</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">SIGNAL: WATCH 建議: 縮量盤整，缺乏方向</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">2305 全友</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">49.4</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">🔴【漲停板】現價 49.4 已達漲停價 49.4。 台股漲停板限制：買方委單大量堆積，賣方稀少，極難成交。 當沖風險：若...</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">3441 聯一光</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">186</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">🔴【漲停板】現價 186 已達漲停價 186.0。 台股漲停板限制：買方委單大量堆積，賣方稀少，極難成交。 當沖風險：若...</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">2303 聯電</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">139.5</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">SIGNAL: WATCH 建議: 現價接近近期高點，觀望 方向: 觀望 進場: 多139.0～140.0 空139.0...</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">3481 群創</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">47.85</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">SIGNAL: WATCH 建議: 縮量盤整，等待方向 方向: 觀望 進場: 多47.8～47.9 空47.8～47.9...</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch">
+                <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">2468 華經</td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">43.4</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">--</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">SIGNAL: WATCH 建議: 近期高點且縮量，禁買 方向: 觀望 進場: 多43.35～43.45 空43.35～...</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">09:20:34</td>
+            </tr>
+            </tbody>
                 </table>
             </div>
 
             <!-- 手機版：直式資訊卡（避免長文字被表格固定欄寬硬擠導致換行跑版） -->
-            <div id="analysis-cards" class="analysis-cards-wrap"><div class="text-center text-gray-500 text-xs py-6">盤中每 10 分鐘自動更新分析看板...</div></div>
+            <div id="analysis-cards" class="analysis-cards-wrap">
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2409 友達</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">28.65</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">SIGNAL: WATCH 建議: 觸發硬性否決，禁買 方向: 觀望 進場: 多28.6～28.7 空28.6～28.7...</div>
+            </div>
+            
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2344 華邦電</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">165</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">SIGNAL: WATCH 建議: 近期高點且縮量，不宜追價</div>
+            </div>
+            
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6770 力積電</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">68.6</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">SIGNAL: WATCH 建議: 縮量盤整，缺乏方向</div>
+            </div>
+            
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2305 全友</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">49.4</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">🔴【漲停板】現價 49.4 已達漲停價 49.4。 台股漲停板限制：買方委單大量堆積，賣方稀少，極難成交。 當沖風險：若...</div>
+            </div>
+            
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">3441 聯一光</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">186</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">🔴【漲停板】現價 186 已達漲停價 186.0。 台股漲停板限制：買方委單大量堆積，賣方稀少，極難成交。 當沖風險：若...</div>
+            </div>
+            
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2303 聯電</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">139.5</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">SIGNAL: WATCH 建議: 現價接近近期高點，觀望 方向: 觀望 進場: 多139.0～140.0 空139.0...</div>
+            </div>
+            
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">3481 群創</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">47.85</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">SIGNAL: WATCH 建議: 縮量盤整，等待方向 方向: 觀望 進場: 多47.8～47.9 空47.8～47.9...</div>
+            </div>
+            
+            <div class="data-card analysis-row" data-filter-group="watch">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2468 華經</span>
+                    <span class="sig-badge sig-watch">— 觀望</span>
+                </div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">43.4</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">--</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">--</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">09:20:34</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">SIGNAL: WATCH 建議: 近期高點且縮量，禁買 方向: 觀望 進場: 多43.35～43.45 空43.35～...</div>
+            </div>
+            </div>
 
             <p id="filter-empty-msg" class="hidden text-center text-gray-500 text-xs py-6">此篩選條件下目前沒有符合的標的</p>
         </div>
@@ -335,9 +511,9 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-09-16 09:15:32",
+  "generated_at": "2026-09-16 09:25:59",
   "today_str": "2026-09-16",
-  "status_text": "早盤第一波監控中",
+  "status_text": "盤中分析中 (09:20)",
   "active_model": "gemma-4-31b-it",
   "total_signals": 0,
   "wave1_stocks": [
@@ -399,7 +575,88 @@
     }
   ],
   "wave2_stocks": [],
-  "latest_analysis": [],
+  "latest_analysis": [
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "watch",
+      "entry": 28.65,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "SIGNAL: WATCH 建議: 觸發硬性否決，禁買 方向: 觀望 進場: 多28.6～28.7 空28.6～28.7...",
+      "updated_at": "09:20:34"
+    },
+    {
+      "symbol": "2344",
+      "name": "華邦電",
+      "signal": "watch",
+      "entry": 165,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "SIGNAL: WATCH 建議: 近期高點且縮量，不宜追價",
+      "updated_at": "09:20:34"
+    },
+    {
+      "symbol": "6770",
+      "name": "力積電",
+      "signal": "watch",
+      "entry": 68.6,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "SIGNAL: WATCH 建議: 縮量盤整，缺乏方向",
+      "updated_at": "09:20:34"
+    },
+    {
+      "symbol": "2305",
+      "name": "全友",
+      "signal": "watch",
+      "entry": 49.4,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "🔴【漲停板】現價 49.4 已達漲停價 49.4。 台股漲停板限制：買方委單大量堆積，賣方稀少，極難成交。 當沖風險：若...",
+      "updated_at": "09:20:34"
+    },
+    {
+      "symbol": "3441",
+      "name": "聯一光",
+      "signal": "watch",
+      "entry": 186,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "🔴【漲停板】現價 186 已達漲停價 186.0。 台股漲停板限制：買方委單大量堆積，賣方稀少，極難成交。 當沖風險：若...",
+      "updated_at": "09:20:34"
+    },
+    {
+      "symbol": "2303",
+      "name": "聯電",
+      "signal": "watch",
+      "entry": 139.5,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "SIGNAL: WATCH 建議: 現價接近近期高點，觀望 方向: 觀望 進場: 多139.0～140.0 空139.0...",
+      "updated_at": "09:20:34"
+    },
+    {
+      "symbol": "3481",
+      "name": "群創",
+      "signal": "watch",
+      "entry": 47.85,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "SIGNAL: WATCH 建議: 縮量盤整，等待方向 方向: 觀望 進場: 多47.8～47.9 空47.8～47.9...",
+      "updated_at": "09:20:34"
+    },
+    {
+      "symbol": "2468",
+      "name": "華經",
+      "signal": "watch",
+      "entry": 43.4,
+      "stop_loss": "--",
+      "target": "--",
+      "reason": "SIGNAL: WATCH 建議: 近期高點且縮量，禁買 方向: 觀望 進場: 多43.35～43.45 空43.35～...",
+      "updated_at": "09:20:34"
+    }
+  ],
   "settle_records": []
 };
 
