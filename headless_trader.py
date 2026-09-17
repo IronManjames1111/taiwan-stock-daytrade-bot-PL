@@ -1325,6 +1325,71 @@ def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool
 
     return []
 
+def run_settlement(state: Dict, today_str: str, gemini, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
+                    latest_analysis_records: List[Dict], analysis_log: List[Dict], total_signals: int):
+    """
+    執行收盤回放結算：把當天所有 pending 的下單訊號跟分K比對算出損益，
+    存成 CSV 報表，並把當日完整分析紀錄/歷程存成歷史快照，最後把
+    index.html 換成「已收盤結算完成」的正式畫面。
+
+    這段邏輯獨立抽成函式，是因為結算判斷式 `hm >= "13:25"` 原本只有在
+    is_market_session（08:50~13:30）範圍內才會被檢查到，一旦 13:25~13:30
+    這個 5 分鐘視窗剛好沒有任何一次排程準時觸發成功（GitHub Actions 排隊
+    延遲、API 逾時等），收盤結算就會被永久錯過，settled_today 永遠是
+    False，之後每一輪都會被判定為「非盤中時段」，被測試模式的畫面覆蓋掉。
+    抽成獨立函式後，main() 除了在盤中視窗內呼叫一次，也能在盤後任何
+    時間點（只要偵測到今天尚未結算過）補跑這個函式，修復「明明已經收盤
+    卻一直顯示測試資料」的問題。
+    """
+    pending_records = cache_service.get_pending_history_for_date(today_str)
+    print(f"\n🎯 開始收盤分K回放結算，今日待結算筆數: {len(pending_records)}")
+
+    today_settled_list = []
+    if pending_records:
+        for rec in pending_records:
+            sym = rec["symbol"]
+            candles_raw = fugle.get_intraday_candles(sym, force_refresh=True)
+            day_candles = candles_raw.get("data", []) if candles_raw else []
+            if day_candles:
+                cache_service.settle_history_record_with_candles(rec["id"], day_candles)
+
+        all_data = cache_service._read_history()
+        today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
+
+        os.makedirs("history_records", exist_ok=True)
+        df = pd.DataFrame(today_settled_list)
+        csv_path = f"history_records/backtest_{today_str}.csv"
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        print(f"✅ 今日回測報表已成功產出：{csv_path}")
+    else:
+        # 沒有待結算資料，也可能代表今天已經結算過了；仍讀取既有結算清單顯示在網站上
+        all_data = cache_service._read_history()
+        today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
+
+    # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內) 與完整分析歷程
+    # (analysis_log，同一檔股票每一輪都保留、不覆蓋) 一併保存成
+    # history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時查看完整分析過程，
+    # 而不是只能看到 backtest CSV 裡「有實際下單訊號」的部分，也不會只剩最後一筆。
+    save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log)
+
+    # 標記今日已完成收盤結算：往後收盤後若 cron 仍持續觸發，main() 開頭的
+    # 非盤中測試模式會讀到這個旗標，直接跳過、不再覆蓋這份正式的收盤結算頁面。
+    state["settled_today"] = True
+
+    render_html_dashboard(
+        status_text="已收盤結算完成",
+        active_model=gemini.active_model,
+        wave1_stocks=wave1_stocks,
+        wave2_stocks=wave2_stocks,
+        latest_analysis=latest_analysis_records,
+        analysis_log=analysis_log,
+        settle_records=today_settled_list,
+        total_signals=total_signals
+    )
+    save_dashboard_state(state)
+    print("✅ 本輪次（收盤結算）執行完畢。")
+
+
 def main():
     print("=" * 65)
     print("🚀 [GitHub Actions] 雲端當沖全自動雙波段選股與回測系統啟動")
@@ -1383,6 +1448,34 @@ def main():
         if existing_state.get("settled_today"):
             print(f"\nℹ️ 今日 ({today_str}) 已完成 13:25 收盤結算，非盤中時段不再執行測試模式、"
                   f"也不覆蓋 index.html，直接結束本輪。")
+            return
+
+        # ── 收盤結算補跑機制 ──────────────────────────────────────────
+        # 修復說明：原本收盤結算 (hm >= "13:25") 只有在 is_market_session
+        # (08:50~13:30) 範圍內才會被檢查，也就是說只有 13:25、13:30 這兩次
+        # 排程（每 5 分鐘觸發一次）有機會執行到。只要這個 5 分鐘視窗剛好因為
+        # GitHub Actions 排隊延遲、API 逾時等原因沒有任何一次成功跑完整段
+        # 結算流程，settled_today 就永遠不會被設成 True，之後每一輪都會被
+        # 判定為「非盤中時段」而走向這裡，用測試資料覆蓋掉本應顯示的正式
+        # 收盤結算頁面——這正是「已經收盤卻一直看到測試資料」的根本原因。
+        #
+        # 修法：只要偵測到「今天已經有正式盤中流程跑過 (wave1_stocks 非空，
+        # 代表不是還沒開盤的凌晨/盤前時段) 但尚未結算」，且現在時間已經在
+        # 收盤時間之後 (>= 13:25)，不管是不是週末判斷出的非盤中時段、
+        # 也不管現在到底幾點，都在這裡直接補跑一次收盤結算，而不是放著
+        # 讓測試模式覆蓋畫面、一路等到隔天才恢復正常。
+        if existing_state.get("wave1_stocks") and hm >= "13:25":
+            print(f"\n⚠️ 偵測到今日 ({today_str}) 已執行過盤中流程，但尚未完成收盤結算"
+                  f"（可能是 13:25~13:30 的結算視窗剛好沒有排程準時觸發成功）。"
+                  f"現在時間 {hm} 已過收盤，立即補跑一次收盤結算，避免頁面繼續顯示測試資料。")
+            run_settlement(
+                existing_state, today_str, gemini,
+                existing_state.get("wave1_stocks", []),
+                existing_state.get("wave2_stocks", []),
+                existing_state.get("latest_analysis_records", []),
+                existing_state.get("analysis_log", []),
+                existing_state.get("total_signals", 0),
+            )
             return
 
         print("\n⚠️ 目前非台股盤中交易時間 (09:00~13:30)，進入【連線與即時看板測試模式】...")
@@ -1511,55 +1604,10 @@ def main():
         print("✅ 本輪次（中盤重挑）執行完畢。")
         return
 
-    # 13:25 (或之後)：收盤回放結算 (只做一次；用 settle_records 是否已存在判斷本日是否已結算過)
+    # 13:25 (或之後)：收盤回放結算 (只做一次；用 settled_today 判斷本日是否已結算過)
     if hm >= "13:25":
-        pending_records = cache_service.get_pending_history_for_date(today_str)
-        print(f"\n🎯 開始收盤分K回放結算，今日待結算筆數: {len(pending_records)}")
-
-        today_settled_list = []
-        if pending_records:
-            for rec in pending_records:
-                sym = rec["symbol"]
-                candles_raw = fugle.get_intraday_candles(sym, force_refresh=True)
-                day_candles = candles_raw.get("data", []) if candles_raw else []
-                if day_candles:
-                    cache_service.settle_history_record_with_candles(rec["id"], day_candles)
-
-            all_data = cache_service._read_history()
-            today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
-
-            os.makedirs("history_records", exist_ok=True)
-            df = pd.DataFrame(today_settled_list)
-            csv_path = f"history_records/backtest_{today_str}.csv"
-            df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-            print(f"✅ 今日回測報表已成功產出：{csv_path}")
-        else:
-            # 沒有待結算資料，也可能代表今天已經結算過了；仍讀取既有結算清單顯示在網站上
-            all_data = cache_service._read_history()
-            today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
-
-        # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內) 與完整分析歷程
-        # (analysis_log，同一檔股票每一輪都保留、不覆蓋) 一併保存成
-        # history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時查看完整分析過程，
-        # 而不是只能看到 backtest CSV 裡「有實際下單訊號」的部分，也不會只剩最後一筆。
-        save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log)
-
-        # 標記今日已完成收盤結算：往後收盤後若 cron 仍持續觸發，main() 開頭的
-        # 非盤中測試模式會讀到這個旗標，直接跳過、不再覆蓋這份正式的收盤結算頁面。
-        state["settled_today"] = True
-
-        render_html_dashboard(
-            status_text="已收盤結算完成",
-            active_model=gemini.active_model,
-            wave1_stocks=wave1_stocks,
-            wave2_stocks=wave2_stocks,
-            latest_analysis=latest_analysis_records,
-            analysis_log=analysis_log,
-            settle_records=today_settled_list,
-            total_signals=total_signals
-        )
-        save_dashboard_state(state)
-        print("✅ 本輪次（收盤結算）執行完畢。")
+        run_settlement(state, today_str, gemini, wave1_stocks, wave2_stocks,
+                        latest_analysis_records, analysis_log, total_signals)
         return
 
     # 09:15 ~ 13:25 盤中：每 10 分鐘執行一次分析 (目標 09:20, 09:30 ... 13:20)
