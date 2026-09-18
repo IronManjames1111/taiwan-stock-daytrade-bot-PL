@@ -70,6 +70,7 @@ def render_html_dashboard(
     wave2_stocks: List[Dict] = None,
     latest_analysis: List[Dict] = None,
     analysis_log: List[Dict] = None,
+    live_quotes: Dict = None,
     settle_records: List[Dict] = None,
     active_model: str = "gemma-4-31b-it",
     status_text: str = "運行中",
@@ -83,6 +84,11 @@ def render_html_dashboard(
     latest_analysis：每檔股票「目前最新狀態」的清單（同一檔股票只有一筆），供總覽表格顯示。
     analysis_log：當天「每一輪分析」的完整歷程（同一檔股票可能有多筆，依時間序列），
     供「展開查看歷史分析」功能依 symbol 分組後顯示，修復先前中間分析輪次被覆蓋遺失的問題。
+    live_quotes：{symbol: {"price": float, "updated_at": "HH:MM:SS"}}，每檔監控股票
+    「最近一次分析當下」抓到的參考價。網站是純靜態的 GitHub Pages，前端沒有管道能直接
+    呼叫需要金鑰的 Fugle API 取得即時報價，所以改由後端每輪分析時順便記錄下來，供前端
+    在「展開查看歷史分析」清單裡，對有 BUY/SHORT 訊號的紀錄計算「以最近一次報價試算」
+    的損益，不需要使用者手動操作，更新頻率跟現有排程（盤中每 5~10 分鐘）同步。
     """
     now_str = get_tw_now().strftime("%Y-%m-%d %H:%M:%S")
     today_str = get_tw_now().strftime("%Y-%m-%d")
@@ -98,6 +104,7 @@ def render_html_dashboard(
     wave2_stocks = wave2_stocks or []
     latest_analysis = latest_analysis or []
     analysis_log = analysis_log or []
+    live_quotes = live_quotes or {}
     settle_records = settle_records or []
 
     # ── 下載功能：把本次看板的完整原始資料打包成 JSON，供頁面右上角下載按鈕使用 ──
@@ -105,6 +112,7 @@ def render_html_dashboard(
     # 以及切回今日時可以直接從這份記憶體資料還原畫面，不需要重新 fetch。
     # analysis_log 同樣放入 payload：供「展開查看歷史分析」功能依 symbol 篩選、
     # 按時間序列呈現當天每一輪的完整分析紀錄（不是只有最新一筆）。
+    # live_quotes 同樣放入 payload：供前端計算歷史分析紀錄中 BUY/SHORT 訊號的即時損益。
     export_payload = {
         "generated_at": now_str,
         "today_str": today_str,
@@ -115,6 +123,7 @@ def render_html_dashboard(
         "wave2_stocks": wave2_stocks,
         "latest_analysis": latest_analysis,
         "analysis_log": analysis_log,
+        "live_quotes": live_quotes,
         "settle_records": settle_records,
     }
     # ensure_ascii=False 保留中文可讀；再用 json.dumps 序列化成字串安全地塞進 <script> 的 JS 常數
@@ -360,6 +369,16 @@ def render_html_dashboard(
         .history-log-container:not(.open):empty {{ display: none; }}
         .history-log-entry {{ padding: 6px 2px; border-bottom: 1px dashed var(--line); }}
         .history-log-entry:last-child {{ border-bottom: none; }}
+
+        /* 「以最近報價試算」的損益區塊：顯示在每筆 BUY/SHORT 歷史分析紀錄下方。
+           台股慣例漲(賺)用紅色、跌(賠)用綠色，跟 sig-long(做多/紅) sig-short(放空/綠)
+           兩種既有配色的意涵一致 —— 做多賺錢是紅、放空賺錢也是紅，賠錢則反過來是綠，
+           這裡直接沿用 calcLivePnl() 算出的 isProfit 顏色，語意保持一致不會反直覺。 */
+        .live-pnl-box {{
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            margin-top: 4px; padding-top: 4px; border-top: 1px dotted var(--line);
+            font-size: 11px;
+        }}
     </style>
 </head>
 <body class="min-h-screen p-3 md:p-6 flex flex-col justify-between">
@@ -710,9 +729,11 @@ def render_html_dashboard(
                 unlockUI();
             }}
             // 今日的分析表格本身是後端 Python 產生時就直接寫入靜態 HTML 的（非透過
-            // renderAnalysisTable 動態產生），所以這裡要單獨把 CURRENT_LOG_BY_SYMBOL
-            // 初始化好，「展開歷史」按鈕在使用者尚未切換過日期前也才能正確查到資料。
+            // renderAnalysisTable 動態產生），所以這裡要單獨把 CURRENT_LOG_BY_SYMBOL 跟
+            // CURRENT_LIVE_QUOTES 初始化好，「展開歷史」按鈕在使用者尚未切換過日期前
+            // 也才能正確查到資料、算出即時損益。
             CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(EXPORT_DATA.analysis_log || []);
+            CURRENT_LIVE_QUOTES = EXPORT_DATA.live_quotes || {{}};
             initSignalFilter();
             initHistoryDateSelect();
         }});
@@ -752,7 +773,7 @@ def render_html_dashboard(
 
             if (value === "__today__") {{
                 // 切回今日：直接用頁面產生當下就內嵌好的 EXPORT_DATA 還原，不需要重新 fetch
-                renderAnalysisTable(EXPORT_DATA.latest_analysis, true, EXPORT_DATA.analysis_log || []);
+                renderAnalysisTable(EXPORT_DATA.latest_analysis, true, EXPORT_DATA.analysis_log || [], EXPORT_DATA.live_quotes || {{}});
                 renderSettleTable(EXPORT_DATA.settle_records);
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
                 return;
@@ -764,7 +785,7 @@ def render_html_dashboard(
                 if (!resp.ok) throw new Error("該日期無資料");
                 const snapshot = await resp.json();
 
-                renderAnalysisTable(snapshot.analysis_records || [], false, snapshot.analysis_log || []);
+                renderAnalysisTable(snapshot.analysis_records || [], false, snapshot.analysis_log || [], snapshot.live_quotes || {{}});
                 renderSettleTable(snapshot.settle_records || []);
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
             }} catch (e) {{
@@ -791,7 +812,13 @@ def render_html_dashboard(
         // logRecords：當天（或所選歷史日期）「每一輪分析」的完整歷程，同一檔股票可能有多筆。
         // 用來在畫面上提供「展開查看歷史分析」功能，修復先前 latest_analysis 只保留最後一筆、
         // 中間分析輪次全部遺失看不到的問題。渲染時暫存到 CURRENT_LOG_BY_SYMBOL，供展開按鈕查詢。
+        //
+        // CURRENT_LIVE_QUOTES：{{symbol: {{price, updated_at}}}}，當天（或所選歷史日期）
+        // 每檔股票最近一次的參考價，用來在展開歷史時對 BUY/SHORT 訊號試算損益。切換到
+        // 歷史日期時會換成那個日期快照裡的 live_quotes（也就是當天收盤價），而不是今天
+        // 的即時報價，避免用「今天的股價」誤算「過去某一天」的損益。
         let CURRENT_LOG_BY_SYMBOL = {{}};
+        let CURRENT_LIVE_QUOTES = {{}};
 
         function buildLogBySymbol(logRecords) {{
             const map = {{}};
@@ -803,7 +830,7 @@ def render_html_dashboard(
             return map;
         }}
 
-        function renderAnalysisTable(records, isToday, logRecords) {{
+        function renderAnalysisTable(records, isToday, logRecords, liveQuotes) {{
             const tbody = document.getElementById("analysis-tbody");
             const cardsWrap = document.getElementById("analysis-cards");
             const emptyRowHtml = isToday
@@ -814,6 +841,7 @@ def render_html_dashboard(
                 : '<div class="text-center text-gray-500 text-xs py-6">此日期尚無分析資料</div>';
 
             CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(logRecords);
+            CURRENT_LIVE_QUOTES = liveQuotes || {{}};
 
             if (!records || records.length === 0) {{
                 tbody.innerHTML = emptyRowHtml;
@@ -882,8 +910,38 @@ def render_html_dashboard(
             cardsWrap.innerHTML = cardsHtml;
         }}
 
+        // 用最近一次抓到的參考價，試算某筆 BUY/SHORT 歷史分析紀錄目前的損益。
+        // entry 欄位可能是數字，也可能是「-」或其他非數字字串（例如觀望紀錄，
+        // 或是 AI 沒給出明確進場價時），這裡一律防呆，算不出來就回傳 null，
+        // 呼叫端看到 null 就不顯示損益區塊，不會硬擠出一個誤導的數字。
+        function calcLivePnl(logEntry) {{
+            const sig = logEntry.signal || "WATCH";
+            const isLong = sig.includes("BUY");
+            const isShort = sig.includes("SHORT");
+            if (!isLong && !isShort) return null; // 觀望沒有進場動作，不算損益
+
+            const entryPrice = parseFloat(logEntry.entry);
+            if (!isFinite(entryPrice) || entryPrice <= 0) return null;
+
+            const quote = CURRENT_LIVE_QUOTES[logEntry.symbol];
+            if (!quote || !isFinite(quote.price)) return null;
+
+            const currentPrice = quote.price;
+            const diff = isLong ? (currentPrice - entryPrice) : (entryPrice - currentPrice);
+            const pct = (diff / entryPrice) * 100;
+            return {{
+                currentPrice,
+                diff,
+                pct,
+                asOf: quote.updated_at || "",
+                isProfit: diff > 0,
+                isFlat: diff === 0,
+            }};
+        }}
+
         // 產生「展開歷史」清單的內容：把某檔股票今天所有輪次的分析結果，
         // 依時間序列由舊到新條列出來，讓使用者能看到訊號/進場價如何隨盤勢變化。
+        // 若該筆是 BUY/SHORT 訊號且拿得到參考價，額外附上「以最近報價試算」的損益。
         function renderHistoryLogEntries(symbol) {{
             const entries = CURRENT_LOG_BY_SYMBOL[symbol] || [];
             if (entries.length === 0) {{
@@ -893,6 +951,20 @@ def render_html_dashboard(
                 const sig = lg.signal || "WATCH";
                 const badgeClass = sig.includes("BUY") ? "sig-long" : sig.includes("SHORT") ? "sig-short" : "sig-watch";
                 const badgeText = sig.includes("BUY") ? "🔺 做多" : sig.includes("SHORT") ? "🔻 放空" : "— 觀望";
+
+                const pnl = calcLivePnl(lg);
+                let pnlHtml = "";
+                if (pnl) {{
+                    const pnlClass = pnl.isFlat ? "text-gray-400" : (pnl.isProfit ? "text-[#ff5470]" : "text-[#00d68f]");
+                    const sign = pnl.diff > 0 ? "+" : "";
+                    pnlHtml = `
+                    <div class="live-pnl-box ${{pnlClass}}">
+                        <span class="mono">現價 ${{escapeHtml(pnl.currentPrice)}}</span>
+                        <span class="mono">${{sign}}${{pnl.diff.toFixed(2)}} (${{sign}}${{pnl.pct.toFixed(2)}}%)</span>
+                        <span class="text-gray-500 text-[10px]">以 ${{escapeHtml(pnl.asOf)}} 報價試算</span>
+                    </div>`;
+                }}
+
                 return `
                 <div class="history-log-entry">
                     <div class="flex items-center justify-between gap-2">
@@ -901,6 +973,7 @@ def render_html_dashboard(
                         <span class="mono text-gray-300 text-[11px] whitespace-nowrap">進場 ${{escapeHtml(lg.entry ?? "-")}}</span>
                     </div>
                     <div class="text-gray-400 text-[11px] mt-1 leading-relaxed">${{escapeHtml(lg.reason || "")}}</div>
+                    ${{pnlHtml}}
                 </div>`;
             }}).join("");
         }}
@@ -1063,6 +1136,11 @@ def load_dashboard_state(today_str: str) -> Dict:
         "mid_wave_triggered": False,
         "latest_analysis_records": [],  # 累積型：同一檔股票用 symbol 當 key 覆蓋更新，只代表「目前最新狀態」
         "analysis_log": [],  # 完整歷程型：每一輪分析都 append 一筆，不覆蓋，供回溯當天每檔股票的完整分析歷程
+        "live_quotes": {},  # 每檔監控股票「最近一次分析當下」的參考價，key 是 symbol，
+                             # 值為 {"price": float, "updated_at": "HH:MM:SS"}。用途是讓網頁在
+                             # 「展開歷史分析」清單裡，對有 BUY/SHORT 訊號的紀錄即時算出損益，
+                             # 不需要前端另外連線報價來源（GitHub Pages 是純靜態網站，前端沒有
+                             # 管道可以直接呼叫需要金鑰的 Fugle API）。
         "total_signals": 0,
         "last_analysis_minute_bucket": None,  # 記錄上次執行過分析的時間戳記 (YYYY-MM-DD HH:MM)，用於判斷距今是否已滿 10 分鐘
         "settled_today": False,  # 今日是否已完成 13:25 收盤結算，避免收盤後的非盤中測試模式覆蓋掉正式看板
@@ -1084,17 +1162,21 @@ def load_dashboard_state(today_str: str) -> Dict:
         for key, default_val in default_state.items():
             if key not in state:
                 state[key] = default_val
-        # 基本合理性檢查：latest_analysis_records / analysis_log 應該是 list，若型別跑掉
-        # （代表檔案可能在一次失敗的 git rebase/merge 中被寫壞），寧可用空狀態重跑，
-        # 也不要帶著壞資料繼續污染。
+        # 基本合理性檢查：latest_analysis_records / analysis_log 應該是 list，live_quotes
+        # 應該是 dict，若型別跑掉（代表檔案可能在一次失敗的 git rebase/merge 中被寫壞），
+        # 寧可用空狀態重跑，也不要帶著壞資料繼續污染。
         if not isinstance(state.get("latest_analysis_records"), list):
             print(f"⚠️ {STATE_FILE} 內 latest_analysis_records 型別異常，判定檔案已損毀，改用全新狀態。")
             return default_state
         if not isinstance(state.get("analysis_log"), list):
             print(f"⚠️ {STATE_FILE} 內 analysis_log 型別異常，判定檔案已損毀，改用全新狀態。")
             return default_state
+        if not isinstance(state.get("live_quotes"), dict):
+            print(f"⚠️ {STATE_FILE} 內 live_quotes 型別異常，判定檔案已損毀，改用全新狀態。")
+            return default_state
         print(f"✅ 成功讀取上一輪狀態：累積分析 {len(state.get('latest_analysis_records', []))} 檔、"
               f"完整分析歷程 {len(state.get('analysis_log', []))} 筆、"
+              f"參考股價 {len(state.get('live_quotes', {}))} 檔、"
               f"已記錄訊號 {state.get('total_signals', 0)} 筆、上次分析時間戳記={state.get('last_analysis_minute_bucket')}")
         return state
     except Exception as e:
@@ -1156,6 +1238,7 @@ def save_daily_history_snapshot(
     analysis_records: List[Dict],
     settle_records: List[Dict],
     analysis_log: List[Dict] = None,
+    live_quotes: Dict = None,
 ):
     """
     收盤結算時呼叫：將當天的完整分析紀錄 (含觀望) 與結算損益，
@@ -1169,6 +1252,9 @@ def save_daily_history_snapshot(
     analysis_records：每檔股票的「最新狀態」快照（供總覽表格顯示）。
     analysis_log：當天每一輪分析的完整歷程（不覆蓋），供「展開查看歷史分析」
     功能依 symbol 分組、按時間序列呈現，修復先前只保存最後一筆的問題。
+    live_quotes：{symbol: {"price", "updated_at"}}，收盤時最後更新的參考價
+    （run_settlement 會把它更新成當天最後一根分K的收盤價），供之後查詢這一天的
+    歷史紀錄時，也能用「收盤價」試算 BUY/SHORT 訊號的損益。
     """
     os.makedirs("history_records", exist_ok=True)
 
@@ -1176,6 +1262,7 @@ def save_daily_history_snapshot(
         "date": date_str,
         "analysis_records": analysis_records,
         "analysis_log": analysis_log or [],
+        "live_quotes": live_quotes or {},
         "settle_records": settle_records,
         "saved_at": get_tw_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -1325,8 +1412,9 @@ def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool
 
     return []
 
-def run_settlement(state: Dict, today_str: str, gemini, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
-                    latest_analysis_records: List[Dict], analysis_log: List[Dict], total_signals: int):
+def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
+                    latest_analysis_records: List[Dict], analysis_log: List[Dict], live_quotes: Dict,
+                    total_signals: int):
     """
     執行收盤回放結算：把當天所有 pending 的下單訊號跟分K比對算出損益，
     存成 CSV 報表，並把當日完整分析紀錄/歷程存成歷史快照，最後把
@@ -1352,6 +1440,13 @@ def run_settlement(state: Dict, today_str: str, gemini, wave1_stocks: List[Dict]
             day_candles = candles_raw.get("data", []) if candles_raw else []
             if day_candles:
                 cache_service.settle_history_record_with_candles(rec["id"], day_candles)
+                # 結算時順便把這檔股票的參考價更新成「當天最後一根分K的收盤價」，
+                # 也就是真正的收盤價，讓收盤後看「展開歷史分析」時算出來的損益
+                # 是以收盤價計算，而不是停留在盤中最後一次分析時的價格。
+                live_quotes[sym] = {
+                    "price": day_candles[-1]["close"],
+                    "updated_at": "13:30:00",
+                }
 
         all_data = cache_service._read_history()
         today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
@@ -1366,15 +1461,17 @@ def run_settlement(state: Dict, today_str: str, gemini, wave1_stocks: List[Dict]
         all_data = cache_service._read_history()
         today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
 
-    # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內) 與完整分析歷程
-    # (analysis_log，同一檔股票每一輪都保留、不覆蓋) 一併保存成
-    # history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時查看完整分析過程，
-    # 而不是只能看到 backtest CSV 裡「有實際下單訊號」的部分，也不會只剩最後一筆。
-    save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log)
+    # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內)、完整分析歷程
+    # (analysis_log，同一檔股票每一輪都保留、不覆蓋) 與收盤參考價 (live_quotes)
+    # 一併保存成 history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時
+    # 查看完整分析過程與收盤損益，而不是只能看到 backtest CSV 裡「有實際下單訊號」
+    # 的部分，也不會只剩最後一筆。
+    save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log, live_quotes)
 
     # 標記今日已完成收盤結算：往後收盤後若 cron 仍持續觸發，main() 開頭的
     # 非盤中測試模式會讀到這個旗標，直接跳過、不再覆蓋這份正式的收盤結算頁面。
     state["settled_today"] = True
+    state["live_quotes"] = live_quotes
 
     render_html_dashboard(
         status_text="已收盤結算完成",
@@ -1383,11 +1480,13 @@ def run_settlement(state: Dict, today_str: str, gemini, wave1_stocks: List[Dict]
         wave2_stocks=wave2_stocks,
         latest_analysis=latest_analysis_records,
         analysis_log=analysis_log,
+        live_quotes=live_quotes,
         settle_records=today_settled_list,
         total_signals=total_signals
     )
     save_dashboard_state(state)
     print("✅ 本輪次（收盤結算）執行完畢。")
+
 
 
 def main():
@@ -1469,11 +1568,12 @@ def main():
                   f"（可能是 13:25~13:30 的結算視窗剛好沒有排程準時觸發成功）。"
                   f"現在時間 {hm} 已過收盤，立即補跑一次收盤結算，避免頁面繼續顯示測試資料。")
             run_settlement(
-                existing_state, today_str, gemini,
+                existing_state, today_str, gemini, fugle,
                 existing_state.get("wave1_stocks", []),
                 existing_state.get("wave2_stocks", []),
                 existing_state.get("latest_analysis_records", []),
                 existing_state.get("analysis_log", []),
+                existing_state.get("live_quotes", {}),
                 existing_state.get("total_signals", 0),
             )
             return
@@ -1520,7 +1620,8 @@ def main():
             active_model=gemini.active_model,
             wave1_stocks=test_stocks,
             latest_analysis=test_analysis,
-            analysis_log=existing_state.get("analysis_log", [])
+            analysis_log=existing_state.get("analysis_log", []),
+            live_quotes=existing_state.get("live_quotes", {})
         )
 
         print("\n🎉 GitHub Actions 測試驗證全數通過！專屬網頁 index.html 已更新。")
@@ -1535,6 +1636,7 @@ def main():
     mid_wave_triggered = state["mid_wave_triggered"]
     latest_analysis_records = state["latest_analysis_records"]
     analysis_log = state["analysis_log"]
+    live_quotes = state["live_quotes"]
     total_signals = state["total_signals"]
     last_bucket = state["last_analysis_minute_bucket"]
 
@@ -1550,6 +1652,7 @@ def main():
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
+            live_quotes=live_quotes,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1571,6 +1674,7 @@ def main():
             wave1_stocks=wave1_stocks,
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
+            live_quotes=live_quotes,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1598,6 +1702,7 @@ def main():
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
+            live_quotes=live_quotes,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1606,8 +1711,8 @@ def main():
 
     # 13:25 (或之後)：收盤回放結算 (只做一次；用 settled_today 判斷本日是否已結算過)
     if hm >= "13:25":
-        run_settlement(state, today_str, gemini, wave1_stocks, wave2_stocks,
-                        latest_analysis_records, analysis_log, total_signals)
+        run_settlement(state, today_str, gemini, fugle, wave1_stocks, wave2_stocks,
+                        latest_analysis_records, analysis_log, live_quotes, total_signals)
         return
 
     # 09:15 ~ 13:25 盤中：每 10 分鐘執行一次分析 (目標 09:20, 09:30 ... 13:20)
@@ -1651,6 +1756,7 @@ def main():
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
+            live_quotes=live_quotes,
             total_signals=total_signals
         )
         save_dashboard_state(state)
@@ -1665,6 +1771,16 @@ def main():
             candles = candles_raw.get("data", []) if candles_raw else []
             if not candles or len(candles) < 5:
                 continue
+
+            # 記錄這一輪抓到的最新分K收盤價，做為「即時損益」計算的參考價。
+            # 用同一輪已經抓好的 candles，不用額外呼叫 API：candles[-1]["close"]
+            # 就是目前最新的成交價。不論這一輪分析結果是不是有訊號都會更新，
+            # 讓「展開歷史分析」清單裡，即使某檔股票的訊號後來轉為觀望，
+            # 先前留下的 BUY/SHORT 歷史紀錄一樣能對到最新的參考價計算損益。
+            live_quotes[symbol] = {
+                "price": candles[-1]["close"],
+                "updated_at": now.strftime("%H:%M:%S"),
+            }
 
             indicators = fugle.get_technical_indicators(candles, is_intraday=True)
             daily_raw = fugle.get_historical_candles(symbol)
@@ -1745,6 +1861,7 @@ def main():
     state["mid_wave_triggered"] = mid_wave_triggered
     state["latest_analysis_records"] = latest_analysis_records
     state["analysis_log"] = analysis_log
+    state["live_quotes"] = live_quotes
     state["total_signals"] = total_signals
     state["last_analysis_minute_bucket"] = current_bucket
 
@@ -1755,6 +1872,7 @@ def main():
         wave2_stocks=wave2_stocks,
         latest_analysis=latest_analysis_records,
         analysis_log=analysis_log,
+        live_quotes=live_quotes,
         total_signals=total_signals
     )
     save_dashboard_state(state)
