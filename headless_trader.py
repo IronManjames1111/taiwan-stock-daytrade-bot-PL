@@ -38,7 +38,7 @@ from typing import List, Dict, Optional
 import hashlib
 import base64
 from fugle_service import FugleService
-from gemini_service import GeminiService
+from gemini_service import GeminiService, _calc_limit_prices, _check_at_limit
 import cache_service
 from config import load_config
 
@@ -93,7 +93,8 @@ def render_html_dashboard(
     now_str = get_tw_now().strftime("%Y-%m-%d %H:%M:%S")
     today_str = get_tw_now().strftime("%Y-%m-%d")
     if total_signals is None:
-        total_signals = len([a for a in (latest_analysis or []) if a.get("signal") in ["BUY", "SHORT"]])
+        # .upper()：相容新舊資料，理由同下方 for 迴圈內的 sig 正規化說明
+        total_signals = len([a for a in (latest_analysis or []) if a.get("signal", "").upper() in ["BUY", "SHORT"]])
 
     # 取得密碼設定 (預設 888888)，清除前後空白與換行，計算安全 SHA-256 與 Base64
     raw_pwd = (os.getenv("DASHBOARD_PASSWORD") or "888888").strip()
@@ -135,7 +136,11 @@ def render_html_dashboard(
     pnl_text = "尚未結算"
     pnl_class = "text-gray-400"
     if settle_records:
-        net_total = sum(r.get("net_profit", 0) for r in settle_records)
+        # 【bug修復】cache_service._compute_settle_result() 回傳的欄位是
+        # "pnl_amount"，從來沒有 "net_profit" 這個 key。原本這裡誤用
+        # r.get("net_profit", 0) 讀取，每次都拿不到值、靜默 fallback 成 0，
+        # 導致「結算損益」KPI 卡片不論實際賺賠多少，永遠顯示 $0。
+        net_total = sum(r.get("pnl_amount", 0) for r in settle_records)
         pnl_text = f"+${net_total:,}" if net_total > 0 else f"-${abs(net_total):,}" if net_total < 0 else "$0"
         pnl_class = "text-[#ff5470]" if net_total > 0 else "text-[#00d68f]" if net_total < 0 else "text-gray-300"
 
@@ -171,7 +176,10 @@ def render_html_dashboard(
     analysis_cards = ""     # 手機版直式資訊卡（避免長文字被表格固定欄寬硬擠導致換行跑版）
     if latest_analysis:
         for a in latest_analysis:
-            sig = a.get("signal", "WATCH")
+            # .upper() 是防禦性寫法：修復前寫入的舊資料 (dashboard_state.json /
+            # history_records/*.json) signal 欄位可能還是小寫 ("buy"/"short"/"watch")，
+            # 加上 .upper() 讓新舊資料都能被正確分類，不用等舊資料被覆蓋掉才會顯示正常。
+            sig = a.get("signal", "WATCH").upper()
             if "BUY" in sig:
                 filter_group = "long"
                 sig_badge = '<span class="sig-badge sig-long">🔺 做多</span>'
@@ -245,14 +253,19 @@ def render_html_dashboard(
                 if res == "loss" else
                 '<span class="sig-badge sig-watch">— 打平</span>'
             )
-            net_p = r.get("net_profit", 0)
+            # 【bug修復】同上，這裡也是誤用不存在的 "net_profit" key，
+            # 導致每筆結算卡片「淨損益」都顯示 $0，即使 result 徽章（win/loss）
+            # 本身是對的——因為 result 欄位名稱沒打錯，只有金額欄位打錯。
+            net_p = r.get("pnl_amount", 0)
             net_str = f"+${net_p:,}" if net_p > 0 else f"-${abs(net_p):,}" if net_p < 0 else "$0"
             net_color = "text-[#ff5470]" if net_p > 0 else "text-[#00d68f]" if net_p < 0 else "text-gray-300"
             symbol = r.get("symbol", "")
             signal = r.get("signal", "")
             entry_price = r.get("entry_price", "-")
             exit_price = r.get("exit_price", "-")
-            exit_reason = r.get("exit_reason", "-")
+            # 【bug修復】exit_reason 原本是 hit_sl/hit_tp/forced_close 這種
+            # 給程式看的英文代碼，直接顯示在畫面上使用者看不懂，這裡轉成中文。
+            exit_reason = format_exit_reason(r.get("exit_reason", "-"))
 
             settle_rows += f"""
             <tr class="hover:bg-white/[0.02]">
@@ -852,7 +865,9 @@ def render_html_dashboard(
             let rowsHtml = "";
             let cardsHtml = "";
             records.forEach(a => {{
-                const sig = a.signal || "WATCH";
+                // .toUpperCase()：修復前寫入的舊資料 signal 欄位可能是小寫，
+                // 統一轉大寫比對，新舊資料都能正確分類。
+                const sig = (a.signal || "WATCH").toUpperCase();
                 let filterGroup, badge;
                 if (sig.includes("BUY")) {{
                     filterGroup = "long";
@@ -915,7 +930,8 @@ def render_html_dashboard(
         // 或是 AI 沒給出明確進場價時），這裡一律防呆，算不出來就回傳 null，
         // 呼叫端看到 null 就不顯示損益區塊，不會硬擠出一個誤導的數字。
         function calcLivePnl(logEntry) {{
-            const sig = logEntry.signal || "WATCH";
+            // .toUpperCase()：與上方 filterGroup 判斷同理，相容修復前寫入的小寫舊資料。
+            const sig = (logEntry.signal || "WATCH").toUpperCase();
             const isLong = sig.includes("BUY");
             const isShort = sig.includes("SHORT");
             if (!isLong && !isShort) return null; // 觀望沒有進場動作，不算損益
@@ -948,7 +964,9 @@ def render_html_dashboard(
                 return '<div class="text-gray-500 text-xs py-2">尚無歷史分析紀錄</div>';
             }}
             return entries.map(lg => {{
-                const sig = lg.signal || "WATCH";
+                // .toUpperCase()：與上方同理，相容修復前寫入的小寫舊資料，
+                // 這是「展開歷史分析」清單本體，先前訊號被誤判成觀望就是這裡的比對失敗。
+                const sig = (lg.signal || "WATCH").toUpperCase();
                 const badgeClass = sig.includes("BUY") ? "sig-long" : sig.includes("SHORT") ? "sig-short" : "sig-watch";
                 const badgeText = sig.includes("BUY") ? "🔺 做多" : sig.includes("SHORT") ? "🔻 放空" : "— 觀望";
 
@@ -1013,12 +1031,22 @@ def render_html_dashboard(
 
             let rowsHtml = "";
             let cardsHtml = "";
+            // 出場原因代碼 → 中文對照，與 Python 端 EXIT_REASON_LABELS 保持一致。
+            const EXIT_REASON_LABELS = {{
+                "hit_tp": "✅ 觸及停利",
+                "hit_sl": "🛑 觸及停損",
+                "forced_close": "⏱ 收盤強制平倉",
+            }};
             records.forEach(r => {{
                 const isWin = (r.pnl_amount ?? 0) > 0;
                 const isLoss = (r.pnl_amount ?? 0) < 0;
                 const resultClass = isWin ? "text-[#ff5470]" : (isLoss ? "text-[#00d68f]" : "text-gray-400");
                 const badgeClass = isWin ? "sig-long" : (isLoss ? "sig-short" : "sig-watch");
-                const resultText = r.result || (isWin ? "獲利" : (isLoss ? "虧損" : "持平"));
+                // 【bug修復】r.result 存的是 "win"/"loss"/"breakeven" 英文值，原本
+                // `r.result || (...)` 只要 r.result 有值就會直接顯示英文單字，
+                // 後面判斷 isWin/isLoss 的中文分支永遠是 dead code。改成明確查表轉中文。
+                const RESULT_LABELS = {{ win: "獲利", loss: "虧損", breakeven: "持平" }};
+                const resultText = RESULT_LABELS[r.result] || (isWin ? "獲利" : (isLoss ? "虧損" : "持平"));
                 const pnlDisplay = (r.pnl_amount !== null && r.pnl_amount !== undefined)
                     ? `${{r.pnl_amount > 0 ? "+" : ""}}${{r.pnl_amount}}` : "-";
                 const badge = `<span class="sig-badge ${{badgeClass}}">${{escapeHtml(resultText)}}</span>`;
@@ -1027,7 +1055,8 @@ def render_html_dashboard(
                 const direction = escapeHtml(r.direction || "-");
                 const entryPrice = escapeHtml(r.entry_price ?? "-");
                 const exitPrice = escapeHtml(r.exit_price ?? "-");
-                const exitReason = escapeHtml(r.exit_reason || "-");
+                // 【bug修復】同上，exit_reason 原本直接顯示 hit_sl 這種英文代碼，改為中文。
+                const exitReason = escapeHtml(EXIT_REASON_LABELS[r.exit_reason] || r.exit_reason || "-");
 
                 rowsHtml += `
                 <tr class="hover:bg-white/[0.02]">
@@ -1122,6 +1151,27 @@ def render_html_dashboard(
 update_html_dashboard = render_html_dashboard
 
 STATE_FILE = "dashboard_state.json"
+
+# 收盤回放結算的「出場原因」代碼 → 中文顯示文字對照表。
+# 來源：cache_service._compute_settle_result()，該函式只會產生
+# "hit_tp"（觸及停利）/ "hit_sl"（觸及停損）/ "forced_close"（當天都沒
+# 觸及、用收盤價強制平倉）這三種值。原本畫面直接把這串英文代碼原封
+# 不動塞進「出場原因」欄位，跟頁面其他地方（訊號徽章、AI理由文字）
+# 都是中文的風格不一致，一般使用者也看不懂 hit_sl 是什麼意思。
+EXIT_REASON_LABELS = {
+    "hit_tp": "✅ 觸及停利",
+    "hit_sl": "🛑 觸及停損",
+    "forced_close": "⏱ 收盤強制平倉",
+}
+
+
+def format_exit_reason(code: str) -> str:
+    """把 exit_reason 代碼轉成中文顯示文字；未知值原樣顯示，避免吃掉除錯線索。"""
+    if not code or code == "-":
+        return "-"
+    return EXIT_REASON_LABELS.get(code, code)
+
+
 
 def load_dashboard_state(today_str: str) -> Dict:
     """
@@ -1412,6 +1462,64 @@ def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool
 
     return []
 
+
+def filter_out_limit_up_stocks(stocks: List[Dict], fugle, limit: int) -> List[Dict]:
+    """
+    從選股結果中排除「已經漲停」的股票，並依候選池排名遞補下一名補齊，
+    確保最終回傳的檔數仍盡量湊滿 limit。
+
+    背景：get_free_top_volume_stocks() 資料源是 Yahoo 成交量排行榜，這個
+    榜單頁面本身不提供漲跌停價格，所以沒辦法在爬蟲階段就直接判斷。
+    這裡改用已經在 main() 中建立好的 FugleService 物件，對選出的候選股票
+    逐一查詢即時報價（含昨收價 previousClose），用 gemini_service 裡
+    既有、已經在 AI 分析階段使用的 _calc_limit_prices()/_check_at_limit()
+    算出漲停價並比對，兩邊判斷標準保持一致，不會出現「選股階段判斷跟
+    AI 分析階段判斷用不同公式，結果對不起來」的情況。
+
+    為何要在選股階段就排除，而不是只靠 AI 分析階段的觀望標記：
+    漲停股當沖本來就難以成交（委買單大量堆積、賣盤稀少），選進來只會
+    白白佔用一個分析名額、耗用一次 Gemini API 額度，最後也只能得到
+    強制觀望的結果。選股階段先濾掉，把名額留給真正有機會成交的股票。
+
+    只對「最終入選的候選股票」逐一查詢，而非整個候選池，藉此控制
+    Fugle API 呼叫次數（原本 stocks 已經是排序、篩選過、恰好 limit 檔
+    或不足 limit 檔的最終結果，只有在有股票被排除時才會用到候選池
+    之外的遞補資料，但目前呼叫端沒有把完整候選池傳進來，遞補只能
+    在「這批 stocks 本身」範圍內進行——若排除後仍不足 limit，屬於
+    正常情況，get_free_top_volume_stocks() 本來就可能因候選池不足
+    而回傳少於 limit 檔，不強求一定要湊滿）。
+    """
+    if not stocks:
+        return stocks
+
+    kept = []
+    excluded = []
+    for s in stocks:
+        symbol = s["symbol"]
+        try:
+            quote = fugle.get_intraday_quote(symbol) or {}
+            prev_close = quote.get("previousClose")
+            current_price = s.get("price")
+            limits = _calc_limit_prices(prev_close) if prev_close else None
+            if limits:
+                limit_up, limit_down = limits
+                at_limit = _check_at_limit(current_price, limit_up, limit_down)
+                if at_limit == "up":
+                    excluded.append(s)
+                    print(f"   🚫 [排除漲停股] {symbol} {s.get('name', '')} 現價 {current_price} 已達漲停 {limit_up}，不納入當沖標的")
+                    continue
+            kept.append(s)
+        except Exception as e:
+            # 查詢失敗（例如 API 額度用盡、逾時）時保守起見不排除，
+            # 避免因為查詢異常就誤刪原本正常的候選股票。
+            print(f"   ⚠️ [排除漲停股] {symbol} 查詢即時報價失敗，保留原判斷: {e}")
+            kept.append(s)
+
+    if excluded:
+        print(f"   ℹ️ [排除漲停股] 本輪共排除 {len(excluded)} 檔已漲停股票，剩餘 {len(kept)} 檔可用（目標 {limit} 檔）")
+
+    return kept[:limit]
+
 def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
                     latest_analysis_records: List[Dict], analysis_log: List[Dict], live_quotes: Dict,
                     total_signals: int):
@@ -1661,7 +1769,10 @@ def main():
     # 09:15 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
     if hm >= "09:15" and not wave1_stocks:
         print(f"\n⏰ 達到 09:15，開始執行【第一波段：早盤動能成交量排行選股】...")
-        wave1_stocks = get_free_top_volume_stocks(limit=8)
+        # 多抓幾檔候選 (limit+5)，排除漲停股後仍有機會湊滿 limit 檔，
+        # 避免「候選8檔剛好有2檔漲停」導致最終監控標的縮水成6檔。
+        wave1_candidates = get_free_top_volume_stocks(limit=13)
+        wave1_stocks = filter_out_limit_up_stocks(wave1_candidates, fugle, limit=8)
         current_stocks = wave1_stocks
         print(f"🔥 早盤 09:15 已鎖定標的：")
         for s in wave1_stocks:
@@ -1685,7 +1796,9 @@ def main():
     # 10:30 觸發：第二波段重挑股票 (只做一次)
     if hm >= "10:30" and not mid_wave_triggered:
         print(f"\n⏰ 達到 10:30，開始執行【第二波段：中盤換手與輪動股票重挑】...")
-        wave2_stocks = get_free_top_volume_stocks(limit=8)
+        # 同上：多抓候選再過濾漲停，避免湊不滿 8 檔
+        wave2_candidates = get_free_top_volume_stocks(limit=13)
+        wave2_stocks = filter_out_limit_up_stocks(wave2_candidates, fugle, limit=8)
         if wave2_stocks:
             current_stocks = wave2_stocks
             print(f"🔥 中盤 10:30 已更新監控標的：")
@@ -1798,8 +1911,41 @@ def main():
                 concise=True
             )
 
-            sig = res.get("signal", "WATCH")
-            raw_sig = res.get("raw_signal", sig)
+            # gemini_service.analyze_with_signal() 回傳的 res["signal"] 是小寫粗分類
+            # ("buy" / "short" / "watch")，但畫面渲染（Python 端的 render_html_dashboard
+            # 與前端 JS）長期以來都是用「"BUY" in sig」/「sig.includes("BUY")」這種
+            # 區分大小寫的字串比對來判斷做多/做空/觀望分類。因為 Python 的 `in` 與 JS 的
+            # `includes` 都區分大小寫，"BUY" in "buy" 恆為 False，導致所有寫入
+            # analysis_log / latest_analysis_records 的訊號都被誤判成「觀望」，
+            # 徽章顯示錯誤、做多/做空篩選按鈕也篩不到——即使 total_signals 計數器
+            # (下面用的是 raw_sig，本身是大寫) 有正確 +1，畫面上的分類卻對不起來，
+            # 造成「今日訊號有算到，但股票的歷史分析紀錄卻看不到該訊號」的假象。
+            # 修法：在這裡就把 sig 正規化成大寫，讓後續所有比對統一用大寫，
+            # 一次修正所有下游（Python 渲染、JS 渲染、篩選、統計）。
+            sig = res.get("signal", "WATCH").upper()
+            raw_sig = res.get("raw_signal", sig).upper()
+
+            # ── 一致性校驗：防止 signal 與 raw_signal 各自代表不同判斷 ──
+            # 【bug修復】曾發生單一情況：res["raw_signal"] 是 "BUY"，但
+            # res["signal"] 卻是 "watch"，兩者理論上該同步（見
+            # gemini_service._SIGNAL_MAP 賦值邏輯），一旦不同步，畫面會用
+            # signal 判斷徽章分類（顯示觀望），但歷史結算卻用 raw_signal
+            # 記錄成 BUY 並真的觸發交易紀錄——形成「歷史紀錄裡股票卡片
+            # 顯示觀望，但收盤結算卻多出一筆該股票的買賣紀錄」的矛盾。
+            # 這裡以 raw_signal（訊號強度分類，直接對應 BUY/SHORT 是否會
+            # 觸發交易紀錄）為準，反推 signal 的粗分類，確保兩者永遠一致，
+            # 不管上游解析發生什麼未預期狀況，下游顯示都不會自相矛盾。
+            _RAW_TO_COARSE = {
+                "STRONG_BUY": "BUY", "BUY": "BUY",
+                "SHORT": "SHORT", "STRONG_SHORT": "SHORT",
+            }
+            _expected_sig = _RAW_TO_COARSE.get(raw_sig, "WATCH")
+            if sig != _expected_sig:
+                print(
+                    f"  ⚠️ [{symbol}] 偵測到 signal({sig}) 與 raw_signal({raw_sig}) "
+                    f"不一致，以 raw_signal 為準修正為 {_expected_sig}"
+                )
+                sig = _expected_sig
             entry_p = res.get("entry")
             if isinstance(entry_p, str):
                 try: entry_p = float(entry_p.split()[0].replace("元",""))
@@ -1808,8 +1954,6 @@ def main():
             stop_p = res.get("stop_loss", "-")
             target_p = res.get("target", "-")
             reason = (res.get("reason") or res.get("full_text", "")).replace("\n", " ").strip()
-            if len(reason) > 60:
-                reason = reason[:60] + "..."
 
             print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
 
