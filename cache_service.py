@@ -381,6 +381,8 @@ def add_history_record(
     shares: Optional[int] = None,
     analysis_reason: Optional[str] = None,
     force_direction: Optional[str] = None,
+    broker_discount: Optional[float] = None,
+    is_day_trade_tax: Optional[bool] = None,
 ) -> Optional[str]:
     """
     記錄一筆分析歷史。僅對有實際方向的訊號記錄
@@ -413,6 +415,9 @@ def add_history_record(
     強制狀態跟著背景設定改變而失真——每筆紀錄應該反映「當初這次
     分析實際是不是被強制」。供歷史紀錄頁面顯示與匯出JSON使用。
 
+    broker_discount / is_day_trade_tax：交易成本設定快照。結算時必須
+    使用訊號產生當下的折數與稅率，不能讀取日後可能已被修改的設定。
+
     回傳這筆記錄的 id；訊號類型不需記錄時（WATCH）回傳 None。
     """
     if signal not in HISTORY_TRACKED_SIGNALS:
@@ -428,6 +433,11 @@ def add_history_record(
             pass
     record_id = f"{symbol}_{now.strftime('%Y%m%d_%H%M%S_%f')}"
 
+    try:
+        cost_discount = max(0.1, min(1.0, float(broker_discount)))
+    except (TypeError, ValueError):
+        cost_discount = 0.28
+
     record = {
         "id": record_id,
         "symbol": symbol,
@@ -441,6 +451,8 @@ def add_history_record(
         "stop_loss": float(stop_loss) if stop_loss else None,
         "take_profit": float(take_profit) if take_profit else None,
         "shares": int(shares) if shares else 1000,
+        "broker_discount": cost_discount,
+        "is_day_trade_tax": True if is_day_trade_tax is None else bool(is_day_trade_tax),
         "analysis_reason": analysis_reason or "",
         "force_direction": force_direction or None,
         "is_simulated": sim_time is not None,
@@ -615,28 +627,33 @@ def _compute_settle_result(target: dict, day_candles: List[dict]) -> Optional[di
         exit_reason = "forced_close"
         exit_time   = last.get("time")
 
-    pnl_pct = (
-        (exit_price - entry) / entry * 100 if is_long
-        else (entry - exit_price) / entry * 100
-    )
+    # 依訊號產生當下的設定計算台股當沖實際成本：買賣各一筆手續費
+    # （0.1425% × 券商折數，最低 20 元）及賣出端證交稅。做空時賣出
+    # 發生在進場、做多時發生在出場，因此稅額的計算基礎不同。
+    shares = int(target.get("shares", 1000) or 1000)
+    try:
+        discount = max(0.1, min(1.0, float(target.get("broker_discount", 0.28))))
+    except (TypeError, ValueError):
+        discount = 0.28
+    tax_rate = 0.0015 if bool(target.get("is_day_trade_tax", True)) else 0.003
+    fee_rate = 0.001425 * discount
 
-    if pnl_pct > 0.01:
+    entry_value = entry * shares
+    exit_value = exit_price * shares
+    fee_entry = max(20, int(entry_value * fee_rate))
+    fee_exit = max(20, int(exit_value * fee_rate))
+    tax_amount = int((exit_value if is_long else entry_value) * tax_rate)
+    gross_pnl_amount = (exit_value - entry_value) if is_long else (entry_value - exit_value)
+    total_cost = fee_entry + fee_exit + tax_amount
+    pnl_amount = gross_pnl_amount - total_cost
+    pnl_pct = pnl_amount / entry_value * 100
+
+    if pnl_amount > 0:
         result = "win"
-    elif pnl_pct < -0.01:
+    elif pnl_amount < 0:
         result = "loss"
     else:
         result = "breakeven"
-
-    # 【v16新增】依這筆紀錄當時的股數快照，計算實際損益金額。
-    # 只計算「進出場價差 × 股數」的毛損益，不扣除手續費與證交稅——
-    # 這兩項費用依券商方案、放空/做多而異，若自行估算一個固定費率
-    # 硬套用，反而可能讓數字失真，不如誠實只呈現price-based的毛額，
-    # 使用者自己心裡有數這還沒扣手續費。
-    shares = target.get("shares", 1000)
-    pnl_amount = (
-        (exit_price - entry) * shares if is_long
-        else (entry - exit_price) * shares
-    )
 
     return {
         "settle_status": "settled",
@@ -644,8 +661,13 @@ def _compute_settle_result(target: dict, day_candles: List[dict]) -> Optional[di
         "exit_price":    float(exit_price),
         "exit_reason":   exit_reason,
         "exit_time":     exit_time,
-        "pnl_pct":       round(pnl_pct, 3),
-        "pnl_amount":    round(pnl_amount, 0),
+        "pnl_pct":          round(pnl_pct, 3),
+        "gross_pnl_amount": round(gross_pnl_amount, 0),
+        "fee_entry":        fee_entry,
+        "fee_exit":         fee_exit,
+        "tax_amount":       tax_amount,
+        "total_cost":       total_cost,
+        "pnl_amount":       round(pnl_amount, 0),
     }
 
 

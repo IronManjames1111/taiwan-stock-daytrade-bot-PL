@@ -2,7 +2,7 @@
 """
 headless_trader.py - 雲端無頭當沖機器人 (v4.0 單輪執行 + 狀態持久化版)
 ─────────────────────────────────────────────────────────────
-• 09:15 早盤第一次抓取成交量排行前 5 檔 (避開開盤假突破雜訊)
+• 09:05 早盤第一次抓取成交量排行前 5 檔，立即開始 AI 分析
 • 10:30 中盤第二次重新抓取成交量排行前 5 檔 (鎖定盤中換手輪動飆股)
 • 盤中每 10 分鐘調用 Google AI (多模型自動降級鏈) 進行深度判斷
 • 自動生成獨立網頁 index.html (透過 GitHub Pages 提供免登入固定專屬網址)
@@ -11,7 +11,7 @@ headless_trader.py - 雲端無頭當沖機器人 (v4.0 單輪執行 + 狀態持�
 
 v4.0 架構變更說明：
 ────────────────
-舊版本用單一個 GitHub Actions job、從 09:15 內部 while 迴圈一路等到 13:25 才結束，
+舊版本用單一個 GitHub Actions job、從開盤後內部 while 迴圈一路等到 13:25 才結束，
 中間雖然每 10 分鐘會呼叫 render_html_dashboard() 更新本地 index.html，
 但 git commit / push 只在整個 script 執行完畢後才跑一次 —— 導致：
   1) 使用者在收盤前完全看不到網站上的即時進度（只有結算後才看得到）
@@ -155,7 +155,7 @@ def render_html_dashboard(
             </li>
             """
     else:
-        wave1_html = '<li class="text-gray-500 text-xs py-2">等待開盤 09:15 抓取中...</li>'
+        wave1_html = '<li class="text-gray-500 text-xs py-2">等待開盤 09:05 抓取中...</li>'
 
     # 生成波段二列表
     wave2_html = ""
@@ -440,7 +440,7 @@ def render_html_dashboard(
                     <h1 class="text-lg md:text-xl font-bold text-white tracking-tight">台股 AI 當沖雲端終端</h1>
                     <span class="bg-[#06231b] text-[#00d68f] text-[11px] px-2 py-0.5 rounded-full border border-[#00d68f]/25 font-semibold whitespace-nowrap">雲端全自動</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">09:15 / 10:30 雙波段選股　·　每 10 分鐘 AI 分析　·　13:25 回放結算</p>
+                <p class="text-xs text-gray-500 mt-1">09:05 / 10:30 雙波段選股　·　09:05–13:00 每 10 分鐘 AI 分析　·　13:25 回放結算</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
@@ -501,7 +501,7 @@ def render_html_dashboard(
                 <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
                     <div>
                         <h2 class="font-bold text-white text-sm">早盤成交量排行</h2>
-                        <p class="text-[11px] text-gray-500 mt-0.5">09:15 觸發（ORB-15 區間成型）</p>
+                        <p class="text-[11px] text-gray-500 mt-0.5">09:05 觸發（開盤後 5 分鐘）</p>
                     </div>
                     <span class="text-[11px] bg-[#0f1c33] text-[#8db3ff] border border-[#4d8dff]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段一</span>
                 </div>
@@ -668,7 +668,7 @@ def render_html_dashboard(
             csv += `目前狀態,${{csvCell(EXPORT_DATA.status_text)}}\\n`;
             csv += `AI 模型,${{csvCell(EXPORT_DATA.active_model)}}\\n`;
             csv += `累計訊號數,${{csvCell(EXPORT_DATA.total_signals)}}\\n\\n`;
-            csv += csvSection("【波段一 09:15 選股】", EXPORT_DATA.wave1_stocks);
+            csv += csvSection("【波段一 09:05 選股】", EXPORT_DATA.wave1_stocks);
             csv += csvSection("【波段二 10:30 選股】", EXPORT_DATA.wave2_stocks);
             csv += csvSection("【AI 即時分析訊號 (每檔股票最新狀態)】", EXPORT_DATA.latest_analysis);
             csv += csvSection("【AI 完整分析歷程 (每一輪分析，不覆蓋)】", EXPORT_DATA.analysis_log);
@@ -1606,6 +1606,19 @@ def main():
     fugle_api_key = os.getenv("FUGLE_API_KEY") or cfg.get("fugle_api_key", "")
     gemini_api_key = os.getenv("GEMINI_API_KEY") or cfg.get("gemini_api_key", "")
 
+    # 雲端 Actions 可用 Repository variable 覆蓋本機設定；空值或不合法值
+    # 會安全退回 config 的預設折數。每筆訊號會再把這兩項寫成快照。
+    try:
+        broker_discount = float(os.getenv("BROKER_DISCOUNT") or cfg.get("broker_discount", 0.28))
+        broker_discount = max(0.1, min(1.0, broker_discount))
+    except (TypeError, ValueError):
+        broker_discount = 0.28
+    tax_env = os.getenv("DAY_TRADE_TAX")
+    is_day_trade_tax = (
+        tax_env.strip().lower() in {"1", "true", "yes", "on"}
+        if tax_env is not None else bool(cfg.get("is_day_trade_tax", True))
+    )
+
     if not fugle_api_key:
         print("❌ 錯誤：未設定 FUGLE_API_KEY 環境變數！")
     if not gemini_api_key:
@@ -1637,6 +1650,8 @@ def main():
         print("🧪 目前使用【實驗性寬鬆模式】：訊號門檻降低，訊號數量會明顯變多，僅建議測試用途。")
     else:
         print(f"⚙️ 目前使用風險模式：{RISK_MODE}")
+    print(f"💰 結算成本設定：手續費 {broker_discount:g} 折、"
+          f"證交稅 {'當沖減半 0.15%' if is_day_trade_tax else '一般 0.30%'}")
 
     now = get_tw_now()
     hm = now.strftime("%H:%M")
@@ -1750,11 +1765,11 @@ def main():
 
     current_stocks = wave2_stocks if wave2_stocks else wave1_stocks
 
-    # 盤前 (08:50~09:14)：只更新「準備中」狀態，不抓股也不分析
-    if hm < "09:15":
-        print(f"[{now.strftime('%H:%M:%S')}] 尚未到 09:15 開盤選股時間，僅更新盤前準備狀態。")
+    # 盤前 (08:50~09:04)：只更新「準備中」狀態，不抓股也不分析
+    if hm < "09:05":
+        print(f"[{now.strftime('%H:%M:%S')}] 尚未到 09:05 開盤選股時間，僅更新盤前準備狀態。")
         render_html_dashboard(
-            status_text="盤前準備中 (等待 09:15)",
+            status_text="盤前準備中 (等待 09:05)",
             active_model=gemini.active_model,
             wave1_stocks=wave1_stocks,
             wave2_stocks=wave2_stocks,
@@ -1766,15 +1781,15 @@ def main():
         save_dashboard_state(state)
         return
 
-    # 09:15 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
-    if hm >= "09:15" and not wave1_stocks:
-        print(f"\n⏰ 達到 09:15，開始執行【第一波段：早盤動能成交量排行選股】...")
+    # 09:05 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
+    if hm >= "09:05" and not wave1_stocks:
+        print(f"\n⏰ 達到 09:05，開始執行【第一波段：早盤動能成交量排行選股】...")
         # 多抓幾檔候選 (limit+5)，排除漲停股後仍有機會湊滿 limit 檔，
         # 避免「候選8檔剛好有2檔漲停」導致最終監控標的縮水成6檔。
         wave1_candidates = get_free_top_volume_stocks(limit=13)
         wave1_stocks = filter_out_limit_up_stocks(wave1_candidates, fugle, limit=8)
         current_stocks = wave1_stocks
-        print(f"🔥 早盤 09:15 已鎖定標的：")
+        print(f"🔥 早盤 09:05 已鎖定標的：")
         for s in wave1_stocks:
             print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
 
@@ -1789,9 +1804,8 @@ def main():
             total_signals=total_signals
         )
         save_dashboard_state(state)
-        # 選股完當輪就結束，讓 workflow 立即 commit/push，下一次 5 分鐘後的觸發再繼續分析
-        print("✅ 本輪次（選股）執行完畢。")
-        return
+        # 不在這裡 return，讓 09:05 的首輪能立刻進入下方 AI 分析，
+        # 而非等到下一個排程週期才開始。
 
     # 10:30 觸發：第二波段重挑股票 (只做一次)
     if hm >= "10:30" and not mid_wave_triggered:
@@ -1828,7 +1842,22 @@ def main():
                         latest_analysis_records, analysis_log, live_quotes, total_signals)
         return
 
-    # 09:15 ~ 13:25 盤中：每 10 分鐘執行一次分析 (目標 09:20, 09:30 ... 13:20)
+    # 09:05 ~ 13:00 盤中：每 10 分鐘執行一次 AI 分析。
+    # 13:00 起保留給市場收尾與 13:25 的完整分K回放，不再發送 AI 請求。
+    if hm >= "13:00":
+        print(f"[{now.strftime('%H:%M:%S')}] 已過 13:00，停止新增 AI 分析，等待 13:25 收盤結算。")
+        render_html_dashboard(
+            status_text="13:00 後停止 AI 分析，等待收盤結算",
+            active_model=gemini.active_model,
+            wave1_stocks=wave1_stocks,
+            wave2_stocks=wave2_stocks,
+            latest_analysis=latest_analysis_records,
+            analysis_log=analysis_log,
+            live_quotes=live_quotes,
+            total_signals=total_signals,
+        )
+        save_dashboard_state(state)
+        return
     # v4.1 修正說明：
     # ────────────
     # 舊版用 `now.minute % 10 == 0` 判斷「是否剛好命中整 10 分鐘」，前提是 GitHub Actions
@@ -1991,7 +2020,9 @@ def main():
                     stop_loss=res.get("stop_loss"),
                     take_profit=res.get("target"),
                     shares=cfg.get("trade_shares", 1000),
-                    analysis_reason=res.get("full_text", "")
+                    analysis_reason=res.get("full_text", ""),
+                    broker_discount=broker_discount,
+                    is_day_trade_tax=is_day_trade_tax,
                 )
                 print(f"   👉 [已記錄交易] {symbol} {raw_sig} 寫入歷史紀錄 (ID: {rec_id})")
 
