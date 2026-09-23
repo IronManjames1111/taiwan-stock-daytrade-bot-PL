@@ -56,11 +56,6 @@ jobs:
           # 排程自動觸發時走 repo variable RISK_MODE（可在 Settings > Secrets and variables > Actions > Variables 設定，預設 auto）
           # 手動點 Run workflow 時，可用下拉選單即時覆蓋（優先權更高）
           RISK_MODE: ${{ inputs.risk_mode || vars.RISK_MODE || 'auto' }}
-          # Repository Variables：BROKER_DISCOUNT（如 0.6=六折）、
-          # DAY_TRADE_TAX（true=當沖減半 0.15%，false=一般 0.30%）。
-          # 未設定時沿用 config.py 的預設值。
-          BROKER_DISCOUNT: ${{ vars.BROKER_DISCOUNT || '' }}
-          DAY_TRADE_TAX: ${{ vars.DAY_TRADE_TAX || '' }}
           PYTHONUNBUFFERED: "1"
         run: |
           echo "本次執行風險模式：$RISK_MODE"

@@ -381,8 +381,6 @@ def add_history_record(
     shares: Optional[int] = None,
     analysis_reason: Optional[str] = None,
     force_direction: Optional[str] = None,
-    broker_discount: Optional[float] = None,
-    is_day_trade_tax: Optional[bool] = None,
 ) -> Optional[str]:
     """
     記錄一筆分析歷史。僅對有實際方向的訊號記錄
@@ -415,9 +413,6 @@ def add_history_record(
     強制狀態跟著背景設定改變而失真——每筆紀錄應該反映「當初這次
     分析實際是不是被強制」。供歷史紀錄頁面顯示與匯出JSON使用。
 
-    broker_discount / is_day_trade_tax：交易成本設定快照。結算時必須
-    使用訊號產生當下的折數與稅率，不能讀取日後可能已被修改的設定。
-
     回傳這筆記錄的 id；訊號類型不需記錄時（WATCH）回傳 None。
     """
     if signal not in HISTORY_TRACKED_SIGNALS:
@@ -433,11 +428,6 @@ def add_history_record(
             pass
     record_id = f"{symbol}_{now.strftime('%Y%m%d_%H%M%S_%f')}"
 
-    try:
-        cost_discount = max(0.1, min(1.0, float(broker_discount)))
-    except (TypeError, ValueError):
-        cost_discount = 0.28
-
     record = {
         "id": record_id,
         "symbol": symbol,
@@ -451,8 +441,6 @@ def add_history_record(
         "stop_loss": float(stop_loss) if stop_loss else None,
         "take_profit": float(take_profit) if take_profit else None,
         "shares": int(shares) if shares else 1000,
-        "broker_discount": cost_discount,
-        "is_day_trade_tax": True if is_day_trade_tax is None else bool(is_day_trade_tax),
         "analysis_reason": analysis_reason or "",
         "force_direction": force_direction or None,
         "is_simulated": sim_time is not None,
@@ -532,7 +520,75 @@ def mark_settle_attempt_failed(record_id: str) -> None:
         _write_history(data)
 
 
-def _compute_settle_result(target: dict, day_candles: List[dict]) -> Optional[dict]:
+# ─────────────────────────────────────────────
+#  交易成本計算（v20 新增）
+# ─────────────────────────────────────────────
+# 台股手續費／證交稅公定費率：
+#   手續費：買進、賣出各收一次，單向 0.1425%（雙向合計 0.285%），
+#           實際成交會再乘上券商給的折扣（例如 6 折 = 0.6）。
+#   證交稅：只在「賣出」時收一次，一般股票 0.3%；若符合當沖現股
+#           當沖資格且啟用「當沖證交稅減半」，則為 0.15%。
+#           證交稅不會因為券商折扣而減少，折扣只作用在手續費上。
+FEE_RATE_BASE       = 0.001425  # 單向手續費費率（未打折前）
+TAX_RATE_NORMAL     = 0.003     # 一般賣出證交稅率
+TAX_RATE_DAYTRADE   = 0.0015    # 當沖證交稅減半稅率
+MIN_FEE_PER_SIDE    = 20        # 大多數券商的單筆手續費下限（元），避免小單位金額算出趨近0的手續費而失真
+
+
+def calc_trade_cost(entry_price: float, exit_price: float, shares: int,
+                     broker_discount: float = 1.0,
+                     is_day_trade_tax: bool = True) -> dict:
+    """
+    計算一趟「進場＋出場」來回交易的實際手續費與證交稅。
+
+    參數：
+      entry_price / exit_price：進場、出場成交價（元）
+      shares：交易股數（1 張 = 1000 股）
+      broker_discount：券商手續費折扣，0.1~1.0（例如 6 折 = 0.6，無折扣 = 1.0）
+      is_day_trade_tax：是否符合當沖證交稅減半資格（0.15% vs 一般 0.3%）
+
+    回傳：
+      {
+        "fee_buy":   買進手續費（已套用折扣與最低手續費下限）,
+        "fee_sell":  賣出手續費（已套用折扣與最低手續費下限）,
+        "fee_total": 手續費合計（買+賣）,
+        "tax_total": 證交稅（僅賣出收一次）,
+        "cost_total": 手續費+證交稅 總成本,
+      }
+
+    只要進出場其中一邊的金額為 0（例如資料異常），仍會回傳結構完整
+    的 0 值，避免呼叫端還要額外判斷 None。
+    """
+    broker_discount = max(0.1, min(1.0, broker_discount or 1.0))
+
+    buy_amount  = (entry_price or 0) * shares
+    sell_amount = (exit_price or 0) * shares
+
+    fee_buy  = buy_amount * FEE_RATE_BASE * broker_discount
+    fee_sell = sell_amount * FEE_RATE_BASE * broker_discount
+
+    # 手續費最低收費下限：多數券商即使打折後仍會收取單筆最低手續費，
+    # 但金額為 0（例如成交價缺漏）時不套用下限，避免無交易也產生費用。
+    if buy_amount > 0:
+        fee_buy = max(fee_buy, MIN_FEE_PER_SIDE)
+    if sell_amount > 0:
+        fee_sell = max(fee_sell, MIN_FEE_PER_SIDE)
+
+    fee_total = fee_buy + fee_sell
+
+    tax_rate  = TAX_RATE_DAYTRADE if is_day_trade_tax else TAX_RATE_NORMAL
+    tax_total = sell_amount * tax_rate
+
+    return {
+        "fee_buy":    round(fee_buy, 0),
+        "fee_sell":   round(fee_sell, 0),
+        "fee_total":  round(fee_total, 0),
+        "tax_total":  round(tax_total, 0),
+        "cost_total": round(fee_total + tax_total, 0),
+    }
+
+
+def _compute_settle_result(target: dict, day_candles: List[dict], cfg: Optional[dict] = None) -> Optional[dict]:
     """
     純計算函式：依「當天完整分K線」回放判斷一筆歷史紀錄該如何結算，
     不碰資料檔讀寫、不檢查 settle_status。被
@@ -540,6 +596,11 @@ def _compute_settle_result(target: dict, day_candles: List[dict]) -> Optional[di
     resettle_history_record_with_candles()（強制重新結算，供單筆
     「重新確認」按鈕使用，可覆寫已結算結果）共用，確保兩邊用的是
     完全同一套判斷規則，不會出現「重新整理後用了不同邏輯」的落差。
+
+    cfg：使用者設定（load_config() 的回傳值），用來取得
+    broker_discount（券商手續費折扣）與 is_day_trade_tax（是否適用
+    當沖證交稅減半）。傳 None 時視同使用預設值（無折扣、當沖稅率），
+    確保舊呼叫端（未傳 cfg）不會直接壞掉。
 
     判斷規則（依時間順序掃描每根K棒）：
       【修正】只掃描「建倉時間之後（含建倉當下那一分鐘）」的K棒。
@@ -627,33 +688,49 @@ def _compute_settle_result(target: dict, day_candles: List[dict]) -> Optional[di
         exit_reason = "forced_close"
         exit_time   = last.get("time")
 
-    # 依訊號產生當下的設定計算台股當沖實際成本：買賣各一筆手續費
-    # （0.1425% × 券商折數，最低 20 元）及賣出端證交稅。做空時賣出
-    # 發生在進場、做多時發生在出場，因此稅額的計算基礎不同。
-    shares = int(target.get("shares", 1000) or 1000)
-    try:
-        discount = max(0.1, min(1.0, float(target.get("broker_discount", 0.28))))
-    except (TypeError, ValueError):
-        discount = 0.28
-    tax_rate = 0.0015 if bool(target.get("is_day_trade_tax", True)) else 0.003
-    fee_rate = 0.001425 * discount
+    pnl_pct = (
+        (exit_price - entry) / entry * 100 if is_long
+        else (entry - exit_price) / entry * 100
+    )
 
-    entry_value = entry * shares
-    exit_value = exit_price * shares
-    fee_entry = max(20, int(entry_value * fee_rate))
-    fee_exit = max(20, int(exit_value * fee_rate))
-    tax_amount = int((exit_value if is_long else entry_value) * tax_rate)
-    gross_pnl_amount = (exit_value - entry_value) if is_long else (entry_value - exit_value)
-    total_cost = fee_entry + fee_exit + tax_amount
-    pnl_amount = gross_pnl_amount - total_cost
-    pnl_pct = pnl_amount / entry_value * 100
-
-    if pnl_amount > 0:
+    if pnl_pct > 0.01:
         result = "win"
-    elif pnl_amount < 0:
+    elif pnl_pct < -0.01:
         result = "loss"
     else:
         result = "breakeven"
+
+    # 【v16新增，v20修正】依這筆紀錄當時的股數快照，計算實際損益金額。
+    # v16 版本只算「進出場價差 × 股數」的毛損益，不扣手續費與證交稅，
+    # 但畫面上的欄位標籤卻叫「淨損益」，數字與標籤語意不一致，導致
+    # 每日回測結算的淨損益看起來比實際到手的金額還高（少扣了來回
+    # 手續費與證交稅這兩項當沖必然發生的成本）。
+    #
+    # v20 修正：pnl_amount 改為「扣除手續費與證交稅之後」的真正淨損益，
+    # 手續費折扣（broker_discount）與是否適用當沖證交稅減半
+    # （is_day_trade_tax）取自使用者設定（cfg），沒有提供 cfg 時
+    # 退回「無折扣（1.0）＋ 當沖稅率」的保守估算，不會憑空少算費用。
+    # 同時保留 pnl_amount_gross（原本的毛損益，未扣費）與費用明細，
+    # 供未來想拆開顯示「毛損益／手續費／證交稅／淨損益」時使用，
+    # 不會遺失資訊。
+    shares = target.get("shares", 1000)
+    pnl_amount_gross = (
+        (exit_price - entry) * shares if is_long
+        else (entry - exit_price) * shares
+    )
+
+    cfg = cfg or {}
+    broker_discount  = cfg.get("broker_discount", 1.0)
+    is_day_trade_tax = cfg.get("is_day_trade_tax", True)
+
+    cost = calc_trade_cost(
+        entry_price=entry,
+        exit_price=exit_price,
+        shares=shares,
+        broker_discount=broker_discount,
+        is_day_trade_tax=is_day_trade_tax,
+    )
+    pnl_amount = pnl_amount_gross - cost["cost_total"]
 
     return {
         "settle_status": "settled",
@@ -661,23 +738,28 @@ def _compute_settle_result(target: dict, day_candles: List[dict]) -> Optional[di
         "exit_price":    float(exit_price),
         "exit_reason":   exit_reason,
         "exit_time":     exit_time,
-        "pnl_pct":          round(pnl_pct, 3),
-        "gross_pnl_amount": round(gross_pnl_amount, 0),
-        "fee_entry":        fee_entry,
-        "fee_exit":         fee_exit,
-        "tax_amount":       tax_amount,
-        "total_cost":       total_cost,
-        "pnl_amount":       round(pnl_amount, 0),
+        "pnl_pct":       round(pnl_pct, 3),
+        "pnl_amount":        round(pnl_amount, 0),       # 淨損益（已扣手續費+證交稅）
+        "pnl_amount_gross":  round(pnl_amount_gross, 0), # 毛損益（未扣費，供對照）
+        "fee_amount":        cost["fee_total"],           # 來回手續費合計
+        "tax_amount":        cost["tax_total"],            # 證交稅
+        "broker_discount_used":  broker_discount,          # 這筆結算實際套用的折扣值，方便日後追查
+        "is_day_trade_tax_used": is_day_trade_tax,
     }
 
 
-def settle_history_record_with_candles(record_id: str, day_candles: List[dict]) -> bool:
+def settle_history_record_with_candles(record_id: str, day_candles: List[dict], cfg: Optional[dict] = None) -> bool:
     """
     首次結算（僅限 settle_status == "pending" 的紀錄）。供背景排程
     _run_history_settle_once() 使用，避免自動排程誤觸已結算過的紀錄。
     若需要對「已結算」的紀錄強制重新計算（例如使用者發現結果看起來
     不對，用「重新確認」按鈕重抓資料驗證），請改用
     resettle_history_record_with_candles()。
+
+    cfg：使用者設定（load_config() 的回傳值），內含 broker_discount
+    （手續費折扣）與 is_day_trade_tax（當沖證交稅減半），用來把
+    結算損益從「毛損益」換算成「淨損益」。不傳時退回保守預設值
+    （無折扣＋當沖稅率），見 _compute_settle_result() 說明。
 
     回傳 True 代表結算成功並已寫回，False 代表資料不足、找不到該筆
     記錄，或該筆記錄已經不是 pending 狀態。
@@ -692,7 +774,7 @@ def settle_history_record_with_candles(record_id: str, day_candles: List[dict]) 
         if target is None or target.get("settle_status") != "pending":
             return False
 
-        computed = _compute_settle_result(target, day_candles)
+        computed = _compute_settle_result(target, day_candles, cfg)
         if computed is None:
             return False
 
@@ -701,9 +783,11 @@ def settle_history_record_with_candles(record_id: str, day_candles: List[dict]) 
         return True
 
 
-def resettle_history_record_with_candles(record_id: str, day_candles: List[dict]) -> bool:
+def resettle_history_record_with_candles(record_id: str, day_candles: List[dict], cfg: Optional[dict] = None) -> bool:
     """
     【v19新增】強制重新結算，不限定原本的 settle_status。
+    cfg 用途同 settle_history_record_with_candles()，用來套用最新的
+    手續費折扣／當沖證交稅設定重新換算淨損益。
 
     背景：settle_history_record_with_candles() 刻意只處理 pending
     紀錄，是為了讓背景自動排程不會重複觸碰已結算過的資料。但這也
@@ -733,7 +817,7 @@ def resettle_history_record_with_candles(record_id: str, day_candles: List[dict]
         if target is None:
             return False
 
-        computed = _compute_settle_result(target, day_candles)
+        computed = _compute_settle_result(target, day_candles, cfg)
         if computed is None:
             return False
 

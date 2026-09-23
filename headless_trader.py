@@ -2,16 +2,16 @@
 """
 headless_trader.py - 雲端無頭當沖機器人 (v4.0 單輪執行 + 狀態持久化版)
 ─────────────────────────────────────────────────────────────
-• 09:05 早盤第一次抓取成交量排行前 5 檔，立即開始 AI 分析
+• 09:05 早盤第一次抓取成交量排行前 5 檔，並開始盤中 AI 分析（v20 調整，原為 09:15）
 • 10:30 中盤第二次重新抓取成交量排行前 5 檔 (鎖定盤中換手輪動飆股)
-• 盤中每 10 分鐘調用 Google AI (多模型自動降級鏈) 進行深度判斷
+• 盤中每 10 分鐘調用 Google AI (多模型自動降級鏈) 進行深度判斷，13:00 後截止（v20 新增）
 • 自動生成獨立網頁 index.html (透過 GitHub Pages 提供免登入固定專屬網址)
 • 同步輸出 GitHub Step Summary 即時 Markdown 看板
-• 13:25 收盤自動回放當日 1分K 結算盈虧，產出 CSV 報表保存至 GitHub
+• 13:25 收盤自動回放當日 1分K 結算盈虧（已扣手續費與證交稅），產出 CSV 報表保存至 GitHub
 
 v4.0 架構變更說明：
 ────────────────
-舊版本用單一個 GitHub Actions job、從開盤後內部 while 迴圈一路等到 13:25 才結束，
+舊版本用單一個 GitHub Actions job、從 09:15 內部 while 迴圈一路等到 13:25 才結束，
 中間雖然每 10 分鐘會呼叫 render_html_dashboard() 更新本地 index.html，
 但 git commit / push 只在整個 script 執行完畢後才跑一次 —— 導致：
   1) 使用者在收盤前完全看不到網站上的即時進度（只有結算後才看得到）
@@ -25,6 +25,7 @@ v4.0 架構變更說明：
 """
 
 import os
+import re
 import sys
 import time
 import json
@@ -50,6 +51,24 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
         pass
 
 TW_TZ = pytz.timezone("Asia/Taipei")
+
+# ── 盤中時間節點設定（v20 調整）──────────────────────────────────
+# 集中放在這裡管理，避免同一個時間點散落在程式各處、改一處漏改
+# 另一處（例如原本 09:15 這個字串同時出現在好幾個判斷式與說明文字裡）。
+#
+# ANALYSIS_START_TIME：開始選股＋進行AI分析的時間點。
+#   原本是 09:15，考量開盤 5~10 分鐘的價格容易有開盤跳空/假突破雜訊，
+#   才特意延後啟動；現在提早到 09:05，讓策略能更早掌握當天動能股，
+#   但相對地開盤初期的訊號雜訊可能略增，可視實際回測結果再微調。
+# ANALYSIS_STOP_TIME：盤中最後一次「丟給 AI 分析」的時間點。
+#   13:00 之後不再呼叫 AI 進行判斷（避免尾盤時間不足以完成一趟
+#   當沖來回、也節省 API 額度），但收盤結算（回放1分K比對損益，
+#   不呼叫AI）仍照常在 HISTORY_SETTLE_TIME 執行。
+# HISTORY_SETTLE_TIME：收盤回放結算時間點，維持 13:25 不變。
+ANALYSIS_START_TIME  = "09:05"
+ANALYSIS_STOP_TIME   = "13:00"
+HISTORY_SETTLE_TIME  = "13:25"
+MID_WAVE_TRIGGER_TIME = "10:30"
 
 def get_tw_now() -> datetime.datetime:
     return datetime.datetime.now(TW_TZ)
@@ -155,7 +174,7 @@ def render_html_dashboard(
             </li>
             """
     else:
-        wave1_html = '<li class="text-gray-500 text-xs py-2">等待開盤 09:05 抓取中...</li>'
+        wave1_html = f'<li class="text-gray-500 text-xs py-2">等待開盤 {ANALYSIS_START_TIME} 抓取中...</li>'
 
     # 生成波段二列表
     wave2_html = ""
@@ -168,7 +187,7 @@ def render_html_dashboard(
             </li>
             """
     else:
-        wave2_html = '<li class="text-gray-500 text-xs py-2">10:30 自動重新掃描成交量排行...</li>'
+        wave2_html = f'<li class="text-gray-500 text-xs py-2">{MID_WAVE_TRIGGER_TIME} 自動重新掃描成交量排行...</li>'
 
     # 生成分析表格（依訊號分類貼上 data-filter-group 屬性，供前端做多/做空/觀望篩選使用）
     # 配色依台股慣例「紅漲綠跌」：做多(偏多/漲) 用紅、放空(偏空/跌) 用綠，跟一般西式股市剛好相反
@@ -291,8 +310,8 @@ def render_html_dashboard(
             </div>
             """
     else:
-        settle_rows = '<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 (13:25)</td></tr>'
-        settle_cards = '<div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 (13:25)</div>'
+        settle_rows = f'<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})</td></tr>'
+        settle_cards = f'<div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})</div>'
 
     html_content = f"""<!DOCTYPE html>
 <html lang="zh-TW">
@@ -440,7 +459,7 @@ def render_html_dashboard(
                     <h1 class="text-lg md:text-xl font-bold text-white tracking-tight">台股 AI 當沖雲端終端</h1>
                     <span class="bg-[#06231b] text-[#00d68f] text-[11px] px-2 py-0.5 rounded-full border border-[#00d68f]/25 font-semibold whitespace-nowrap">雲端全自動</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">09:05 / 10:30 雙波段選股　·　09:05–13:00 每 10 分鐘 AI 分析　·　13:25 回放結算</p>
+                <p class="text-xs text-gray-500 mt-1">{ANALYSIS_START_TIME} / {MID_WAVE_TRIGGER_TIME} 雙波段選股　·　每 10 分鐘 AI 分析（{ANALYSIS_STOP_TIME} 截止）　·　{HISTORY_SETTLE_TIME} 回放結算</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
@@ -501,7 +520,7 @@ def render_html_dashboard(
                 <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
                     <div>
                         <h2 class="font-bold text-white text-sm">早盤成交量排行</h2>
-                        <p class="text-[11px] text-gray-500 mt-0.5">09:05 觸發（開盤後 5 分鐘）</p>
+                        <p class="text-[11px] text-gray-500 mt-0.5">{ANALYSIS_START_TIME} 觸發（早盤動能成交量排行）</p>
                     </div>
                     <span class="text-[11px] bg-[#0f1c33] text-[#8db3ff] border border-[#4d8dff]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段一</span>
                 </div>
@@ -512,7 +531,7 @@ def render_html_dashboard(
                 <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
                     <div>
                         <h2 class="font-bold text-white text-sm">中盤換手重挑</h2>
-                        <p class="text-[11px] text-gray-500 mt-0.5">10:30 觸發（鎖定盤中輪動主升股）</p>
+                        <p class="text-[11px] text-gray-500 mt-0.5">{MID_WAVE_TRIGGER_TIME} 觸發（鎖定盤中輪動主升股）</p>
                     </div>
                     <span class="text-[11px] bg-[#1f1433] text-[#c4a6ff] border border-[#a78bfa]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段二</span>
                 </div>
@@ -574,14 +593,14 @@ def render_html_dashboard(
             <p id="filter-empty-msg" class="hidden text-center text-gray-500 text-xs py-6">此篩選條件下目前沒有符合的標的</p>
         </div>
 
-        <!-- 13:25 收盤回放結算卡片 -->
+        <!-- 收盤回放結算卡片 -->
         <div class="panel border rounded-2xl p-5">
             <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
                 <div>
                     <h2 class="font-bold text-white text-base">今日回測結算</h2>
-                    <p class="text-[11px] text-gray-500 mt-0.5">13:25 以當日 1 分K 逐根回放比對實際賺賠（已扣手續費與證交稅）</p>
+                    <p class="text-[11px] text-gray-500 mt-0.5">{HISTORY_SETTLE_TIME} 以當日 1 分K 逐根回放比對實際賺賠（已扣手續費與證交稅）</p>
                 </div>
-                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">13:25 結算</span>
+                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">{HISTORY_SETTLE_TIME} 結算</span>
             </div>
 
             <!-- 桌面版：表格 -->
@@ -668,8 +687,8 @@ def render_html_dashboard(
             csv += `目前狀態,${{csvCell(EXPORT_DATA.status_text)}}\\n`;
             csv += `AI 模型,${{csvCell(EXPORT_DATA.active_model)}}\\n`;
             csv += `累計訊號數,${{csvCell(EXPORT_DATA.total_signals)}}\\n\\n`;
-            csv += csvSection("【波段一 09:05 選股】", EXPORT_DATA.wave1_stocks);
-            csv += csvSection("【波段二 10:30 選股】", EXPORT_DATA.wave2_stocks);
+            csv += csvSection("【波段一 {ANALYSIS_START_TIME} 選股】", EXPORT_DATA.wave1_stocks);
+            csv += csvSection("【波段二 {MID_WAVE_TRIGGER_TIME} 選股】", EXPORT_DATA.wave2_stocks);
             csv += csvSection("【AI 即時分析訊號 (每檔股票最新狀態)】", EXPORT_DATA.latest_analysis);
             csv += csvSection("【AI 完整分析歷程 (每一輪分析，不覆蓋)】", EXPORT_DATA.analysis_log);
             csv += csvSection("【收盤結算紀錄】", EXPORT_DATA.settle_records);
@@ -1173,11 +1192,28 @@ def format_exit_reason(code: str) -> str:
 
 
 
-def load_dashboard_state(today_str: str) -> Dict:
+def load_dashboard_state(today_str: str, gemini=None, fugle=None, cfg: Optional[Dict] = None) -> Dict:
     """
     讀取上一輪次留下的看板狀態。若狀態檔不存在，或存的是「不同日期」的舊資料
     (例如今天是新的交易日，但檔案還留著昨天收盤的紀錄)，則回傳全新的空白狀態，
     避免不同交易日的資料互相混雜。
+
+    【v21 修正：跨日搶救性結算】────────────────────────────────────
+    背景：原本偵測到「狀態檔案日期 ≠ 今天」時，會直接捨棄舊狀態、回傳全新
+    空白狀態。但如果前一天因為任何原因（cron 排程延遲、API 逾時、13:25~
+    13:30 的結算視窗剛好沒被觸發到）沒有成功跑完 13:25 收盤結算，
+    settled_today 會一直停在 False，這份累積了一整天的分析紀錄
+    （wave1_stocks、latest_analysis_records、analysis_log 等）就會在
+    「今天第一次執行、偵測到跨日」的當下被直接丟棄，從來沒有機會寫進
+    history_records/analysis_YYYY-MM-DD.json，導致那一天的歷史永久消失、
+    查看日期下拉選單裡也就看不到那天。
+
+    修法：偵測到跨日時，若舊狀態顯示「有跑過盤中流程但尚未結算完成」
+    （wave1_stocks 非空且 settled_today 為 False），且呼叫端有提供
+    gemini / fugle 兩個依賴，就先用舊狀態補跑一次收盤結算，把那一天的
+    快照存進 history_records/，搶救性地留下歷史紀錄，再回傳全新的今日
+    狀態。gemini / fugle 任一為 None 時（呼叫端沒有提供，或初始化失敗）
+    則略過搶救、比照舊行為直接重置，不會因此拋錯。
     """
     default_state = {
         "date": today_str,
@@ -1206,7 +1242,40 @@ def load_dashboard_state(today_str: str) -> Dict:
             return default_state
         state = json.loads(raw)
         if state.get("date") != today_str:
-            print(f"ℹ️ 偵測到狀態檔案為前一交易日 ({state.get('date')}) 的資料，重置為今日 ({today_str}) 全新狀態。")
+            stale_date = state.get("date")
+            # 跨日了：先看看昨天的狀態是不是「有跑過盤中流程，但還沒結算完」，
+            # 若是，搶救性地補跑一次結算，把那一天的資料存進歷史快照，
+            # 避免直接重置導致那天的分析紀錄整個消失、之後查看日期永遠找不到。
+            if (stale_date and state.get("wave1_stocks") and not state.get("settled_today")
+                    and gemini is not None and fugle is not None):
+                print(f"⚠️ 偵測到狀態檔案為前一交易日 ({stale_date}) 的資料，且尚未完成收盤結算"
+                      f"（可能昨天 13:25~13:30 的結算視窗剛好沒有排程準時觸發成功）。"
+                      f"為避免 {stale_date} 的分析紀錄整個遺失，先搶救性地補跑一次收盤結算...")
+                try:
+                    # 幫舊狀態補齊可能缺少的欄位，避免 run_settlement 內部存取欄位時 KeyError
+                    for key, default_val in default_state.items():
+                        if key not in state:
+                            state[key] = default_val
+                    run_settlement(
+                        state, stale_date, gemini, fugle,
+                        state.get("wave1_stocks", []),
+                        state.get("wave2_stocks", []),
+                        state.get("latest_analysis_records", []),
+                        state.get("analysis_log", []),
+                        state.get("live_quotes", {}),
+                        state.get("total_signals", 0),
+                        cfg,
+                    )
+                    print(f"✅ {stale_date} 的搶救性收盤結算已完成並存入歷史快照。")
+                except Exception as e:
+                    print(f"⚠️ {stale_date} 的搶救性收盤結算失敗，該日資料可能無法補救: {e}")
+                finally:
+                    # run_settlement() 內部會把傳入的 state（帶著 stale_date 舊日期）
+                    # 寫回 STATE_FILE。不論搶救結算成功與否，這裡都要立刻把 STATE_FILE
+                    # 覆蓋回「今天」的全新狀態，避免檔案系統上殘留昨天的日期，
+                    # 導致下一輪執行又誤判一次跨日、甚至反覆嘗試搶救。
+                    save_dashboard_state(default_state)
+            print(f"ℹ️ 偵測到狀態檔案為前一交易日 ({stale_date}) 的資料，重置為今日 ({today_str}) 全新狀態。")
             return default_state
         # 補齊欄位：若讀到的是舊版 state（缺少新增欄位），用預設值補上，避免 KeyError
         for key, default_val in default_state.items():
@@ -1324,18 +1393,24 @@ def save_daily_history_snapshot(
     except Exception as e:
         print(f"⚠️ 寫入 {snapshot_path} 失敗: {e}")
 
-    # 更新日期索引檔：讀取既有索引，把今天加進去 (若已存在則不重複加入)，
-    # 並依日期新到舊排序，方便前端下拉選單直接照順序顯示。
+    # 更新日期索引檔（v21 修正：改為「掃描資料夾實際檔案」重建索引，
+    # 不再只靠讀取舊 index.json 內容 append）─────────────────────────
+    # 背景：先前的寫法是「讀取既有 index.json → 把今天加進去 → 寫回」，
+    # 這個「讀改寫」模式在雲端環境隱藏了一個風險：如果任何一次執行
+    # checkout 下來的 index.json 因為 git 時序問題（例如同一天內高頻率
+    # 執行、rebase 重試、或跨日交界時的 race condition）而是舊版、空白
+    # 或缺漏，那次執行就會誤判成「只有今天」，把過去累積好幾週的日期
+    # 直接覆蓋消失——即使 git push 本身完全成功，資料還是會不見，
+    # 因為問題發生在寫入內容的當下，不是發生在 push 失敗。
+    #
+    # 修正做法：與其信任一份容易失真的獨立索引檔，不如每次都直接掃描
+    # history_records/ 資料夾裡實際存在哪些 analysis_YYYY-MM-DD.json
+    # 檔案，用檔名反推出日期清單來重建 index.json。只要那些日期的快照
+    # 檔案本身還在 repo 裡（它們不會被覆蓋，每天各自獨立一個檔名），
+    # 索引檔就一定能正確反映所有歷史日期，不會再因為索引檔本身的讀寫
+    # 時序問題而遺失過去的資料。
     index_path = "history_records/index.json"
-    dates = []
-    if os.path.exists(index_path):
-        try:
-            with open(index_path, "r", encoding="utf-8") as f:
-                dates = json.load(f).get("dates", [])
-        except Exception as e:
-            print(f"⚠️ 讀取既有 {index_path} 失敗，將重新建立: {e}")
-            dates = []
-
+    dates = _scan_history_snapshot_dates()
     if date_str not in dates:
         dates.append(date_str)
     dates.sort(reverse=True)
@@ -1343,9 +1418,29 @@ def save_daily_history_snapshot(
     try:
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump({"dates": dates}, f, ensure_ascii=False, indent=2)
-        print(f"✅ 已更新歷史日期索引：{index_path} (共 {len(dates)} 天)")
+        print(f"✅ 已更新歷史日期索引：{index_path} (共 {len(dates)} 天，依資料夾實際檔案重建)")
     except Exception as e:
         print(f"⚠️ 寫入 {index_path} 失敗: {e}")
+
+
+def _scan_history_snapshot_dates() -> List[str]:
+    """
+    掃描 history_records/ 資料夾裡實際存在的 analysis_YYYY-MM-DD.json
+    檔案，回傳其中的日期字串清單（未排序）。用來重建 index.json，
+    避免直接信任舊索引檔內容導致歷史日期不小心被覆蓋遺失（詳見
+    save_daily_history_snapshot() 內的說明）。檔名格式不符的檔案
+    會被略過，不會讓整個掃描中斷。
+    """
+    pattern = re.compile(r"^analysis_(\d{4}-\d{2}-\d{2})\.json$")
+    dates: List[str] = []
+    try:
+        for fname in os.listdir("history_records"):
+            m = pattern.match(fname)
+            if m:
+                dates.append(m.group(1))
+    except FileNotFoundError:
+        pass
+    return dates
 
 def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool_size: int = 25) -> List[Dict]:
     """
@@ -1522,11 +1617,16 @@ def filter_out_limit_up_stocks(stocks: List[Dict], fugle, limit: int) -> List[Di
 
 def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
                     latest_analysis_records: List[Dict], analysis_log: List[Dict], live_quotes: Dict,
-                    total_signals: int):
+                    total_signals: int, cfg: Optional[Dict] = None):
     """
     執行收盤回放結算：把當天所有 pending 的下單訊號跟分K比對算出損益，
     存成 CSV 報表，並把當日完整分析紀錄/歷程存成歷史快照，最後把
     index.html 換成「已收盤結算完成」的正式畫面。
+
+    cfg：main() 讀到的使用者設定（load_config() 結果），內含
+    broker_discount（手續費折扣）與 is_day_trade_tax（當沖證交稅
+    減半），會傳入 cache_service 讓結算損益扣除實際交易成本、
+    真正變成「淨損益」而不是價差毛額。
 
     這段邏輯獨立抽成函式，是因為結算判斷式 `hm >= "13:25"` 原本只有在
     is_market_session（08:50~13:30）範圍內才會被檢查到，一旦 13:25~13:30
@@ -1547,7 +1647,7 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
             candles_raw = fugle.get_intraday_candles(sym, force_refresh=True)
             day_candles = candles_raw.get("data", []) if candles_raw else []
             if day_candles:
-                cache_service.settle_history_record_with_candles(rec["id"], day_candles)
+                cache_service.settle_history_record_with_candles(rec["id"], day_candles, cfg)
                 # 結算時順便把這檔股票的參考價更新成「當天最後一根分K的收盤價」，
                 # 也就是真正的收盤價，讓收盤後看「展開歷史分析」時算出來的損益
                 # 是以收盤價計算，而不是停留在盤中最後一次分析時的價格。
@@ -1606,19 +1706,6 @@ def main():
     fugle_api_key = os.getenv("FUGLE_API_KEY") or cfg.get("fugle_api_key", "")
     gemini_api_key = os.getenv("GEMINI_API_KEY") or cfg.get("gemini_api_key", "")
 
-    # 雲端 Actions 可用 Repository variable 覆蓋本機設定；空值或不合法值
-    # 會安全退回 config 的預設折數。每筆訊號會再把這兩項寫成快照。
-    try:
-        broker_discount = float(os.getenv("BROKER_DISCOUNT") or cfg.get("broker_discount", 0.28))
-        broker_discount = max(0.1, min(1.0, broker_discount))
-    except (TypeError, ValueError):
-        broker_discount = 0.28
-    tax_env = os.getenv("DAY_TRADE_TAX")
-    is_day_trade_tax = (
-        tax_env.strip().lower() in {"1", "true", "yes", "on"}
-        if tax_env is not None else bool(cfg.get("is_day_trade_tax", True))
-    )
-
     if not fugle_api_key:
         print("❌ 錯誤：未設定 FUGLE_API_KEY 環境變數！")
     if not gemini_api_key:
@@ -1650,8 +1737,35 @@ def main():
         print("🧪 目前使用【實驗性寬鬆模式】：訊號門檻降低，訊號數量會明顯變多，僅建議測試用途。")
     else:
         print(f"⚙️ 目前使用風險模式：{RISK_MODE}")
-    print(f"💰 結算成本設定：手續費 {broker_discount:g} 折、"
-          f"證交稅 {'當沖減半 0.15%' if is_day_trade_tax else '一般 0.30%'}")
+
+    # ── 手續費折扣 / 當沖證交稅設定（v20 新增，可用環境變數覆蓋）───────
+    # config.json 已被 .gitignore 排除、不會推上雲端，雲端這裡永遠只會
+    # 讀到 DEFAULT_CONFIG 裡的預設折扣值。為了讓使用者不用碰版控檔案
+    # 也能調整自己實際的手續費折數，比照 RISK_MODE 的做法，開放用
+    # GitHub Actions 的 Repo Variables（Settings > Secrets and
+    # variables > Actions > Variables）設定 BROKER_DISCOUNT /
+    # IS_DAY_TRADE_TAX 來覆蓋，沒有設定時才退回 config.py 的預設值。
+    # 折扣範圍強制夾在 0.1~1.0 之間，避免打錯數字（例如打成 60 而不是
+    # 0.6）導致手續費暴增或變成負數。
+    try:
+        broker_discount_raw = os.getenv("BROKER_DISCOUNT")
+        broker_discount = float(broker_discount_raw) if broker_discount_raw not in (None, "") else float(cfg.get("broker_discount", 1.0))
+    except (TypeError, ValueError):
+        print(f"⚠️ BROKER_DISCOUNT 設定值「{broker_discount_raw}」無法解析為數字，已改用預設值。")
+        broker_discount = float(cfg.get("broker_discount", 1.0))
+    broker_discount = max(0.1, min(1.0, broker_discount))
+    cfg["broker_discount"] = broker_discount
+
+    is_day_trade_tax_raw = os.getenv("IS_DAY_TRADE_TAX")
+    if is_day_trade_tax_raw is not None and is_day_trade_tax_raw != "":
+        is_day_trade_tax = is_day_trade_tax_raw.strip().lower() in ("1", "true", "yes", "on")
+    else:
+        is_day_trade_tax = bool(cfg.get("is_day_trade_tax", True))
+    cfg["is_day_trade_tax"] = is_day_trade_tax
+
+    tax_rate_display = "0.15%（當沖減半）" if is_day_trade_tax else "0.3%（一般稅率）"
+    print(f"💰 手續費折扣：{broker_discount:.2f}（單向費率 0.1425% × {broker_discount:.2f}）　"
+          f"證交稅率：{tax_rate_display}")
 
     now = get_tw_now()
     hm = now.strftime("%H:%M")
@@ -1666,7 +1780,7 @@ def main():
         # 在進入測試模式、覆蓋 index.html 之前，先檢查今天是否已經完成過 13:25 收盤結算。
         # 若已結算過，代表今天的正式流程已跑完，之後 cron 若仍持續每 5 分鐘觸發（收盤後、
         # 隔天開盤前皆然），絕對不能再讓測試模式把正式的收盤結算頁面覆蓋掉。
-        existing_state = load_dashboard_state(today_str)
+        existing_state = load_dashboard_state(today_str, gemini, fugle, cfg)
         if existing_state.get("settled_today"):
             print(f"\nℹ️ 今日 ({today_str}) 已完成 13:25 收盤結算，非盤中時段不再執行測試模式、"
                   f"也不覆蓋 index.html，直接結束本輪。")
@@ -1686,9 +1800,9 @@ def main():
         # 收盤時間之後 (>= 13:25)，不管是不是週末判斷出的非盤中時段、
         # 也不管現在到底幾點，都在這裡直接補跑一次收盤結算，而不是放著
         # 讓測試模式覆蓋畫面、一路等到隔天才恢復正常。
-        if existing_state.get("wave1_stocks") and hm >= "13:25":
+        if existing_state.get("wave1_stocks") and hm >= HISTORY_SETTLE_TIME:
             print(f"\n⚠️ 偵測到今日 ({today_str}) 已執行過盤中流程，但尚未完成收盤結算"
-                  f"（可能是 13:25~13:30 的結算視窗剛好沒有排程準時觸發成功）。"
+                  f"（可能是 {HISTORY_SETTLE_TIME}~13:30 的結算視窗剛好沒有排程準時觸發成功）。"
                   f"現在時間 {hm} 已過收盤，立即補跑一次收盤結算，避免頁面繼續顯示測試資料。")
             run_settlement(
                 existing_state, today_str, gemini, fugle,
@@ -1698,6 +1812,7 @@ def main():
                 existing_state.get("analysis_log", []),
                 existing_state.get("live_quotes", {}),
                 existing_state.get("total_signals", 0),
+                cfg,
             )
             return
 
@@ -1753,7 +1868,7 @@ def main():
     # ── 正式盤中運作流程（v4.0：單輪執行模式）──────────────────────
     # 讀取上一輪次留下的狀態（同一交易日內累積），這是讓分析紀錄能夠「累加」
     # 而不是每次觸發都從零開始、只顯示最新幾筆的關鍵。
-    state = load_dashboard_state(today_str)
+    state = load_dashboard_state(today_str, gemini, fugle, cfg)
     wave1_stocks = state["wave1_stocks"]
     wave2_stocks = state["wave2_stocks"]
     mid_wave_triggered = state["mid_wave_triggered"]
@@ -1766,10 +1881,10 @@ def main():
     current_stocks = wave2_stocks if wave2_stocks else wave1_stocks
 
     # 盤前 (08:50~09:04)：只更新「準備中」狀態，不抓股也不分析
-    if hm < "09:05":
-        print(f"[{now.strftime('%H:%M:%S')}] 尚未到 09:05 開盤選股時間，僅更新盤前準備狀態。")
+    if hm < ANALYSIS_START_TIME:
+        print(f"[{now.strftime('%H:%M:%S')}] 尚未到 {ANALYSIS_START_TIME} 開盤選股時間，僅更新盤前準備狀態。")
         render_html_dashboard(
-            status_text="盤前準備中 (等待 09:05)",
+            status_text=f"盤前準備中 (等待 {ANALYSIS_START_TIME})",
             active_model=gemini.active_model,
             wave1_stocks=wave1_stocks,
             wave2_stocks=wave2_stocks,
@@ -1781,15 +1896,15 @@ def main():
         save_dashboard_state(state)
         return
 
-    # 09:05 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
-    if hm >= "09:05" and not wave1_stocks:
-        print(f"\n⏰ 達到 09:05，開始執行【第一波段：早盤動能成交量排行選股】...")
+    # ANALYSIS_START_TIME (09:05) 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
+    if hm >= ANALYSIS_START_TIME and not wave1_stocks:
+        print(f"\n⏰ 達到 {ANALYSIS_START_TIME}，開始執行【第一波段：早盤動能成交量排行選股】...")
         # 多抓幾檔候選 (limit+5)，排除漲停股後仍有機會湊滿 limit 檔，
         # 避免「候選8檔剛好有2檔漲停」導致最終監控標的縮水成6檔。
         wave1_candidates = get_free_top_volume_stocks(limit=13)
         wave1_stocks = filter_out_limit_up_stocks(wave1_candidates, fugle, limit=8)
         current_stocks = wave1_stocks
-        print(f"🔥 早盤 09:05 已鎖定標的：")
+        print(f"🔥 早盤 09:15 已鎖定標的：")
         for s in wave1_stocks:
             print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
 
@@ -1804,12 +1919,13 @@ def main():
             total_signals=total_signals
         )
         save_dashboard_state(state)
-        # 不在這裡 return，讓 09:05 的首輪能立刻進入下方 AI 分析，
-        # 而非等到下一個排程週期才開始。
+        # 選股完當輪就結束，讓 workflow 立即 commit/push，下一次 5 分鐘後的觸發再繼續分析
+        print("✅ 本輪次（選股）執行完畢。")
+        return
 
     # 10:30 觸發：第二波段重挑股票 (只做一次)
-    if hm >= "10:30" and not mid_wave_triggered:
-        print(f"\n⏰ 達到 10:30，開始執行【第二波段：中盤換手與輪動股票重挑】...")
+    if hm >= MID_WAVE_TRIGGER_TIME and not mid_wave_triggered:
+        print(f"\n⏰ 達到 {MID_WAVE_TRIGGER_TIME}，開始執行【第二波段：中盤換手與輪動股票重挑】...")
         # 同上：多抓候選再過濾漲停，避免湊不滿 8 檔
         wave2_candidates = get_free_top_volume_stocks(limit=13)
         wave2_stocks = filter_out_limit_up_stocks(wave2_candidates, fugle, limit=8)
@@ -1837,27 +1953,33 @@ def main():
         return
 
     # 13:25 (或之後)：收盤回放結算 (只做一次；用 settled_today 判斷本日是否已結算過)
-    if hm >= "13:25":
+    if hm >= HISTORY_SETTLE_TIME:
         run_settlement(state, today_str, gemini, fugle, wave1_stocks, wave2_stocks,
-                        latest_analysis_records, analysis_log, live_quotes, total_signals)
+                        latest_analysis_records, analysis_log, live_quotes, total_signals, cfg)
         return
 
-    # 09:05 ~ 13:00 盤中：每 10 分鐘執行一次 AI 分析。
-    # 13:00 起保留給市場收尾與 13:25 的完整分K回放，不再發送 AI 請求。
-    if hm >= "13:00":
-        print(f"[{now.strftime('%H:%M:%S')}] 已過 13:00，停止新增 AI 分析，等待 13:25 收盤結算。")
+    # 13:00 (或之後，但還沒到 13:25 收盤結算)：AI 分析截止，不再丟給 AI 判斷。
+    # 當沖需要留時間完成「進場→出場」的來回，尾盤時間太短即使 AI 判斷出訊號
+    # 也很難真正走完一趟當沖，因此 13:00 後只單純更新看板顯示目前狀態、
+    # 等待 13:25 的收盤回放結算，不再消耗 AI 額度做新的盤中判斷。
+    if hm >= ANALYSIS_STOP_TIME:
+        print(f"[{now.strftime('%H:%M:%S')}] 已過 {ANALYSIS_STOP_TIME}，AI 盤中分析截止，等待 {HISTORY_SETTLE_TIME} 收盤結算。")
         render_html_dashboard(
-            status_text="13:00 後停止 AI 分析，等待收盤結算",
+            status_text=f"AI 分析已截止 (等待 {HISTORY_SETTLE_TIME} 收盤結算)",
             active_model=gemini.active_model,
             wave1_stocks=wave1_stocks,
             wave2_stocks=wave2_stocks,
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
             live_quotes=live_quotes,
-            total_signals=total_signals,
+            total_signals=total_signals
         )
         save_dashboard_state(state)
         return
+
+    # ANALYSIS_START_TIME ~ ANALYSIS_STOP_TIME 盤中：每 10 分鐘執行一次分析
+    # (v20 調整後目標約為 09:05, 09:15, 09:25 ... 12:55，13:00 起不再進行新的 AI 分析，
+    #  實際觸發時間仍取決於 GitHub Actions 排程間隔與 queue latency)
     # v4.1 修正說明：
     # ────────────
     # 舊版用 `now.minute % 10 == 0` 判斷「是否剛好命中整 10 分鐘」，前提是 GitHub Actions
@@ -2020,9 +2142,7 @@ def main():
                     stop_loss=res.get("stop_loss"),
                     take_profit=res.get("target"),
                     shares=cfg.get("trade_shares", 1000),
-                    analysis_reason=res.get("full_text", ""),
-                    broker_discount=broker_discount,
-                    is_day_trade_tax=is_day_trade_tax,
+                    analysis_reason=res.get("full_text", "")
                 )
                 print(f"   👉 [已記錄交易] {symbol} {raw_sig} 寫入歷史紀錄 (ID: {rec_id})")
 
