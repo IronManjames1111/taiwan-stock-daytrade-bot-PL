@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">盤中分析中 (12:45)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">AI 分析已截止 (等待 13:25 收盤結算)</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-09-25 12:52:40</span>
+                    <span class="text-white mono ml-1.5">2026-09-25 13:00:05</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -611,9 +611,9 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-09-25 12:52:40",
+  "generated_at": "2026-09-25 13:00:05",
   "today_str": "2026-09-25",
-  "status_text": "盤中分析中 (12:45)",
+  "status_text": "AI 分析已截止 (等待 13:25 收盤結算)",
   "active_model": "gemma-4-31b-it",
   "total_signals": 0,
   "wave1_stocks": [
