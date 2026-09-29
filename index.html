@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">AI 分析已截止 (等待 13:25 收盤結算)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">已收盤結算完成</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-09-29 13:20:34</span>
+                    <span class="text-white mono ml-1.5">2026-09-29 13:25:27</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -195,7 +195,7 @@
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">結算損益</div>
-                <div class="text-xl font-bold text-gray-400 mono mt-1">尚未結算</div>
+                <div class="text-xl font-bold text-[#00d68f] mono mt-1">-$766.0</div>
             </div>
         </div>
 
@@ -668,12 +668,32 @@
                             <th class="py-2 px-3">出場原因</th>
                         </tr>
                     </thead>
-                    <tbody id="settle-tbody" class="divide-y divide-white/5"><tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 (13:25)</td></tr></tbody>
+                    <tbody id="settle-tbody" class="divide-y divide-white/5">
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6770</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">72.7</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">72.1</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$766.0</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            </tbody>
                 </table>
             </div>
 
             <!-- 手機版：直式資訊卡 -->
-            <div id="settle-cards" class="analysis-cards-wrap"><div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 (13:25)</div></div>
+            <div id="settle-cards" class="analysis-cards-wrap">
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6770　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">72.7 → 72.1</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$766.0</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            </div>
         </div>
 
         <!-- Footer -->
@@ -689,9 +709,9 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-09-29 13:20:34",
+  "generated_at": "2026-09-29 13:25:27",
   "today_str": "2026-09-29",
-  "status_text": "AI 分析已截止 (等待 13:25 收盤結算)",
+  "status_text": "已收盤結算完成",
   "active_model": "gemma-4-31b-it",
   "total_signals": 1,
   "wave1_stocks": [
@@ -1838,8 +1858,8 @@
       "updated_at": "10:12:20"
     },
     "6770": {
-      "price": 72.7,
-      "updated_at": "12:54:12"
+      "price": 72.5,
+      "updated_at": "13:30:00"
     },
     "8150": {
       "price": 105,
@@ -1850,7 +1870,38 @@
       "updated_at": "12:54:12"
     }
   },
-  "settle_records": []
+  "settle_records": [
+    {
+      "id": "6770_20260929_050452_916828",
+      "symbol": "6770",
+      "date": "2026-09-29",
+      "time": "05:04:52",
+      "model": "gemma-4-31b-it",
+      "risk_mode": "relaxed",
+      "signal": "BUY",
+      "direction": "做多",
+      "entry_price": 72.7,
+      "stop_loss": 72.1,
+      "take_profit": 73.5,
+      "shares": 1000,
+      "analysis_reason": "SIGNAL: BUY\n建議: 多頭排列，量能不足\n方向: 做多\n進場: 多72.6～72.8\n停損: 多72.1\n目標: 多73.5\n風險: 縮量盤整，缺乏動能",
+      "force_direction": null,
+      "is_simulated": false,
+      "settle_status": "settled",
+      "settle_attempts": 0,
+      "result": "loss",
+      "exit_price": 72.1,
+      "exit_reason": "hit_sl",
+      "exit_time": null,
+      "pnl_pct": -0.825,
+      "pnl_amount": -766.0,
+      "pnl_amount_gross": -600.0,
+      "fee_amount": 58.0,
+      "tax_amount": 108.0,
+      "broker_discount_used": 0.28,
+      "is_day_trade_tax_used": true
+    }
+  ]
 };
 
         function triggerDownload(content, filename, mimeType) {
