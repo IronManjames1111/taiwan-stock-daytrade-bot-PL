@@ -1,17 +1,39 @@
-﻿# Taiwan Stock Daytrade AI Bot (台股當沖 AI 自動回測系統)
+﻿# Taiwan Stock Daytrade Technical Strategy (台股當沖技術策略系統)
 
-基於 Google Gemini 2.0 與富果行情的全自動台股當沖回測系統，使用 GitHub Actions 雲端定時排程運行。
+以富果 1 分K與本地技術指標策略執行台股當沖訊號、停利停損追蹤與日結，使用 GitHub Actions 雲端排程運行，不呼叫生成式 AI。
 
 ## 🌟 核心功能
-1. **09:05 自動選股**：免費自 Yahoo 股市抓取盤中成交量排行前 5 檔活絡股（過濾 ETF、特別股、權證）。
-2. **每 10 分鐘例行分析**：調用技術指標（VWAP、Wilder ATR、均線、多週期趨勢）並由 Gemini 判定進出場價與停利停損點。
-3. **交易紀錄與收盤結算**：出現 BUY / SHORT 訊號時自動存檔，13:25 自動回放當日 1 分K線結算真實賺賠與勝率。
-4. **自動提交報表**：每日收盤後自動產出 CSV 報表並提交保存於 `history_records/`。
+1. **09:05 自動選股**：從 Yahoo 成交量排行抓取候選股，排除 ETF、權證及漲停標的，並取成交量前 8 檔監控。
+2. **每 60 秒策略分析（09:05～13:00）**：以 VWAP 動能突破、EMA 趨勢回檔、RSI 布林反轉、MACD 量能確認四個獨立策略判斷；至少兩個策略同向才建立模擬持倉。
+3. **持倉監控**：以 ATR 計算停損與停利，每輪比對 1 分K高低價；同根K線同時觸及時保守以停損出場。13:00 後停止新進場，持倉仍持續監控，13:25 強制平倉。
+4. **日報與策略績效**：記錄每筆進場策略、價位與淨損益，收盤產出交易 CSV、每日快照；網頁列出目前持倉、各策略進場數、勝率及累積淨損益。
+5. **跨日資料自動搶救**：若前一天沒有成功完成收盤結算，隔天第一次執行時會自動偵測並補跑該日結算。
 
 ## 🔐 GitHub Secrets 設定
-請至 Repository -> **Settings** -> **Secrets and variables** -> **Actions** 新增以下兩筆：
+請至 Repository -> **Settings** -> **Secrets and variables** -> **Actions** 新增：
 - `FUGLE_API_KEY`: 富果 API 金鑰
-- `GEMINI_API_KEY`: Google Gemini API 金鑰
+
+## 💰 手續費與證交稅設定（可選）
+`config.json`（手機端設定）不會推上雲端，雲端排程改用 **Repository Variables** 覆蓋，
+不設定則使用保守預設值（無折扣、當沖稅率）。至 **Settings** -> **Secrets and
+variables** -> **Actions** -> **Variables** 新增：
+- `BROKER_DISCOUNT`：券商手續費折扣，範圍 0.1～1.0（例如 6 折填 `0.6`，無折扣填 `1.0`）。
+- `IS_DAY_TRADE_TAX`：是否適用當沖證交稅減半（0.15%），填 `true` 或 `false`；不填預設 `true`。
 
 ## ⚙️ 權限設定
 至 **Settings** -> **Actions** -> **General** -> **Workflow permissions** 勾選 **Read and write permissions**。
+
+## 📅 歷史紀錄與查看日期
+網頁右上角「查看日期」下拉選單，選項來自 `history_records/index.json`，
+會依 `history_records/` 資料夾內實際存在的 `analysis_YYYY-MM-DD.json`
+快照檔案動態重建，每天 13:25 收盤結算成功後自動新增當天一筆。若某天
+結算沒有準時觸發成功，系統會在隔天第一次執行時自動偵測並補跑該日結算，
+執行紀錄（Actions log）會出現「搶救性收盤結算已完成」的訊息，之後該日
+即可在下拉選單正常查看。
+
+## ⏱️ 雲端觸發頻率與行情額度
+策略每輪間隔設定為 60 秒；GitHub Actions 的 `workflow_dispatch` 頻率由外部排程服務控制，
+請將該服務的觸發間隔設為每分鐘。若外部排程仍是每 5 分鐘，雲端分析實際仍會每 5 分鐘執行。
+每輪最多對 8 檔股票各取一次日內K線（持倉離開選股池時另計），遠低於富果基本方案
+日內行情 60 次/分鐘上限；程式內另保留 50 次/分鐘的節流設定。實際數量也會受持倉數、
+排程重試及同 API Key 的其他應用共用呼叫影響。參考[富果行情方案及價格](https://developer.fugle.tw/docs/pricing/)。

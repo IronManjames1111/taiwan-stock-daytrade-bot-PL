@@ -1,4 +1,4 @@
-name: Taiwan Stock Daytrade AI Backtest
+name: Taiwan Stock Daytrade Technical Strategy
 
 on:
   # 原本使用 GitHub 內建的 schedule 觸發不穩定 (可能延遲或被整批跳過)，
@@ -46,12 +46,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 執行本輪次當沖分析（單輪執行，跑完立即結束）
+      - name: 執行本輪次技術策略分析（單輪執行，跑完立即結束）
         # 註：actions/checkout 已還原倉庫內既有的 dashboard_state.json / history_records，
         # headless_trader.py 會自動讀取這些檔案接續累積本日的分析狀態。
         env:
           FUGLE_API_KEY: ${{ secrets.FUGLE_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
           # 排程自動觸發時走 repo variable RISK_MODE（可在 Settings > Secrets and variables > Actions > Variables 設定，預設 auto）
           # 手動點 Run workflow 時，可用下拉選單即時覆蓋（優先權更高）

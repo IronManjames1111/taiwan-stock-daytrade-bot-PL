@@ -4,7 +4,7 @@ headless_trader.py - 雲端無頭當沖機器人 (v4.0 單輪執行 + 狀態持�
 ─────────────────────────────────────────────────────────────
 • 09:05 早盤第一次抓取成交量排行前 5 檔，並開始盤中 AI 分析（v20 調整，原為 09:15）
 • 10:30 中盤第二次重新抓取成交量排行前 5 檔 (鎖定盤中換手輪動飆股)
-• 盤中每 10 分鐘調用 Google AI (多模型自動降級鏈) 進行深度判斷，13:00 後截止（v20 新增）
+• 盤中每 60 秒以本地技術策略判斷；13:00 後停止新進場，持倉仍監控
 • 自動生成獨立網頁 index.html (透過 GitHub Pages 提供免登入固定專屬網址)
 • 同步輸出 GitHub Step Summary 即時 Markdown 看板
 • 13:25 收盤自動回放當日 1分K 結算盈虧（已扣手續費與證交稅），產出 CSV 報表保存至 GitHub
@@ -12,7 +12,7 @@ headless_trader.py - 雲端無頭當沖機器人 (v4.0 單輪執行 + 狀態持�
 v4.0 架構變更說明：
 ────────────────
 舊版本用單一個 GitHub Actions job、從 09:15 內部 while 迴圈一路等到 13:25 才結束，
-中間雖然每 10 分鐘會呼叫 render_html_dashboard() 更新本地 index.html，
+中間每輪會呼叫 render_html_dashboard() 更新本地 index.html，
 但 git commit / push 只在整個 script 執行完畢後才跑一次 —— 導致：
   1) 使用者在收盤前完全看不到網站上的即時進度（只有結算後才看得到）
   2) latest_analysis_records 每輪都被整個清空重建，畫面上只顯示「最新一輪」的少數幾檔，
@@ -39,7 +39,8 @@ from typing import List, Dict, Optional
 import hashlib
 import base64
 from fugle_service import FugleService
-from gemini_service import GeminiService, _calc_limit_prices, _check_at_limit
+from gemini_service import _calc_limit_prices, _check_at_limit
+from indicator_strategies import evaluate as evaluate_strategies, position_levels
 import cache_service
 from config import load_config
 
@@ -51,6 +52,11 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
         pass
 
 TW_TZ = pytz.timezone("Asia/Taipei")
+
+
+class _StrategyDisplay:
+    """Compatibility label for legacy dashboard/settlement helpers; no AI calls."""
+    active_model = "純技術指標（本地策略）"
 
 # ── 盤中時間節點設定（v20 調整）──────────────────────────────────
 # 集中放在這裡管理，避免同一個時間點散落在程式各處、改一處漏改
@@ -94,6 +100,8 @@ def render_html_dashboard(
     active_model: str = "gemma-4-31b-it",
     status_text: str = "運行中",
     total_signals: int = None,
+    open_positions: List[Dict] = None,
+    strategy_trades: List[Dict] = None,
     **kwargs
 ):
     """
@@ -126,6 +134,25 @@ def render_html_dashboard(
     analysis_log = analysis_log or []
     live_quotes = live_quotes or {}
     settle_records = settle_records or []
+    open_positions = open_positions or []
+    strategy_trades = strategy_trades or []
+    strategy_stats = {}
+    for trade in strategy_trades:
+        key = trade.get("strategy_name", trade.get("strategy", "未分類"))
+        stat = strategy_stats.setdefault(key, {"entries": 0, "closed": 0, "wins": 0, "pnl": 0.0})
+        stat["entries"] += 1
+        if trade.get("status") == "closed":
+            stat["closed"] += 1
+            stat["wins"] += int(float(trade.get("pnl_amount", 0) or 0) > 0)
+            stat["pnl"] += float(trade.get("pnl_amount", 0) or 0)
+    positions_html = "".join(
+        f'<tr><td>{p.get("symbol")} {p.get("name", "")}</td><td>{p.get("direction")}</td><td>{p.get("strategy_name")}</td><td>{p.get("entry_price")}</td><td>{p.get("stop_loss")}</td><td>{p.get("take_profit")}</td><td>{live_quotes.get(p.get("symbol"), {}).get("price", "-")}</td></tr>'
+        for p in open_positions
+    ) or '<tr><td colspan="7" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr>'
+    strategy_html = "".join(
+        f'<tr><td>{name}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{(stat["wins"] / stat["closed"] * 100):.1f}%</td><td>{stat["pnl"]:,.0f}</td></tr>'
+        for name, stat in sorted(strategy_stats.items(), key=lambda item: (item[1]["entries"], item[1]["pnl"]), reverse=True)
+    ) or '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>'
 
     # ── 下載功能：把本次看板的完整原始資料打包成 JSON，供頁面右上角下載按鈕使用 ──
     # today_str 一併放入 payload：供前端日期切換選單判斷「目前選的是不是今天」，
@@ -144,7 +171,9 @@ def render_html_dashboard(
         "latest_analysis": latest_analysis,
         "analysis_log": analysis_log,
         "live_quotes": live_quotes,
-        "settle_records": settle_records,
+    "settle_records": settle_records,
+        "open_positions": open_positions,
+        "strategy_trades": strategy_trades,
     }
     # ensure_ascii=False 保留中文可讀；再用 json.dumps 序列化成字串安全地塞進 <script> 的 JS 常數
     export_json_str = json.dumps(export_payload, ensure_ascii=False, indent=2)
@@ -256,8 +285,8 @@ def render_html_dashboard(
             </div>
             """
     else:
-        analysis_rows = '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr>'
-        analysis_cards = '<div class="text-center text-gray-500 text-xs py-6">盤中每 10 分鐘自動更新分析看板...</div>'
+        analysis_rows = '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 60 秒自動更新技術策略看板...</td></tr>'
+        analysis_cards = '<div class="text-center text-gray-500 text-xs py-6">盤中每 60 秒自動更新技術策略看板...</div>'
 
     # 生成結算表格
     settle_rows = ""       # 桌面版表格列
@@ -280,6 +309,7 @@ def render_html_dashboard(
             net_color = "text-[#ff5470]" if net_p > 0 else "text-[#00d68f]" if net_p < 0 else "text-gray-300"
             symbol = r.get("symbol", "")
             signal = r.get("signal", "")
+            strategy = r.get("strategy", r.get("strategy_name", "-"))
             entry_price = r.get("entry_price", "-")
             exit_price = r.get("exit_price", "-")
             # 【bug修復】exit_reason 原本是 hit_sl/hit_tp/forced_close 這種
@@ -290,6 +320,7 @@ def render_html_dashboard(
             <tr class="hover:bg-white/[0.02]">
                 <td class="py-2 px-3 font-bold text-white whitespace-nowrap">{symbol}</td>
                 <td class="py-2 px-3 font-semibold whitespace-nowrap">{signal}</td>
+                <td class="py-2 px-3 text-[#8db3ff]">{strategy}</td>
                 <td class="py-2 px-3 mono whitespace-nowrap">{entry_price}</td>
                 <td class="py-2 px-3 mono whitespace-nowrap">{exit_price}</td>
                 <td class="py-2 px-3">{res_badge}</td>
@@ -305,12 +336,13 @@ def render_html_dashboard(
                     {res_badge}
                 </div>
                 <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">{entry_price} → {exit_price}</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">{strategy}</span></div>
                 <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono {net_color} font-bold">{net_str}</span></div>
                 <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">{exit_reason}</span></div>
             </div>
             """
     else:
-        settle_rows = f'<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})</td></tr>'
+        settle_rows = f'<tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})</td></tr>'
         settle_cards = f'<div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})</div>'
 
     html_content = f"""<!DOCTYPE html>
@@ -318,7 +350,7 @@ def render_html_dashboard(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>台股當沖 AI 終端</title>
+    <title>台股當沖技術策略終端</title>
     <meta http-equiv="refresh" content="60">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -422,7 +454,7 @@ def render_html_dashboard(
                 🔒
             </div>
             <div>
-                <h2 class="text-xl font-bold text-white tracking-wide">台股當沖 AI 終端</h2>
+                <h2 class="text-xl font-bold text-white tracking-wide">台股當沖技術策略終端</h2>
                 <p class="text-xs text-gray-400 mt-1">此頁面受密碼保護，請輸入存取密碼</p>
             </div>
             <div class="space-y-4">
@@ -456,10 +488,10 @@ def render_html_dashboard(
             <div>
                 <div class="flex items-center gap-2">
                     <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#00d68f] live-dot"></span>
-                    <h1 class="text-lg md:text-xl font-bold text-white tracking-tight">台股 AI 當沖雲端終端</h1>
+                    <h1 class="text-lg md:text-xl font-bold text-white tracking-tight">台股技術策略當沖雲端終端</h1>
                     <span class="bg-[#06231b] text-[#00d68f] text-[11px] px-2 py-0.5 rounded-full border border-[#00d68f]/25 font-semibold whitespace-nowrap">雲端全自動</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">{ANALYSIS_START_TIME} / {MID_WAVE_TRIGGER_TIME} 雙波段選股　·　每 10 分鐘 AI 分析（{ANALYSIS_STOP_TIME} 截止）　·　{HISTORY_SETTLE_TIME} 回放結算</p>
+                <p class="text-xs text-gray-500 mt-1">{ANALYSIS_START_TIME} / {MID_WAVE_TRIGGER_TIME} 成交量選股　·　多策略每 60 秒判斷（{ANALYSIS_STOP_TIME} 截止）　·　{HISTORY_SETTLE_TIME} 結算</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
@@ -497,7 +529,7 @@ def render_html_dashboard(
         <!-- KPI 數據卡片 -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div class="panel border rounded-xl p-4">
-                <div class="text-[11px] text-gray-500">AI 模型</div>
+                <div class="text-[11px] text-gray-500">判斷方式</div>
                 <div class="text-sm font-bold text-[#8db3ff] mono mt-1 truncate">{active_model}</div>
             </div>
             <div class="panel border rounded-xl p-4">
@@ -539,12 +571,22 @@ def render_html_dashboard(
             </div>
         </div>
 
-        <!-- 最新 10 分鐘分析結果 -->
+        <section class="panel border rounded-2xl p-5">
+            <h2 class="font-bold text-white text-base mb-3">目前持倉（每分鐘監控停利／停損）</h2>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場</th><th>停損</th><th>停利</th><th>最新價</th></tr></thead><tbody>{positions_html}</tbody></table></div>
+        </section>
+
+        <section class="panel border rounded-2xl p-5">
+            <h2 class="font-bold text-white text-base mb-3">策略績效</h2>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略</th><th>進場次數</th><th>已結算</th><th>勝率</th><th>累積淨損益</th></tr></thead><tbody id="strategy-stat-tbody">{strategy_html}</tbody></table></div>
+        </section>
+
+        <!-- 最新技術策略分析結果 -->
         <div class="panel border rounded-2xl p-5">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-white/5 pb-3 mb-4 gap-2">
                 <div>
                     <h2 class="font-bold text-white text-base">即時多空訊號</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">每 10 分鐘 AI 判定進出場價與停損停利，累積顯示當日所有分析紀錄</p>
+                    <p class="text-xs text-gray-500 mt-0.5">VWAP 動能、EMA 趨勢回檔、RSI 布林反轉、MACD 量能確認；至少兩個策略同向才進場</p>
                 </div>
                 <span class="text-[11px] text-gray-500 mono whitespace-nowrap">每 60 秒自動刷新</span>
             </div>
@@ -579,7 +621,7 @@ def render_html_dashboard(
                             <th class="py-2.5 px-3">進場</th>
                             <th class="py-2.5 px-3">停損</th>
                             <th class="py-2.5 px-3">停利</th>
-                            <th class="py-2.5 px-3">AI 決策依據</th>
+                            <th class="py-2.5 px-3">策略依據</th>
                             <th class="py-2.5 px-3">更新時間</th>
                         </tr>
                     </thead>
@@ -610,6 +652,7 @@ def render_html_dashboard(
                         <tr class="text-gray-500 border-b border-white/5 text-[11px]">
                             <th class="py-2 px-3">代號</th>
                             <th class="py-2 px-3">方向</th>
+                            <th class="py-2 px-3">進場策略</th>
                             <th class="py-2 px-3">進場價</th>
                             <th class="py-2 px-3">出場價</th>
                             <th class="py-2 px-3">結果</th>
@@ -682,15 +725,15 @@ def render_html_dashboard(
         function downloadCSV() {{
             const ts = EXPORT_DATA.generated_at.replace(/[: ]/g, "-");
             let csv = "\\uFEFF"; // UTF-8 BOM，確保 Excel 開啟中文不亂碼
-            csv += `AI 當沖雲端即時看板匯出報表\\n`;
+            csv += `技術策略當沖雲端看板匯出報表\\n`;
             csv += `產生時間,${{csvCell(EXPORT_DATA.generated_at)}}\\n`;
             csv += `目前狀態,${{csvCell(EXPORT_DATA.status_text)}}\\n`;
-            csv += `AI 模型,${{csvCell(EXPORT_DATA.active_model)}}\\n`;
+            csv += `分析模式,${{csvCell(EXPORT_DATA.active_model)}}\\n`;
             csv += `累計訊號數,${{csvCell(EXPORT_DATA.total_signals)}}\\n\\n`;
             csv += csvSection("【波段一 {ANALYSIS_START_TIME} 選股】", EXPORT_DATA.wave1_stocks);
             csv += csvSection("【波段二 {MID_WAVE_TRIGGER_TIME} 選股】", EXPORT_DATA.wave2_stocks);
-            csv += csvSection("【AI 即時分析訊號 (每檔股票最新狀態)】", EXPORT_DATA.latest_analysis);
-            csv += csvSection("【AI 完整分析歷程 (每一輪分析，不覆蓋)】", EXPORT_DATA.analysis_log);
+            csv += csvSection("【技術策略即時訊號 (每檔股票最新狀態)】", EXPORT_DATA.latest_analysis);
+            csv += csvSection("【技術策略分析歷程】", EXPORT_DATA.analysis_log);
             csv += csvSection("【收盤結算紀錄】", EXPORT_DATA.settle_records);
             triggerDownload(csv, `daytrade_${{ts}}.csv`, "text/csv;charset=utf-8");
         }}
@@ -807,6 +850,7 @@ def render_html_dashboard(
                 // 切回今日：直接用頁面產生當下就內嵌好的 EXPORT_DATA 還原，不需要重新 fetch
                 renderAnalysisTable(EXPORT_DATA.latest_analysis, true, EXPORT_DATA.analysis_log || [], EXPORT_DATA.live_quotes || {{}});
                 renderSettleTable(EXPORT_DATA.settle_records);
+                renderStrategyStats(EXPORT_DATA.strategy_trades || []);
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
                 return;
             }}
@@ -819,13 +863,14 @@ def render_html_dashboard(
 
                 renderAnalysisTable(snapshot.analysis_records || [], false, snapshot.analysis_log || [], snapshot.live_quotes || {{}});
                 renderSettleTable(snapshot.settle_records || []);
+                renderStrategyStats(snapshot.strategy_trades || []);
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
             }} catch (e) {{
                 errorMsg.classList.remove("hidden");
                 document.getElementById("analysis-tbody").innerHTML =
                     '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">此日期尚無分析資料</td></tr>';
                 document.getElementById("settle-tbody").innerHTML =
-                    '<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">此日期尚無結算資料</td></tr>';
+                    '<tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">此日期尚無結算資料</td></tr>';
             }} finally {{
                 loadingMsg.classList.add("hidden");
             }}
@@ -835,6 +880,20 @@ def render_html_dashboard(
             const div = document.createElement("div");
             div.textContent = str ?? "";
             return div.innerHTML;
+        }}
+
+        function renderStrategyStats(trades) {{
+            const stats = {{}};
+            (trades || []).forEach(t => {{
+                const name = t.strategy_name || t.strategy || "未分類";
+                const s = stats[name] || (stats[name] = {{ entries: 0, closed: 0, wins: 0, pnl: 0 }});
+                s.entries++;
+                if (t.status === "closed") {{ s.closed++; s.wins += Number((t.pnl_amount || 0) > 0); s.pnl += Number(t.pnl_amount || 0); }}
+            }});
+            const rows = Object.entries(stats).sort((a,b) => b[1].entries-a[1].entries || b[1].pnl-a[1].pnl).map(([name,s]) =>
+                `<tr><td>${{escapeHtml(name)}}</td><td>${{s.entries}}</td><td>${{s.closed}}</td><td>${{s.closed ? (s.wins/s.closed*100).toFixed(1)+'%' : '—'}}</td><td>${{Math.round(s.pnl).toLocaleString()}}</td></tr>`
+            ).join("");
+            document.getElementById("strategy-stat-tbody").innerHTML = rows || '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>';
         }}
 
         // 依訊號分類重新產生分析表格/卡片的 HTML，邏輯對應 Python 端 render_html_dashboard()
@@ -866,10 +925,10 @@ def render_html_dashboard(
             const tbody = document.getElementById("analysis-tbody");
             const cardsWrap = document.getElementById("analysis-cards");
             const emptyRowHtml = isToday
-                ? '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 10 分鐘自動更新分析看板...</td></tr>'
+                ? '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 60 秒自動更新技術策略看板...</td></tr>'
                 : '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">此日期尚無分析資料</td></tr>';
             const emptyCardHtml = isToday
-                ? '<div class="text-center text-gray-500 text-xs py-6">盤中每 10 分鐘自動更新分析看板...</div>'
+                ? '<div class="text-center text-gray-500 text-xs py-6">盤中每 60 秒自動更新技術策略看板...</div>'
                 : '<div class="text-center text-gray-500 text-xs py-6">此日期尚無分析資料</div>';
 
             CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(logRecords);
@@ -1043,7 +1102,7 @@ def render_html_dashboard(
             const cardsWrap = document.getElementById("settle-cards");
             if (!records || records.length === 0) {{
                 const emptyMsg = '此日期尚無結算資料';
-                tbody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-gray-500 text-xs">${{emptyMsg}}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">${{emptyMsg}}</td></tr>`;
                 cardsWrap.innerHTML = `<div class="text-center text-gray-500 text-xs py-4">${{emptyMsg}}</div>`;
                 return;
             }}
@@ -1072,6 +1131,7 @@ def render_html_dashboard(
 
                 const symbol = escapeHtml(r.symbol);
                 const direction = escapeHtml(r.direction || "-");
+                const strategy = escapeHtml(r.strategy || r.strategy_name || "-");
                 const entryPrice = escapeHtml(r.entry_price ?? "-");
                 const exitPrice = escapeHtml(r.exit_price ?? "-");
                 // 【bug修復】同上，exit_reason 原本直接顯示 hit_sl 這種英文代碼，改為中文。
@@ -1081,6 +1141,7 @@ def render_html_dashboard(
                 <tr class="hover:bg-white/[0.02]">
                     <td class="py-2 px-3 font-bold text-white whitespace-nowrap">${{symbol}}</td>
                     <td class="py-2 px-3 whitespace-nowrap">${{direction}}</td>
+                    <td class="py-2 px-3 text-[#8db3ff]">${{strategy}}</td>
                     <td class="py-2 px-3 mono whitespace-nowrap">${{entryPrice}}</td>
                     <td class="py-2 px-3 mono whitespace-nowrap">${{exitPrice}}</td>
                     <td class="py-2 px-3">${{badge}}</td>
@@ -1095,6 +1156,7 @@ def render_html_dashboard(
                         ${{badge}}
                     </div>
                     <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">${{entryPrice}} → ${{exitPrice}}</span></div>
+                    <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">${{strategy}}</span></div>
                     <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono font-bold ${{resultClass}}">${{pnlDisplay}}</span></div>
                     <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">${{exitReason}}</span></div>
                 </div>`;
@@ -1228,7 +1290,9 @@ def load_dashboard_state(today_str: str, gemini=None, fugle=None, cfg: Optional[
                              # 不需要前端另外連線報價來源（GitHub Pages 是純靜態網站，前端沒有
                              # 管道可以直接呼叫需要金鑰的 Fugle API）。
         "total_signals": 0,
-        "last_analysis_minute_bucket": None,  # 記錄上次執行過分析的時間戳記 (YYYY-MM-DD HH:MM)，用於判斷距今是否已滿 10 分鐘
+        "last_analysis_minute_bucket": None,
+        "open_positions": [],
+        "strategy_trades": [],
         "settled_today": False,  # 今日是否已完成 13:25 收盤結算，避免收盤後的非盤中測試模式覆蓋掉正式看板
     }
     if not os.path.exists(STATE_FILE):
@@ -1358,6 +1422,7 @@ def save_daily_history_snapshot(
     settle_records: List[Dict],
     analysis_log: List[Dict] = None,
     live_quotes: Dict = None,
+    strategy_trades: List[Dict] = None,
 ):
     """
     收盤結算時呼叫：將當天的完整分析紀錄 (含觀望) 與結算損益，
@@ -1383,6 +1448,7 @@ def save_daily_history_snapshot(
         "analysis_log": analysis_log or [],
         "live_quotes": live_quotes or {},
         "settle_records": settle_records,
+        "strategy_trades": strategy_trades or [],
         "saved_at": get_tw_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     snapshot_path = f"history_records/analysis_{date_str}.json"
@@ -1669,12 +1735,47 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
         all_data = cache_service._read_history()
         today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
 
+    # 當沖部位收盤前一律平倉，使用本日最後可得報價，並一併放入日報。
+    strategy_trades = state.setdefault("strategy_trades", [])
+    for pos in list(state.setdefault("open_positions", [])):
+        price = float((live_quotes.get(pos["symbol"]) or {}).get("price") or pos["entry_price"])
+        long_side = pos.get("signal") == "BUY"
+        shares = int(pos.get("shares", (cfg or {}).get("trade_shares", 1000)))
+        discount = float((cfg or {}).get("broker_discount", 1.0))
+        tax_rate = 0.0015 if (cfg or {}).get("is_day_trade_tax", True) else 0.003
+        gross = (price - float(pos["entry_price"])) * shares * (1 if long_side else -1)
+        costs = max(float(pos["entry_price"]) * shares * 0.001425 * discount, 20) + max(price * shares * 0.001425 * discount, 20)
+        costs += (price if long_side else float(pos["entry_price"])) * shares * tax_rate
+        closed = {**pos, "status": "closed", "exit_price": round(price, 2), "exit_time": "13:25:00",
+                  "exit_reason": "forced_close", "pnl_amount": round(gross-costs, 2),
+                  "result": "win" if gross-costs > 0 else "loss"}
+        for index in range(len(strategy_trades)-1, -1, -1):
+            if strategy_trades[index].get("id") == pos.get("id"):
+                strategy_trades[index] = closed
+                break
+        today_settled_list.append({
+            "symbol": pos["symbol"], "signal": pos.get("signal"), "strategy": pos.get("strategy_name"),
+            "entry_price": pos["entry_price"], "exit_price": closed["exit_price"],
+            "result": closed["result"], "pnl_amount": closed["pnl_amount"],
+            "exit_reason": "forced_close", "settle_status": "settled",
+        })
+    state["open_positions"] = []
+    os.makedirs("history_records", exist_ok=True)
+    pd.DataFrame(today_settled_list).to_csv(
+        f"history_records/backtest_{today_str}.csv", index=False, encoding="utf-8-sig"
+    )
+
     # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內)、完整分析歷程
     # (analysis_log，同一檔股票每一輪都保留、不覆蓋) 與收盤參考價 (live_quotes)
     # 一併保存成 history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時
     # 查看完整分析過程與收盤損益，而不是只能看到 backtest CSV 裡「有實際下單訊號」
     # 的部分，也不會只剩最後一筆。
-    save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log, live_quotes)
+    os.makedirs("history_records", exist_ok=True)
+    pd.DataFrame(strategy_trades).to_csv(
+        f"history_records/strategy_trades_{today_str}.csv", index=False, encoding="utf-8-sig"
+    )
+    save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log,
+                                live_quotes, strategy_trades)
 
     # 標記今日已完成收盤結算：往後收盤後若 cron 仍持續觸發，main() 開頭的
     # 非盤中測試模式會讀到這個旗標，直接跳過、不再覆蓋這份正式的收盤結算頁面。
@@ -1690,7 +1791,9 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
         analysis_log=analysis_log,
         live_quotes=live_quotes,
         settle_records=today_settled_list,
-        total_signals=total_signals
+        total_signals=total_signals,
+        open_positions=state.get("open_positions", []),
+        strategy_trades=strategy_trades,
     )
     save_dashboard_state(state)
     print("✅ 本輪次（收盤結算）執行完畢。")
@@ -1704,27 +1807,15 @@ def main():
 
     cfg = load_config()
     fugle_api_key = os.getenv("FUGLE_API_KEY") or cfg.get("fugle_api_key", "")
-    gemini_api_key = os.getenv("GEMINI_API_KEY") or cfg.get("gemini_api_key", "")
 
     if not fugle_api_key:
         print("❌ 錯誤：未設定 FUGLE_API_KEY 環境變數！")
-    if not gemini_api_key:
-        print("❌ 錯誤：未設定 GEMINI_API_KEY 環境變數！")
-    if not fugle_api_key or not gemini_api_key:
+    if not fugle_api_key:
         sys.exit(1)
 
-    PREFERRED_MODELS = [
-        "gemma-4-31b-it",
-        "gemma-4-26b-a4b-it",
-        "gemini-3.5-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-    ]
-
     fugle = FugleService(api_key=fugle_api_key)
-    gemini = GeminiService(api_key=gemini_api_key, model_priority=PREFERRED_MODELS)
-    print(f"🤖 AI 模型優先選擇順序: {' -> '.join(PREFERRED_MODELS)}")
+    gemini = _StrategyDisplay()
+    print("📈 使用本地技術指標策略；不呼叫 Gemini API")
 
     # ── 風險模式設定（可用 RISK_MODE 環境變數覆蓋，預設 auto）──────────
     # 合法值：aggressive / conservative / auto / relaxed（實驗性寬鬆模式）
@@ -1822,7 +1913,7 @@ def main():
         for s in test_stocks:
             print(f"   📌 {s['symbol']} {s['name']} (參考價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
         
-        ai_reply = "尚未測試"
+        ai_reply = "純技術指標策略已載入"
         test_analysis = []
         if test_stocks:
             test_sym = test_stocks[0]["symbol"]
@@ -1834,21 +1925,15 @@ def main():
             except Exception as e:
                 print(f"   ❌ 富果日K抓取異常: {e}")
 
-            print(f"\n🔍 測試 Gemini AI 多模型優先連線 ({test_sym})：")
-            try:
-                ai_reply = gemini.quick_check(test_sym, test_stocks[0]["price"], 1.5)
-                print(f"   ✅ Gemini 回覆 [{gemini.active_model}]: {ai_reply.strip()}")
-                test_analysis.append({
-                    "symbol": test_sym,
-                    "name": test_stocks[0]["name"],
-                    "signal": "WATCH",
-                    "entry": test_stocks[0]["price"],
-                    "stop_loss": "-",
-                    "target": "-",
-                    "reason": f"測試連線成功: {ai_reply}"
-                })
-            except Exception as e:
-                print(f"   ❌ Gemini 連線異常: {e}")
+            test_analysis.append({
+                "symbol": test_sym,
+                "name": test_stocks[0]["name"],
+                "signal": "WATCH",
+                "entry": test_stocks[0]["price"],
+                "stop_loss": "-",
+                "target": "-",
+                "reason": ai_reply,
+            })
 
         # 渲染出初始 index.html。這裡額外把 existing_state 內既有的 analysis_log 一併帶入，
         # 避免非盤中測試模式重新整理畫面時，把白天盤中已經累積的「展開查看歷史分析」
@@ -1891,7 +1976,9 @@ def main():
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
             live_quotes=live_quotes,
-            total_signals=total_signals
+            total_signals=total_signals,
+            open_positions=state.get("open_positions", []),
+            strategy_trades=state.get("strategy_trades", [])
         )
         save_dashboard_state(state)
         return
@@ -1916,7 +2003,9 @@ def main():
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
             live_quotes=live_quotes,
-            total_signals=total_signals
+            total_signals=total_signals,
+            open_positions=state.get("open_positions", []),
+            strategy_trades=state.get("strategy_trades", [])
         )
         save_dashboard_state(state)
         # 選股完當輪就結束，讓 workflow 立即 commit/push，下一次 5 分鐘後的觸發再繼續分析
@@ -1946,7 +2035,9 @@ def main():
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
             live_quotes=live_quotes,
-            total_signals=total_signals
+            total_signals=total_signals,
+            open_positions=state.get("open_positions", []),
+            strategy_trades=state.get("strategy_trades", [])
         )
         save_dashboard_state(state)
         print("✅ 本輪次（中盤重挑）執行完畢。")
@@ -1962,8 +2053,8 @@ def main():
     # 當沖需要留時間完成「進場→出場」的來回，尾盤時間太短即使 AI 判斷出訊號
     # 也很難真正走完一趟當沖，因此 13:00 後只單純更新看板顯示目前狀態、
     # 等待 13:25 的收盤回放結算，不再消耗 AI 額度做新的盤中判斷。
-    if hm >= ANALYSIS_STOP_TIME:
-        print(f"[{now.strftime('%H:%M:%S')}] 已過 {ANALYSIS_STOP_TIME}，AI 盤中分析截止，等待 {HISTORY_SETTLE_TIME} 收盤結算。")
+    if hm >= ANALYSIS_STOP_TIME and not state.get("open_positions"):
+        print(f"[{now.strftime('%H:%M:%S')}] 已過 {ANALYSIS_STOP_TIME}，停止新進場，等待 {HISTORY_SETTLE_TIME} 收盤結算。")
         render_html_dashboard(
             status_text=f"AI 分析已截止 (等待 {HISTORY_SETTLE_TIME} 收盤結算)",
             active_model=gemini.active_model,
@@ -1972,7 +2063,9 @@ def main():
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
             live_quotes=live_quotes,
-            total_signals=total_signals
+            total_signals=total_signals,
+            open_positions=state.get("open_positions", []),
+            strategy_trades=state.get("strategy_trades", [])
         )
         save_dashboard_state(state)
         return
@@ -1994,12 +2087,16 @@ def main():
     last_bucket_dt = None
     if last_bucket:
         try:
-            last_bucket_dt = TW_TZ.localize(datetime.datetime.strptime(last_bucket, "%Y-%m-%d %H:%M"))
+            try:
+                parsed_last = datetime.datetime.strptime(last_bucket, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                parsed_last = datetime.datetime.strptime(last_bucket, "%Y-%m-%d %H:%M")
+            last_bucket_dt = TW_TZ.localize(parsed_last)
         except Exception as e:
             print(f"⚠️ 解析上次分析時間戳記「{last_bucket}」失敗，視為尚未分析過: {e}")
             last_bucket_dt = None
 
-    ANALYSIS_INTERVAL_SECONDS = 10 * 60
+    ANALYSIS_INTERVAL_SECONDS = 60
     if last_bucket_dt is None:
         should_analyze = True
         seconds_since_last = None
@@ -2007,12 +2104,12 @@ def main():
         seconds_since_last = (now - last_bucket_dt).total_seconds()
         should_analyze = seconds_since_last >= ANALYSIS_INTERVAL_SECONDS
 
-    current_bucket = now.strftime("%Y-%m-%d %H:%M") if should_analyze else last_bucket
+    current_bucket = now.strftime("%Y-%m-%d %H:%M:%S") if should_analyze else last_bucket
 
     if not should_analyze:
         remain = ANALYSIS_INTERVAL_SECONDS - seconds_since_last if seconds_since_last is not None else None
         remain_msg = f"，距下次分析還需約 {int(remain // 60)} 分 {int(remain % 60)} 秒" if remain is not None else ""
-        print(f"[{now.strftime('%H:%M:%S')}] 距上次分析 ({last_bucket}) 尚未滿 10 分鐘{remain_msg}，本輪次僅同步目前看板狀態。")
+        print(f"[{now.strftime('%H:%M:%S')}] 距上次分析 ({last_bucket}) 尚未滿 60 秒{remain_msg}，本輪次僅同步目前看板狀態。")
         render_html_dashboard(
             status_text=f"盤中監控中 ({now.strftime('%H:%M')})",
             active_model=gemini.active_model,
@@ -2021,13 +2118,26 @@ def main():
             latest_analysis=latest_analysis_records,
             analysis_log=analysis_log,
             live_quotes=live_quotes,
-            total_signals=total_signals
+            total_signals=total_signals,
+            open_positions=state.get("open_positions", []),
+            strategy_trades=state.get("strategy_trades", []),
         )
         save_dashboard_state(state)
         return
 
-    print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 執行 10 分鐘定時分析...")
-    for s_info in current_stocks:
+    print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 執行每 60 秒技術策略分析...")
+    open_positions = state.setdefault("open_positions", [])
+    strategy_trades = state.setdefault("strategy_trades", [])
+    shares = int(cfg.get("trade_shares", 1000))
+    fee_rate = 0.001425 * broker_discount
+    tax_rate = 0.0015 if is_day_trade_tax else 0.003
+    # 持倉股票即使已離開最新選股池也持續取K線監控，直到停利、停損或收盤。
+    symbols_seen = {str(s.get("symbol")) for s in current_stocks}
+    monitored_stocks = list(current_stocks) + [
+        {"symbol": p["symbol"], "name": p.get("name", p["symbol"])}
+        for p in open_positions if str(p.get("symbol")) not in symbols_seen
+    ]
+    for s_info in monitored_stocks:
         symbol = s_info["symbol"]
         name = s_info["name"]
         try:
@@ -2046,65 +2156,13 @@ def main():
                 "updated_at": now.strftime("%H:%M:%S"),
             }
 
-            indicators = fugle.get_technical_indicators(candles, is_intraday=True)
-            daily_raw = fugle.get_historical_candles(symbol)
-            daily_candles = daily_raw.get("data", []) if daily_raw else []
-            quote = fugle.get_intraday_quote(symbol) or {}
-            prev_close = quote.get("previousClose")
-
-            res = gemini.analyze_with_signal(
-                symbol=symbol,
-                candles=candles,
-                indicators=indicators,
-                daily_candles=daily_candles,
-                prev_close=prev_close,
-                risk_mode=RISK_MODE,
-                concise=True
-            )
-
-            # gemini_service.analyze_with_signal() 回傳的 res["signal"] 是小寫粗分類
-            # ("buy" / "short" / "watch")，但畫面渲染（Python 端的 render_html_dashboard
-            # 與前端 JS）長期以來都是用「"BUY" in sig」/「sig.includes("BUY")」這種
-            # 區分大小寫的字串比對來判斷做多/做空/觀望分類。因為 Python 的 `in` 與 JS 的
-            # `includes` 都區分大小寫，"BUY" in "buy" 恆為 False，導致所有寫入
-            # analysis_log / latest_analysis_records 的訊號都被誤判成「觀望」，
-            # 徽章顯示錯誤、做多/做空篩選按鈕也篩不到——即使 total_signals 計數器
-            # (下面用的是 raw_sig，本身是大寫) 有正確 +1，畫面上的分類卻對不起來，
-            # 造成「今日訊號有算到，但股票的歷史分析紀錄卻看不到該訊號」的假象。
-            # 修法：在這裡就把 sig 正規化成大寫，讓後續所有比對統一用大寫，
-            # 一次修正所有下游（Python 渲染、JS 渲染、篩選、統計）。
-            sig = res.get("signal", "WATCH").upper()
-            raw_sig = res.get("raw_signal", sig).upper()
-
-            # ── 一致性校驗：防止 signal 與 raw_signal 各自代表不同判斷 ──
-            # 【bug修復】曾發生單一情況：res["raw_signal"] 是 "BUY"，但
-            # res["signal"] 卻是 "watch"，兩者理論上該同步（見
-            # gemini_service._SIGNAL_MAP 賦值邏輯），一旦不同步，畫面會用
-            # signal 判斷徽章分類（顯示觀望），但歷史結算卻用 raw_signal
-            # 記錄成 BUY 並真的觸發交易紀錄——形成「歷史紀錄裡股票卡片
-            # 顯示觀望，但收盤結算卻多出一筆該股票的買賣紀錄」的矛盾。
-            # 這裡以 raw_signal（訊號強度分類，直接對應 BUY/SHORT 是否會
-            # 觸發交易紀錄）為準，反推 signal 的粗分類，確保兩者永遠一致，
-            # 不管上游解析發生什麼未預期狀況，下游顯示都不會自相矛盾。
-            _RAW_TO_COARSE = {
-                "STRONG_BUY": "BUY", "BUY": "BUY",
-                "SHORT": "SHORT", "STRONG_SHORT": "SHORT",
-            }
-            _expected_sig = _RAW_TO_COARSE.get(raw_sig, "WATCH")
-            if sig != _expected_sig:
-                print(
-                    f"  ⚠️ [{symbol}] 偵測到 signal({sig}) 與 raw_signal({raw_sig}) "
-                    f"不一致，以 raw_signal 為準修正為 {_expected_sig}"
-                )
-                sig = _expected_sig
-            entry_p = res.get("entry")
-            if isinstance(entry_p, str):
-                try: entry_p = float(entry_p.split()[0].replace("元",""))
-                except: entry_p = candles[-1]["close"]
-
-            stop_p = res.get("stop_loss", "-")
-            target_p = res.get("target", "-")
-            reason = (res.get("reason") or res.get("full_text", "")).replace("\n", " ").strip()
+            res = evaluate_strategies(candles)
+            sig = res["signal"]
+            entry_p = res.get("price") or candles[-1]["close"]
+            stop_p, target_p = ("-", "-")
+            if sig in {"BUY", "SHORT"}:
+                stop_p, target_p = position_levels(sig, float(entry_p), float(res.get("atr") or 0))
+            reason = f"{res.get('strategy_name', '多策略共識')}：{res.get('reason', '')}"
 
             print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
 
@@ -2116,6 +2174,7 @@ def main():
                 "stop_loss": stop_p,
                 "target": target_p,
                 "reason": reason,
+                "strategy": res.get("strategy_name", "多策略共識"),
                 "updated_at": now.strftime("%H:%M:%S")
             }
 
@@ -2130,21 +2189,45 @@ def main():
             analysis_log = append_analysis_log(analysis_log, analysis_record)
 
             # 出現買賣訊號時寫入歷史紀錄
-            if raw_sig in {"STRONG_BUY", "BUY", "SHORT", "STRONG_SHORT"}:
+            already_open = any(p.get("symbol") == symbol for p in open_positions)
+            if now.strftime("%H:%M") < ANALYSIS_STOP_TIME and sig in {"BUY", "SHORT"} and not already_open:
                 total_signals += 1
-                rec_id = cache_service.add_history_record(
-                    symbol=symbol,
-                    model=gemini.active_model,
-                    risk_mode=RISK_MODE,
-                    signal=raw_sig,
-                    direction=res.get("direction"),
-                    entry_price=entry_p,
-                    stop_loss=res.get("stop_loss"),
-                    take_profit=res.get("target"),
-                    shares=cfg.get("trade_shares", 1000),
-                    analysis_reason=res.get("full_text", "")
-                )
-                print(f"   👉 [已記錄交易] {symbol} {raw_sig} 寫入歷史紀錄 (ID: {rec_id})")
+                position = {
+                    "id": f"{today_str}_{symbol}_{now.strftime('%H%M%S')}", "symbol": symbol,
+                    "name": name, "signal": sig, "direction": "做多" if sig == "BUY" else "放空",
+                    "strategy": res.get("strategy", ""), "strategy_name": res.get("strategy_name", "多策略共識"),
+                    "strategy_votes": res.get("strategy_votes", []), "entry_price": round(float(entry_p), 2),
+                    "stop_loss": stop_p, "take_profit": target_p, "shares": shares,
+                    "entry_time": now.strftime("%H:%M:%S"), "status": "open", "reason": reason,
+                }
+                open_positions.append(position)
+                strategy_trades.append(position.copy())
+                print(f"   👉 [策略進場] {symbol} {sig} / {position['strategy_name']} / SL {stop_p} / TP {target_p}")
+
+            # 每一輪以最新1分K的區間高低價偵測出場；同根同時觸及時保守計為停損。
+            bar = candles[-1]
+            for pos in list(open_positions):
+                if pos.get("symbol") != symbol:
+                    continue
+                if pos.get("entry_time") == now.strftime("%H:%M:%S"):
+                    continue  # 進場在本根K線收盤，避免拿進場前的高低價判斷出場。
+                long_side = pos.get("signal") == "BUY"
+                hit_sl = float(bar["low"]) <= float(pos["stop_loss"]) if long_side else float(bar["high"]) >= float(pos["stop_loss"])
+                hit_tp = float(bar["high"]) >= float(pos["take_profit"]) if long_side else float(bar["low"]) <= float(pos["take_profit"])
+                exit_reason = "hit_sl" if hit_sl else "hit_tp" if hit_tp else None
+                if exit_reason:
+                    exit_price = float(pos["stop_loss"] if hit_sl else pos["take_profit"])
+                    gross = (exit_price - float(pos["entry_price"])) * shares * (1 if long_side else -1)
+                    costs = max(float(pos["entry_price"]) * shares * fee_rate, 20) + max(exit_price * shares * fee_rate, 20)
+                    costs += (exit_price if long_side else float(pos["entry_price"])) * shares * tax_rate
+                    closed = {**pos, "status": "closed", "exit_price": round(exit_price, 2), "exit_time": now.strftime("%H:%M:%S"),
+                              "exit_reason": exit_reason, "pnl_amount": round(gross - costs, 2), "result": "win" if gross - costs > 0 else "loss"}
+                    open_positions.remove(pos)
+                    for index in range(len(strategy_trades)-1, -1, -1):
+                        if strategy_trades[index].get("id") == pos.get("id"):
+                            strategy_trades[index] = closed
+                            break
+                    print(f"   {'✅' if hit_tp else '🛑'} [持倉出場] {symbol} {exit_reason} @ {exit_price} 損益 {closed['pnl_amount']}")
 
             time.sleep(2)
 
@@ -2158,6 +2241,8 @@ def main():
     state["analysis_log"] = analysis_log
     state["live_quotes"] = live_quotes
     state["total_signals"] = total_signals
+    state["open_positions"] = open_positions
+    state["strategy_trades"] = strategy_trades
     state["last_analysis_minute_bucket"] = current_bucket
 
     render_html_dashboard(
@@ -2168,10 +2253,12 @@ def main():
         latest_analysis=latest_analysis_records,
         analysis_log=analysis_log,
         live_quotes=live_quotes,
-        total_signals=total_signals
+        total_signals=total_signals,
+        open_positions=open_positions,
+        strategy_trades=strategy_trades,
     )
     save_dashboard_state(state)
-    print("✅ 本輪次（10 分鐘分析）執行完畢。")
+    print("✅ 本輪次（技術指標分析）執行完畢。")
 
 if __name__ == "__main__":
     main()
