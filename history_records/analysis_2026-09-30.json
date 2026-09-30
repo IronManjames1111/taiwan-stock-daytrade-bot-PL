@@ -1,123 +1,6 @@
 {
   "date": "2026-09-30",
-  "wave1_stocks": [
-    {
-      "symbol": "2409",
-      "name": "友達",
-      "price": 36.8,
-      "volume": 112381,
-      "rank": "1"
-    },
-    {
-      "symbol": "3481",
-      "name": "群創",
-      "price": 52.3,
-      "volume": 52393,
-      "rank": "2"
-    },
-    {
-      "symbol": "6456",
-      "name": "GIS-KY",
-      "price": 94.1,
-      "volume": 14588,
-      "rank": "7"
-    },
-    {
-      "symbol": "6182",
-      "name": "合晶",
-      "price": 123.0,
-      "volume": 13852,
-      "rank": "8"
-    },
-    {
-      "symbol": "6770",
-      "name": "力積電",
-      "price": 73.6,
-      "volume": 12282,
-      "rank": "10"
-    },
-    {
-      "symbol": "1303",
-      "name": "南亞",
-      "price": 251.0,
-      "volume": 11927,
-      "rank": "12"
-    },
-    {
-      "symbol": "6116",
-      "name": "彩晶",
-      "price": 15.45,
-      "volume": 10162,
-      "rank": "13"
-    },
-    {
-      "symbol": "2303",
-      "name": "聯電",
-      "price": 156.0,
-      "volume": 8403,
-      "rank": "14"
-    }
-  ],
-  "wave2_stocks": [
-    {
-      "symbol": "6182",
-      "name": "合晶",
-      "price": 126.0,
-      "volume": 85820,
-      "rank": "7"
-    },
-    {
-      "symbol": "1303",
-      "name": "南亞",
-      "price": 256.5,
-      "volume": 58500,
-      "rank": "12"
-    },
-    {
-      "symbol": "6770",
-      "name": "力積電",
-      "price": 73.8,
-      "volume": 53527,
-      "rank": "13"
-    },
-    {
-      "symbol": "6456",
-      "name": "GIS-KY",
-      "price": 93.0,
-      "volume": 49591,
-      "rank": "15"
-    },
-    {
-      "symbol": "2303",
-      "name": "聯電",
-      "price": 157.0,
-      "volume": 48135,
-      "rank": "16"
-    },
-    {
-      "symbol": "2002",
-      "name": "中鋼",
-      "price": 19.15,
-      "volume": 43974,
-      "rank": "17"
-    },
-    {
-      "symbol": "2426",
-      "name": "鼎元",
-      "price": 103.0,
-      "volume": 38973,
-      "rank": "19"
-    },
-    {
-      "symbol": "2344",
-      "name": "華邦電",
-      "price": 176.0,
-      "volume": 35566,
-      "rank": "20"
-    }
-  ],
-  "mid_wave_triggered": true,
-  "latest_analysis_records": [
+  "analysis_records": [
     {
       "symbol": "2409",
       "name": "友達",
@@ -1717,7 +1600,37 @@
       "updated_at": "12:58:48"
     }
   },
-  "total_signals": 1,
-  "last_analysis_minute_bucket": "2026-09-30 12:58",
-  "settled_today": true
+  "settle_records": [
+    {
+      "id": "6116_20260930_011544_721487",
+      "symbol": "6116",
+      "date": "2026-09-30",
+      "time": "01:15:44",
+      "model": "gemma-4-31b-it",
+      "risk_mode": "relaxed",
+      "signal": "BUY",
+      "direction": "做多",
+      "entry_price": 15.85,
+      "stop_loss": 15.6,
+      "take_profit": 16.1,
+      "shares": 1000,
+      "analysis_reason": "SIGNAL: BUY\n建議: 價格站上VWAP且OBV走升\n方向: 做多\n進場: 多15.7～15.85\n停損: 多15.6\n目標: 多16.1～16.3\n風險: 日K趨勢向下",
+      "force_direction": null,
+      "is_simulated": false,
+      "settle_status": "settled",
+      "settle_attempts": 0,
+      "result": "loss",
+      "exit_price": 15.6,
+      "exit_reason": "hit_sl",
+      "exit_time": null,
+      "pnl_pct": -1.577,
+      "pnl_amount": -313.0,
+      "pnl_amount_gross": -250.0,
+      "fee_amount": 40,
+      "tax_amount": 23.0,
+      "broker_discount_used": 0.28,
+      "is_day_trade_tax_used": true
+    }
+  ],
+  "saved_at": "2026-09-30 13:25:30"
 }
