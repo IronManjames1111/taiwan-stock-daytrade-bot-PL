@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">盤前準備中 (等待 09:05)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">早盤第一波監控中</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-09-30 09:00:49</span>
+                    <span class="text-white mono ml-1.5">2026-09-30 09:05:39</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -187,7 +187,7 @@
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">監控標的</div>
-                <div class="text-xl font-bold text-white mono mt-1">0 檔</div>
+                <div class="text-xl font-bold text-white mono mt-1">8 檔</div>
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">今日訊號</div>
@@ -209,7 +209,47 @@
                     </div>
                     <span class="text-[11px] bg-[#0f1c33] text-[#8db3ff] border border-[#4d8dff]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段一</span>
                 </div>
-                <ul class="space-y-2 text-sm"><li class="text-gray-500 text-xs py-2">等待開盤 09:05 抓取中...</li></ul>
+                <ul class="space-y-2 text-sm">
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#1</span>2409 友達</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">36.8 元 · 112,381 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#2</span>3481 群創</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">52.3 元 · 52,393 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#3</span>6456 GIS-KY</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">94.1 元 · 14,588 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#4</span>6182 合晶</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">123.0 元 · 13,852 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#5</span>6770 力積電</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">73.6 元 · 12,282 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#6</span>1303 南亞</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">251.0 元 · 11,927 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#7</span>6116 彩晶</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">15.45 元 · 10,162 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#8</span>2303 聯電</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">156.0 元 · 8,403 張</span>
+            </li>
+            </ul>
             </div>
 
             <div class="panel border rounded-2xl p-5">
@@ -323,12 +363,69 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-09-30 09:00:49",
+  "generated_at": "2026-09-30 09:05:39",
   "today_str": "2026-09-30",
-  "status_text": "盤前準備中 (等待 09:05)",
+  "status_text": "早盤第一波監控中",
   "active_model": "gemma-4-31b-it",
   "total_signals": 0,
-  "wave1_stocks": [],
+  "wave1_stocks": [
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "price": 36.8,
+      "volume": 112381,
+      "rank": "1"
+    },
+    {
+      "symbol": "3481",
+      "name": "群創",
+      "price": 52.3,
+      "volume": 52393,
+      "rank": "2"
+    },
+    {
+      "symbol": "6456",
+      "name": "GIS-KY",
+      "price": 94.1,
+      "volume": 14588,
+      "rank": "7"
+    },
+    {
+      "symbol": "6182",
+      "name": "合晶",
+      "price": 123.0,
+      "volume": 13852,
+      "rank": "8"
+    },
+    {
+      "symbol": "6770",
+      "name": "力積電",
+      "price": 73.6,
+      "volume": 12282,
+      "rank": "10"
+    },
+    {
+      "symbol": "1303",
+      "name": "南亞",
+      "price": 251.0,
+      "volume": 11927,
+      "rank": "12"
+    },
+    {
+      "symbol": "6116",
+      "name": "彩晶",
+      "price": 15.45,
+      "volume": 10162,
+      "rank": "13"
+    },
+    {
+      "symbol": "2303",
+      "name": "聯電",
+      "price": 156.0,
+      "volume": 8403,
+      "rank": "14"
+    }
+  ],
   "wave2_stocks": [],
   "latest_analysis": [],
   "analysis_log": [],
