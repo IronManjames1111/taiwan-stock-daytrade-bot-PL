@@ -40,7 +40,8 @@ import hashlib
 import base64
 from fugle_service import FugleService
 from gemini_service import _calc_limit_prices, _check_at_limit
-from indicator_strategies import evaluate as evaluate_strategies, position_levels
+from indicator_strategies import (DEFAULT_SETTINGS, STRATEGY_NAMES, evaluate as evaluate_strategies,
+                                  load_strategy_settings, normalize_settings, position_levels)
 import cache_service
 from config import load_config
 
@@ -102,6 +103,7 @@ def render_html_dashboard(
     total_signals: int = None,
     open_positions: List[Dict] = None,
     strategy_trades: List[Dict] = None,
+    strategy_settings: Dict = None,
     **kwargs
 ):
     """
@@ -136,6 +138,11 @@ def render_html_dashboard(
     settle_records = settle_records or []
     open_positions = open_positions or []
     strategy_trades = strategy_trades or []
+    strategy_settings = normalize_settings(strategy_settings or load_strategy_settings())
+    strategy_labels_html = "".join(
+        f'<label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-{key}" class="accent-blue-400">{label}</label>'
+        for key, label in STRATEGY_NAMES.items()
+    )
     strategy_stats = {}
     for trade in strategy_trades:
         key = trade.get("strategy_name", trade.get("strategy", "未分類"))
@@ -174,6 +181,7 @@ def render_html_dashboard(
     "settle_records": settle_records,
         "open_positions": open_positions,
         "strategy_trades": strategy_trades,
+        "strategy_settings": strategy_settings,
     }
     # ensure_ascii=False 保留中文可讀；再用 json.dumps 序列化成字串安全地塞進 <script> 的 JS 常數
     export_json_str = json.dumps(export_payload, ensure_ascii=False, indent=2)
@@ -581,12 +589,28 @@ def render_html_dashboard(
             <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略</th><th>進場次數</th><th>已結算</th><th>勝率</th><th>累積淨損益</th></tr></thead><tbody id="strategy-stat-tbody">{strategy_html}</tbody></table></div>
         </section>
 
+        <details class="panel border rounded-2xl p-5">
+            <summary class="font-bold text-white cursor-pointer">策略與風控設定</summary>
+            <p class="text-xs text-gray-400 mt-3">勾選策略及調整門檻。此靜態網頁不能直接修改 GitHub；按下載後，將 strategy_settings.json 放到 repo 根目錄並提交，下一輪 Actions 才會套用。瀏覽器會暫存本機草稿。</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">{strategy_labels_html}</div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs">
+                <label>最少同向策略數<input id="setting-min-votes" type="number" min="1" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>領先反向票數<input id="setting-min-vote-margin" type="number" min="1" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>量能倍數<input id="setting-volume-multiple" type="number" min="0.5" max="5" step="0.1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>最低K線數<input id="setting-min-bars" type="number" min="14" max="120" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>停損 ATR 倍數<input id="setting-stop-atr" type="number" min="0.5" max="5" step="0.05" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>停利 ATR 倍數<input id="setting-target-atr" type="number" min="0.5" max="10" step="0.05" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>最大持倉檔數<input id="setting-max-open-positions" type="number" min="1" max="20" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-4"><button onclick="downloadStrategySettings()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs">下載 strategy_settings.json</button><button onclick="restoreActiveSettings()" class="px-4 py-2 rounded-lg bg-slate-700 text-white text-xs">還原目前線上設定</button><span id="settings-status" class="text-xs text-gray-400 self-center"></span></div>
+        </details>
+
         <!-- 最新技術策略分析結果 -->
         <div class="panel border rounded-2xl p-5">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-white/5 pb-3 mb-4 gap-2">
                 <div>
                     <h2 class="font-bold text-white text-base">即時多空訊號</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">VWAP 動能、EMA 趨勢回檔、RSI 布林反轉、MACD 量能確認；至少兩個策略同向才進場</p>
+                    <p class="text-xs text-gray-500 mt-0.5">8 種可設定策略並行判斷；預設至少 1 個同向訊號可進場</p>
                 </div>
                 <span class="text-[11px] text-gray-500 mono whitespace-nowrap">每 60 秒自動刷新</span>
             </div>
@@ -681,6 +705,21 @@ def render_html_dashboard(
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {export_json_js_safe};
+        const ACTIVE_STRATEGY_SETTINGS = EXPORT_DATA.strategy_settings || {{}};
+
+        function readStrategySettingsForm() {{
+            const number = id => Number(document.getElementById(id).value);
+            const enabled = {{}};
+            Object.keys(ACTIVE_STRATEGY_SETTINGS.enabled_strategies || {{}}).forEach(key => {{ enabled[key] = document.getElementById(`strategy-enabled-${{key}}`).checked; }});
+            return {{ enabled_strategies: enabled, min_votes: number('setting-min-votes'), min_vote_margin: number('setting-min-vote-margin'), volume_multiple: number('setting-volume-multiple'), min_bars: number('setting-min-bars'), stop_atr: number('setting-stop-atr'), target_atr: number('setting-target-atr'), max_open_positions: number('setting-max-open-positions') }};
+        }}
+        function setStrategySettings(settings) {{
+            Object.entries(settings.enabled_strategies || {{}}).forEach(([key, value]) => {{ const el = document.getElementById(`strategy-enabled-${{key}}`); if (el) el.checked = !!value; }});
+            [['min-votes','min_votes'],['min-vote-margin','min_vote_margin'],['volume-multiple','volume_multiple'],['min-bars','min_bars'],['stop-atr','stop_atr'],['target-atr','target_atr'],['max-open-positions','max_open_positions']].forEach(([id,key]) => {{ const el=document.getElementById(`setting-${{id}}`); if(el && settings[key] !== undefined) el.value=settings[key]; }});
+        }}
+        function saveSettingsDraft() {{ try {{ localStorage.setItem('daytrade_strategy_settings_draft', JSON.stringify(readStrategySettingsForm())); document.getElementById('settings-status').textContent='本機草稿已儲存'; }} catch(e) {{}} }}
+        function restoreActiveSettings() {{ setStrategySettings(ACTIVE_STRATEGY_SETTINGS); localStorage.removeItem('daytrade_strategy_settings_draft'); document.getElementById('settings-status').textContent='已還原本次頁面內的線上設定'; }}
+        function downloadStrategySettings() {{ const data=readStrategySettingsForm(); const blob=new Blob([JSON.stringify(data,null,2)+'\\n'],{{type:'application/json'}}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='strategy_settings.json'; a.click(); URL.revokeObjectURL(a.href); saveSettingsDraft(); }}
 
         function triggerDownload(content, filename, mimeType) {{
             const blob = new Blob([content], {{ type: mimeType }});
@@ -799,6 +838,9 @@ def render_html_dashboard(
         }}
 
         window.addEventListener("DOMContentLoaded", () => {{
+            setStrategySettings(ACTIVE_STRATEGY_SETTINGS);
+            try {{ const draft=localStorage.getItem('daytrade_strategy_settings_draft'); if(draft) setStrategySettings(JSON.parse(draft)); }} catch(e) {{}}
+            document.querySelectorAll('[id^="strategy-enabled-"], [id^="setting-"]').forEach(el => el.addEventListener('change', saveSettingsDraft));
             const savedToken = localStorage.getItem("daytrade_auth_token");
             if (savedToken === PWD_B64 || savedToken === PWD_HASH) {{
                 unlockUI();
@@ -1806,6 +1848,7 @@ def main():
     print("=" * 65)
 
     cfg = load_config()
+    strategy_settings = load_strategy_settings()
     fugle_api_key = os.getenv("FUGLE_API_KEY") or cfg.get("fugle_api_key", "")
 
     if not fugle_api_key:
@@ -2156,12 +2199,12 @@ def main():
                 "updated_at": now.strftime("%H:%M:%S"),
             }
 
-            res = evaluate_strategies(candles)
+            res = evaluate_strategies(candles, strategy_settings)
             sig = res["signal"]
             entry_p = res.get("price") or candles[-1]["close"]
             stop_p, target_p = ("-", "-")
             if sig in {"BUY", "SHORT"}:
-                stop_p, target_p = position_levels(sig, float(entry_p), float(res.get("atr") or 0))
+                stop_p, target_p = position_levels(sig, float(entry_p), float(res.get("atr") or 0), strategy_settings)
             reason = f"{res.get('strategy_name', '多策略共識')}：{res.get('reason', '')}"
 
             print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
@@ -2190,7 +2233,7 @@ def main():
 
             # 出現買賣訊號時寫入歷史紀錄
             already_open = any(p.get("symbol") == symbol for p in open_positions)
-            if now.strftime("%H:%M") < ANALYSIS_STOP_TIME and sig in {"BUY", "SHORT"} and not already_open:
+            if now.strftime("%H:%M") < ANALYSIS_STOP_TIME and sig in {"BUY", "SHORT"} and not already_open and len(open_positions) < strategy_settings["max_open_positions"]:
                 total_signals += 1
                 position = {
                     "id": f"{today_str}_{symbol}_{now.strftime('%H%M%S')}", "symbol": symbol,
