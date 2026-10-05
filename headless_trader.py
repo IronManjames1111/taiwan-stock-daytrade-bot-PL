@@ -156,8 +156,12 @@ def render_html_dashboard(
         f'<tr><td>{p.get("symbol")} {p.get("name", "")}</td><td>{p.get("direction")}</td><td>{p.get("strategy_name")}</td><td>{p.get("entry_price")}</td><td>{p.get("stop_loss")}</td><td>{p.get("take_profit")}</td><td>{live_quotes.get(p.get("symbol"), {}).get("price", "-")}</td></tr>'
         for p in open_positions
     ) or '<tr><td colspan="7" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr>'
+    def _win_rate_text(stat):
+        # 已平倉筆數為 0（例如剛進場尚未出場）時不可相除，改顯示 "-"
+        closed = stat["closed"]
+        return f"{stat['wins'] / closed * 100:.1f}%" if closed > 0 else "-"
     strategy_html = "".join(
-        f'<tr><td>{name}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{(stat["wins"] / stat["closed"] * 100):.1f}%</td><td>{stat["pnl"]:,.0f}</td></tr>'
+        f'<tr><td>{name}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{_win_rate_text(stat)}</td><td>{stat["pnl"]:,.0f}</td></tr>'
         for name, stat in sorted(strategy_stats.items(), key=lambda item: (item[1]["entries"], item[1]["pnl"]), reverse=True)
     ) or '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>'
 
