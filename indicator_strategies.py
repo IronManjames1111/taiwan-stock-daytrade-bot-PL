@@ -17,16 +17,64 @@ STRATEGY_NAMES = {
     "range_breakout": "區間高低突破",
 }
 
+# 策略所屬「家族」：同一家族的策略高度重疊（多數都含 price > VWAP / EMA 方向），
+# 多個同家族策略同時觸發只算 1 票，才是真正的「多重確認」。
+STRATEGY_FAMILY = {
+    "vwap_momentum": "vwap",
+    "ema_pullback": "ema_trend",
+    "ema_momentum": "ema_trend",
+    "macd_volume": "momentum",
+    "stochastic_trend": "momentum",
+    "orb_breakout": "breakout",
+    "range_breakout": "breakout",
+    "rsi_reversal": "reversal",  # 逆勢策略，與其他順勢家族分開處理
+}
+REVERSAL_FAMILY = "reversal"
+
 DEFAULT_SETTINGS = {
     "enabled_strategies": {key: True for key in STRATEGY_NAMES},
-    "min_votes": 1,
+    "min_votes": 2,              # 至少幾個「獨立家族」同向才進場（原為 1：任一策略觸發就進場）
     "min_vote_margin": 1,
+    "count_by_family": True,     # True=同家族只算 1 票；False=沿用舊的逐策略計票
     "volume_multiple": 1.0,
     "min_bars": 14,
     "stop_atr": 1.25,
     "target_atr": 1.8,
     "max_open_positions": 8,
+    # ── 成本與風險控管（新增）──
+    "min_target_cost_multiple": 3.0,  # 停利價差（毛）至少是來回成本的幾倍
+    "min_net_rr": 0.8,                # 扣成本後 淨賺 / 淨賠 至少多少
+    "sizing_mode": "fixed_risk",      # fixed_risk / fixed_amount / fixed_shares
+    "risk_per_trade": 2000.0,         # fixed_risk：每筆最大虧損（元，含成本）
+    "position_amount": 200000.0,      # fixed_amount：每筆投入金額（元）
+    "fixed_shares": 1000,             # fixed_shares：固定股數（舊行為）
+    "max_position_value": 700000.0,   # 任一模式的單筆部位金額上限（元）
+    "max_entries_per_symbol": 5,      # 每檔每日最多進場次數（v23 放寬：原 2）
+    "cooldown_minutes": 5,            # 停損出場後，同檔冷卻幾分鐘（v23 放寬：原 15；0=不冷卻）
+    "cooldown_after_stop_only": True, # True=只有停損後才冷卻，停利後可立刻再進
+    "daily_capital": 1_000_000.0,     # 每天可用於當沖的本金（元）；每天開盤重置
+    "allow_short": True,
+    "skip_attention": True,           # 注意股一律不進場
 }
+
+SIZING_MODES = ("fixed_risk", "fixed_amount", "fixed_shares")
+
+# 風險模式（環境變數 / 工作流程選單 RISK_MODE）真正會改變的參數。
+# auto = 完全使用 strategy_settings.json 的設定，不覆蓋。
+RISK_MODE_PRESETS = {
+    "auto": {},
+    "aggressive": {"min_votes": 1, "stop_atr": 1.5, "target_atr": 3.0, "min_net_rr": 0.7},
+    "conservative": {"min_votes": 3, "stop_atr": 0.8, "target_atr": 1.6, "min_net_rr": 1.0,
+                     "max_entries_per_symbol": 2, "cooldown_minutes": 15, "cooldown_after_stop_only": False},
+    "relaxed": {"min_votes": 1, "min_vote_margin": 1, "min_net_rr": 0.5, "min_target_cost_multiple": 2.0},
+}
+
+
+def apply_risk_mode(settings: Dict, mode: str) -> Dict:
+    """把風險模式預設疊加到設定上（再經 normalize 夾住合法範圍）。"""
+    merged = dict(settings or {})
+    merged.update(RISK_MODE_PRESETS.get(mode, {}))
+    return normalize_settings(merged)
 
 
 def normalize_settings(settings: Optional[Dict] = None) -> Dict:
@@ -43,12 +91,26 @@ def normalize_settings(settings: Optional[Dict] = None) -> Dict:
         "stop_atr": (0.5, 5.0, float),
         "target_atr": (0.5, 10.0, float),
         "max_open_positions": (1, 20, int),
+        "min_target_cost_multiple": (0.0, 20.0, float),
+        "min_net_rr": (0.0, 10.0, float),
+        "risk_per_trade": (100.0, 1_000_000.0, float),
+        "position_amount": (10_000.0, 10_000_000.0, float),
+        "fixed_shares": (1, 100_000, int),
+        "max_position_value": (10_000.0, 20_000_000.0, float),
+        "max_entries_per_symbol": (1, 20, int),
+        "cooldown_minutes": (0, 240, int),
+        "daily_capital": (100_000.0, 1_000_000_000.0, float),
     }
     for key, (low, high, cast) in bounds.items():
         try:
             out[key] = max(low, min(high, cast(source.get(key, out[key]))))
         except (ValueError, TypeError):
             pass
+    for key in ("count_by_family", "allow_short", "skip_attention", "cooldown_after_stop_only"):
+        if key in source:
+            out[key] = bool(source[key])
+    mode = source.get("sizing_mode", out["sizing_mode"])
+    out["sizing_mode"] = mode if mode in SIZING_MODES else DEFAULT_SETTINGS["sizing_mode"]
     return out
 
 
@@ -165,13 +227,28 @@ def evaluate(candles: List[Dict], settings: Optional[Dict] = None) -> Dict:
             add("range_breakout", "BUY", "放量突破前20根區間高點")
         if price < prior_low and close[-2] >= prior_low and price < vwap and vol_ok:
             add("range_breakout", "SHORT", "放量跌破前20根區間低點")
-    buy_n, short_n = len(votes["BUY"]), len(votes["SHORT"])
+    def _count(side_key):
+        if cfg["count_by_family"]:
+            return len({STRATEGY_FAMILY.get(v["key"], v["key"]) for v in votes[side_key]})
+        return len(votes[side_key])
+
+    raw_buy, raw_short = len(votes["BUY"]), len(votes["SHORT"])
+    buy_n, short_n = _count("BUY"), _count("SHORT")
     side = "BUY" if buy_n > short_n else "SHORT" if short_n > buy_n else "WATCH"
     count = max(buy_n, short_n)
-    if count < cfg["min_votes"] or (side == "WATCH") or (abs(buy_n-short_n) < cfg["min_vote_margin"]):
+    conflict = ""
+    # 逆勢（RSI 反轉）與順勢策略方向相反時互相抵觸，寧可觀望，不讓它們互相「湊票」。
+    for key_side, other in (("BUY", "SHORT"), ("SHORT", "BUY")):
+        has_rev = any(STRATEGY_FAMILY.get(v["key"]) == REVERSAL_FAMILY for v in votes[key_side])
+        other_trend = any(STRATEGY_FAMILY.get(v["key"]) != REVERSAL_FAMILY for v in votes[other])
+        if has_rev and other_trend:
+            conflict = "逆勢反轉訊號與順勢訊號方向相反，觀望"
+    if conflict or count < cfg["min_votes"] or side == "WATCH" or abs(buy_n - short_n) < cfg["min_vote_margin"]:
         side = "WATCH"
     chosen = votes.get(side, []) if side != "WATCH" else []
-    result.update(signal=side, strategy_name=chosen[0]["name"] if chosen else "", strategy_matches=[v["name"] for v in chosen], strategy_votes=chosen, reason="；".join(v["reason"] for v in chosen) or f"策略票數多空 {buy_n}:{short_n}，未達設定門檻", price=round(price, 2), atr=round(atr, 4), vwap=round(vwap, 2), rsi=round(rsi, 2), vote_counts={"BUY": buy_n, "SHORT": short_n})
+    unit = "家族" if cfg["count_by_family"] else "策略"
+    wait_reason = conflict or f"獨立{unit}票數多空 {buy_n}:{short_n}（原始策略 {raw_buy}:{raw_short}），未達門檻 {cfg['min_votes']}"
+    result.update(signal=side, strategy_name=chosen[0]["name"] if chosen else "", strategy_matches=[v["name"] for v in chosen], strategy_votes=chosen, reason="；".join(v["reason"] for v in chosen) or wait_reason, price=round(price, 2), atr=round(atr, 4), vwap=round(vwap, 2), rsi=round(rsi, 2), vote_counts={"BUY": buy_n, "SHORT": short_n}, raw_vote_counts={"BUY": raw_buy, "SHORT": raw_short})
     return result
 
 

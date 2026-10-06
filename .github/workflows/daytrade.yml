@@ -1,13 +1,17 @@
 name: Taiwan Stock Daytrade Technical Strategy
 
 on:
-  # 原本使用 GitHub 內建的 schedule 觸發不穩定 (可能延遲或被整批跳過)，
-  # 改由外部服務 cron-job.org 每 5 分鐘呼叫 GitHub REST API 的方式觸發 workflow_dispatch，
-  # 可靠度更高也更好掌控觸發時間。因此這裡移除 schedule，只保留 workflow_dispatch。
-  workflow_dispatch: # 支援在 GitHub 網頁上手動點擊「Run workflow」，以及 cron-job.org 透過 API 觸發
+  # 由外部服務 cron-job.org 呼叫 GitHub REST API 觸發（比內建 schedule 穩定）。
+  #
+  # 兩種用法（擇一）：
+  #  A. single（預設）：cron-job.org 週一~週五 08:50~13:30 每 5 分鐘觸發，每次只跑一輪。
+  #  B. loop（建議）  ：cron-job.org 只需週一~週五 08:50 觸發「一次」，並帶 inputs {"run_mode":"loop"}；
+  #                     job 內自己每 60 秒跑一輪，直到 13:32，並每 5 分鐘推送一次網站。
+  #                     1 分 K 策略就該搭配 1 分鐘的判斷頻率，而不是 5 分鐘。
+  workflow_dispatch:
     inputs:
       risk_mode:
-        description: '風險模式：aggressive / conservative / auto / relaxed(實驗性寬鬆模式)'
+        description: '風險模式：auto=完全依 strategy_settings.json；aggressive / conservative / relaxed 會覆蓋部分門檻'
         required: false
         default: 'auto'
         type: choice
@@ -16,115 +20,82 @@ on:
           - aggressive
           - conservative
           - relaxed
+      run_mode:
+        description: '執行模式：single=只跑一輪；loop=單一 job 內每 60 秒一輪直到收盤'
+        required: false
+        default: 'single'
+        type: choice
+        options:
+          - single
+          - loop
+      force_run:
+        description: '手動測試用：忽略交易日 / 交易時段檢查（夜間或假日測試連線請勾選）'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-  contents: write # 允許 Actions 把回測報表 commit 並 push 回倉庫
+  contents: write # 允許把看板與交易紀錄 commit 回倉庫
 
 concurrency:
-  # 避免高頻率排程與手動觸發同時搶跑、互相衝突 push；同一時間只允許一個 run 在跑，
-  # 新的觸發會排隊等待，而不是取消前一個 run（cancel-in-progress: false）。
+  # 同一時間只允許一個 run；新的觸發排隊等待，不取消進行中的 run。
   group: daytrade-runner
   cancel-in-progress: false
+
+env:
+  TZ: Asia/Taipei # 讓 shell 的 date（commit 訊息）使用台灣時間
 
 jobs:
   run-trader:
     runs-on: ubuntu-latest
+    timeout-minutes: 330 # 上限保險；實際由下方 timeout 指令依模式限制
 
     steps:
-      - name: 檢查倉庫代碼
-        uses: actions/checkout@v4
+      - name: 檢查倉庫代碼（淺層，只拉最新一份）
+        uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+
+      # 先判斷「今天是不是交易日、現在是不是交易時段」，不是就直接結束，
+      # 不用安裝套件、也不會在假日 / 夜間白跑與 commit。這一步只用標準函式庫。
+      - name: 交易日 / 交易時段檢查
+        id: gate
+        env:
+          FORCE_RUN: ${{ inputs.force_run }}
+        run: python3 market_calendar.py gate
 
       - name: 設定 Python 3.11 環境
-        uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: 安裝相依套件
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        if: steps.gate.outputs.run == 'true'
+        run: pip install -r requirements.txt
 
-      - name: 執行本輪次技術策略分析（單輪執行，跑完立即結束）
-        # 註：actions/checkout 已還原倉庫內既有的 dashboard_state.json / history_records，
-        # headless_trader.py 會自動讀取這些檔案接續累積本日的分析狀態。
+      - name: 執行技術策略分析
+        if: steps.gate.outputs.run == 'true'
         env:
           FUGLE_API_KEY: ${{ secrets.FUGLE_API_KEY }}
           DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
-          # 排程自動觸發時走 repo variable RISK_MODE（可在 Settings > Secrets and variables > Actions > Variables 設定，預設 auto）
-          # 手動點 Run workflow 時，可用下拉選單即時覆蓋（優先權更高）
+          # 排程觸發走 repo variable RISK_MODE（預設 auto）；手動點 Run workflow 的下拉選單優先
           RISK_MODE: ${{ inputs.risk_mode || vars.RISK_MODE || 'auto' }}
+          RUN_MODE: ${{ inputs.run_mode || vars.RUN_MODE || 'single' }}
+          FORCE_RUN: ${{ inputs.force_run }}
+          # 以下為選填的 repo variables（Settings > Secrets and variables > Actions > Variables）
+          BROKER_DISCOUNT: ${{ vars.BROKER_DISCOUNT }}
+          IS_DAY_TRADE_TAX: ${{ vars.IS_DAY_TRADE_TAX }}
+          DAILY_CAPITAL: ${{ vars.DAILY_CAPITAL }}   # 每日本金（元）；留空則用 strategy_settings.json 的 daily_capital（預設 1,000,000）
           PYTHONUNBUFFERED: "1"
         run: |
-          echo "本次執行風險模式：$RISK_MODE"
-          python headless_trader.py
+          echo "風險模式：$RISK_MODE｜執行模式：$RUN_MODE"
+          if [ "$RUN_MODE" = "loop" ]; then LIMIT=19800; else LIMIT=600; fi
+          timeout "$LIMIT" python headless_trader.py
 
-      - name: 提交並推送回測紀錄至 GitHub
-        run: |
-          set -e
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-
-          # 逐一 add，避免任一路徑不存在時 fatal 中斷、連帶讓後面的檔案沒被加入 staging
-          # （之前 `git add history_records/ analysis_history.json index.html` 這種一次性寫法，
-          #   只要中間任何一個路徑不存在，該指令就會整行失敗，導致排在它後面的 index.html 永遠沒被 commit）
-          git add index.html 2>/dev/null || echo "⚠️ index.html 加入 staging 失敗（略過）"
-          git add history_records/ 2>/dev/null || echo "ℹ️ history_records/ 無內容可加入（略過）"
-          git add analysis_history.json 2>/dev/null || echo "ℹ️ analysis_history.json 不存在（略過，不影響其他檔案）"
-          git add dashboard_state.json 2>/dev/null || echo "ℹ️ dashboard_state.json 不存在（略過，不影響其他檔案）"
-
-          echo "── 本次待推送的檔案 ──"
-          git status --short
-
-          if git diff --staged --quiet; then
-            echo "ℹ️ 目前無新增的回測報表，略過推送步驟。"
-            exit 0
-          fi
-
-          git commit -m "自動更新當沖回測紀錄 [$(date +'%Y-%m-%d %H:%M')]"
-
-          # ──────────────────────────────────────────────────────────
-          # v4.1 修正說明：
-          # 舊版 `git pull --rebase origin main || true` 會把 rebase 失敗（常見於高頻率
-          # 排程 + concurrency 排隊時，前後兩個 run 都改到 dashboard_state.json /
-          # index.html 同一段內容而衝突）的錯誤直接吞掉，導致：
-          #   1) rebase 半途卡在 conflict 狀態，working tree 裡的 dashboard_state.json
-          #      可能殘留合併標記或半殘內容；
-          #   2) 接下來的 git push 因為 non-fast-forward 而被拒絕，本次的分析結果完全
-          #      沒有真正寫回 remote main，等於這一整輪的分析被靜默作廢；
-          #   3) 下一輪 checkout 抓到的還是舊版狀態，於是 latest_analysis_records 的
-          #      累積在使用者看來就像「憑空消失」。
-          #
-          # 新版改為：rebase 失敗就立刻 abort（絕不留著半殘的 conflict 狀態），改用
-          # fetch + push --force-with-lease 搭配重試機制；同時因為 headless_trader.py
-          # 本身是「讀取 state → 純累加 → 寫回」的冪等邏輯，就算用最新的 remote 內容
-          # 為準也不會遺失資料，遠比讓一次失敗的 rebase 污染檔案來得安全。
-          # 失敗時明確印出錯誤、以非 0 結束，讓 workflow 顯示失敗，方便從 Actions
-          # 頁面直接發現問題，而不是像舊版一樣悄悄放棄。
-          # ──────────────────────────────────────────────────────────
-          MAX_RETRY=5
-          for i in $(seq 1 $MAX_RETRY); do
-            echo "── 第 $i/$MAX_RETRY 次嘗試推送 ──"
-            git fetch origin main
-
-            if git rebase origin/main; then
-              if git push origin main; then
-                echo "✅ 已成功推送 index.html 等最新回測紀錄（第 $i 次嘗試）"
-                exit 0
-              else
-                echo "⚠️ push 被拒絕（可能又有新的 remote 變更），中止本次 rebase 結果並重試..."
-                git rebase --abort 2>/dev/null || true
-              fi
-            else
-              echo "⚠️ rebase 發生衝突，中止 rebase 避免留下半殘檔案，稍後重試..."
-              git rebase --abort 2>/dev/null || true
-            fi
-
-            if [ "$i" -lt "$MAX_RETRY" ]; then
-              sleep $((RANDOM % 10 + 5))  # 隨機延遲 5~14 秒再重試，降低多個 run 同時搶跑的碰撞機率
-            fi
-          done
-
-          echo "❌ 已重試 $MAX_RETRY 次仍無法推送，本輪次分析結果可能未寫回 GitHub，請檢查 Actions 紀錄！"
-          exit 1
+      # always()：就算上一步失敗（例如渲染或網路錯誤），已經存好的狀態與進場紀錄仍要推送，
+      # 不能因為前一步失敗就整輪作廢。
+      - name: 提交並推送交易紀錄
+        if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        run: bash scripts/commit_push.sh

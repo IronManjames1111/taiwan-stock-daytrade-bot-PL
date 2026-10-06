@@ -1,6 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-headless_trader.py - 雲端無頭當沖機器人 (v4.0 單輪執行 + 狀態持久化版)
+headless_trader.py - 雲端無頭當沖機器人 (v22 成本控管 / 逐根回放 / 穩定性修正版)
+
+v23 重點（詳見「更新說明_v23.md」）：
+  • 每日固定本金資金池（預設 100 萬）：進場扣除佔用資金、出場「本金＋淨損益」回補；
+    同輪多檔訊號由程式依票數與淨賺賠比分配資金，不足則縮減張數或略過
+  • 儀表板新增「當日資金曲線 / 資金佔用 / 每日資金變化」圖表，資金摘要存於 history_records/capital_history.json
+  • 重複進場放寬：每檔每日 5 次、僅停損後冷卻 5 分鐘
+
+v22 重點（詳見「優化說明_v22.md」）：
+  • 結算清單改以 strategy_trades 為單一來源（修復收盤後仍顯示「尚未結算」）
+  • 出場改為掃描「進場後的每一根 K 棒」，不再只看最後一根
+  • 先存狀態、再渲染；渲染失敗只警告；訊號只用已收完的 K 棒
+  • 進場前做成本檢查（淨賺賠比）、固定風險部位、每檔每日次數與冷卻
+  • RISK_MODE 真正影響門檻；策略票數改為「獨立家族」計票
+  • 交易日曆（國定假日不跑）、Yahoo 重試與沿用上次標的、K 線並行抓取
+  • 可選 loop 模式：單一 job 內每 60 秒一輪（RUN_MODE=loop）
+
+以下為原 v4.0 說明（單輪執行 + 狀態持久化版）：
 ─────────────────────────────────────────────────────────────
 • 09:05 早盤第一次抓取成交量排行前 5 檔，並開始盤中 AI 分析（v20 調整，原為 09:15）
 • 10:30 中盤第二次重新抓取成交量排行前 5 檔 (鎖定盤中換手輪動飆股)
@@ -32,17 +49,23 @@ import json
 import datetime
 import pytz
 import requests
-import pandas as pd
+import csv
+import html as _html_mod
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 import hashlib
 import base64
 from fugle_service import FugleService
-from gemini_service import _calc_limit_prices, _check_at_limit
+from tw_market_rules import calc_limit_prices as _calc_limit_prices, check_at_limit as _check_at_limit
+from tw_market_rules import extract_symbol_rules, check_entry_allowed
 from indicator_strategies import (DEFAULT_SETTINGS, STRATEGY_NAMES, evaluate as evaluate_strategies,
-                                  load_strategy_settings, normalize_settings, position_levels)
-import cache_service
+                                  load_strategy_settings, normalize_settings, position_levels,
+                                  apply_risk_mode, RISK_MODE_PRESETS)
+import trade_engine as te
+import market_calendar
+from dashboard_capital import CAPITAL_CARD_HTML, CAPITAL_JS
 from config import load_config
 
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
@@ -77,6 +100,11 @@ ANALYSIS_STOP_TIME   = "13:00"
 HISTORY_SETTLE_TIME  = "13:25"
 MID_WAVE_TRIGGER_TIME = "10:30"
 
+def _esc(value) -> str:
+    """輸出到 HTML 前一律跳脫（股票名稱來自外部爬蟲，策略理由含 <、& 等符號，不能直接塞進頁面）。"""
+    return _html_mod.escape(str(value), quote=True)
+
+
 def get_tw_now() -> datetime.datetime:
     return datetime.datetime.now(TW_TZ)
 
@@ -104,6 +132,9 @@ def render_html_dashboard(
     open_positions: List[Dict] = None,
     strategy_trades: List[Dict] = None,
     strategy_settings: Dict = None,
+    settled: bool = False,
+    capital: Dict = None,
+    capital_history: List[Dict] = None,
     **kwargs
 ):
     """
@@ -153,7 +184,7 @@ def render_html_dashboard(
             stat["wins"] += int(float(trade.get("pnl_amount", 0) or 0) > 0)
             stat["pnl"] += float(trade.get("pnl_amount", 0) or 0)
     positions_html = "".join(
-        f'<tr><td>{p.get("symbol")} {p.get("name", "")}</td><td>{p.get("direction")}</td><td>{p.get("strategy_name")}</td><td>{p.get("entry_price")}</td><td>{p.get("stop_loss")}</td><td>{p.get("take_profit")}</td><td>{live_quotes.get(p.get("symbol"), {}).get("price", "-")}</td></tr>'
+        f'<tr><td>{_esc(p.get("symbol"))} {_esc(p.get("name", ""))}</td><td>{_esc(p.get("direction"))}</td><td>{_esc(p.get("strategy_name"))}</td><td>{p.get("entry_price")}</td><td>{p.get("stop_loss")}</td><td>{p.get("take_profit")}</td><td>{live_quotes.get(p.get("symbol"), {}).get("price", "-")}</td></tr>'
         for p in open_positions
     ) or '<tr><td colspan="7" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr>'
     def _win_rate_text(stat):
@@ -161,7 +192,7 @@ def render_html_dashboard(
         closed = stat["closed"]
         return f"{stat['wins'] / closed * 100:.1f}%" if closed > 0 else "-"
     strategy_html = "".join(
-        f'<tr><td>{name}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{_win_rate_text(stat)}</td><td>{stat["pnl"]:,.0f}</td></tr>'
+        f'<tr><td>{_esc(name)}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{_win_rate_text(stat)}</td><td>{stat["pnl"]:,.0f}</td></tr>'
         for name, stat in sorted(strategy_stats.items(), key=lambda item: (item[1]["entries"], item[1]["pnl"]), reverse=True)
     ) or '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>'
 
@@ -186,6 +217,8 @@ def render_html_dashboard(
         "open_positions": open_positions,
         "strategy_trades": strategy_trades,
         "strategy_settings": strategy_settings,
+        "capital": capital,
+        "capital_history": capital_history or [],
     }
     # ensure_ascii=False 保留中文可讀；再用 json.dumps 序列化成字串安全地塞進 <script> 的 JS 常數
     export_json_str = json.dumps(export_payload, ensure_ascii=False, indent=2)
@@ -193,14 +226,14 @@ def render_html_dashboard(
     export_json_js_safe = export_json_str.replace("</", "<\\/")
 
     # 計算損益卡片文字
-    pnl_text = "尚未結算"
+    pnl_text = "今日無交易" if settled else "尚未結算"
     pnl_class = "text-gray-400"
     if settle_records:
         # 【bug修復】cache_service._compute_settle_result() 回傳的欄位是
         # "pnl_amount"，從來沒有 "net_profit" 這個 key。原本這裡誤用
         # r.get("net_profit", 0) 讀取，每次都拿不到值、靜默 fallback 成 0，
         # 導致「結算損益」KPI 卡片不論實際賺賠多少，永遠顯示 $0。
-        net_total = sum(r.get("pnl_amount", 0) for r in settle_records)
+        net_total = round(sum(float(r.get("pnl_amount", 0) or 0) for r in settle_records))
         pnl_text = f"+${net_total:,}" if net_total > 0 else f"-${abs(net_total):,}" if net_total < 0 else "$0"
         pnl_class = "text-[#ff5470]" if net_total > 0 else "text-[#00d68f]" if net_total < 0 else "text-gray-300"
 
@@ -210,7 +243,7 @@ def render_html_dashboard(
         for idx, s in enumerate(wave1_stocks, 1):
             wave1_html += f"""
             <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
-                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#{idx}</span>{s['symbol']} {s['name']}</span>
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#8db3ff] mr-1.5">#{idx}</span>{_esc(s['symbol'])} {_esc(s['name'])}</span>
                 <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">{s['price']} 元 · {s.get('volume', 0):,} 張</span>
             </li>
             """
@@ -223,7 +256,7 @@ def render_html_dashboard(
         for idx, s in enumerate(wave2_stocks, 1):
             wave2_html += f"""
             <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
-                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#{idx}</span>{s['symbol']} {s['name']}</span>
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#{idx}</span>{_esc(s['symbol'])} {_esc(s['name'])}</span>
                 <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">{s['price']} 元 · {s.get('volume', 0):,} 張</span>
             </li>
             """
@@ -251,12 +284,12 @@ def render_html_dashboard(
                 sig_badge = '<span class="sig-badge sig-watch">— 觀望</span>'
 
             updated_at = a.get("updated_at", "")
-            symbol = a.get("symbol", "")
-            name = a.get("name", "")
-            entry = a.get("entry", "-")
-            stop_loss = a.get("stop_loss", "-")
-            target = a.get("target", "-")
-            reason = a.get("reason", "")
+            symbol = _esc(a.get("symbol", ""))
+            name = _esc(a.get("name", ""))
+            entry = _esc(a.get("entry", "-"))
+            stop_loss = _esc(a.get("stop_loss", "-"))
+            target = _esc(a.get("target", "-"))
+            reason = _esc(a.get("reason", ""))
 
             # 統計這檔股票今天總共被分析過幾輪（來自 analysis_log 完整歷程），
             # 只有 >1 筆時才顯示「展開歷史」按鈕，避免只分析過一次的股票也顯示無意義的按鈕
@@ -297,8 +330,8 @@ def render_html_dashboard(
             </div>
             """
     else:
-        analysis_rows = '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 60 秒自動更新技術策略看板...</td></tr>'
-        analysis_cards = '<div class="text-center text-gray-500 text-xs py-6">盤中每 60 秒自動更新技術策略看板...</div>'
+        analysis_rows = '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中依排程自動更新技術策略看板...</td></tr>'
+        analysis_cards = '<div class="text-center text-gray-500 text-xs py-6">盤中依排程自動更新技術策略看板...</div>'
 
     # 生成結算表格
     settle_rows = ""       # 桌面版表格列
@@ -316,14 +349,14 @@ def render_html_dashboard(
             # 【bug修復】同上，這裡也是誤用不存在的 "net_profit" key，
             # 導致每筆結算卡片「淨損益」都顯示 $0，即使 result 徽章（win/loss）
             # 本身是對的——因為 result 欄位名稱沒打錯，只有金額欄位打錯。
-            net_p = r.get("pnl_amount", 0)
+            net_p = round(float(r.get("pnl_amount", 0) or 0))
             net_str = f"+${net_p:,}" if net_p > 0 else f"-${abs(net_p):,}" if net_p < 0 else "$0"
             net_color = "text-[#ff5470]" if net_p > 0 else "text-[#00d68f]" if net_p < 0 else "text-gray-300"
-            symbol = r.get("symbol", "")
-            signal = r.get("signal", "")
-            strategy = r.get("strategy", r.get("strategy_name", "-"))
-            entry_price = r.get("entry_price", "-")
-            exit_price = r.get("exit_price", "-")
+            symbol = _esc(r.get("symbol", ""))
+            signal = _esc(r.get("signal", ""))
+            strategy = _esc(r.get("strategy") or r.get("strategy_name") or "-")
+            entry_price = _esc(r.get("entry_price", "-"))
+            exit_price = _esc(r.get("exit_price", "-"))
             # 【bug修復】exit_reason 原本是 hit_sl/hit_tp/forced_close 這種
             # 給程式看的英文代碼，直接顯示在畫面上使用者看不懂，這裡轉成中文。
             exit_reason = format_exit_reason(r.get("exit_reason", "-"))
@@ -354,8 +387,10 @@ def render_html_dashboard(
             </div>
             """
     else:
-        settle_rows = f'<tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})</td></tr>'
-        settle_cards = f'<div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})</div>'
+        _empty_msg = ("今日已收盤結算：沒有任何已平倉的交易" if settled
+                      else f"尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})")
+        settle_rows = f'<tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">{_empty_msg}</td></tr>'
+        settle_cards = f'<div class="text-center text-gray-500 text-xs py-4">{_empty_msg}</div>'
 
     html_content = f"""<!DOCTYPE html>
 <html lang="zh-TW">
@@ -503,7 +538,7 @@ def render_html_dashboard(
                     <h1 class="text-lg md:text-xl font-bold text-white tracking-tight">台股技術策略當沖雲端終端</h1>
                     <span class="bg-[#06231b] text-[#00d68f] text-[11px] px-2 py-0.5 rounded-full border border-[#00d68f]/25 font-semibold whitespace-nowrap">雲端全自動</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">{ANALYSIS_START_TIME} / {MID_WAVE_TRIGGER_TIME} 成交量選股　·　多策略每 60 秒判斷（{ANALYSIS_STOP_TIME} 截止）　·　{HISTORY_SETTLE_TIME} 結算</p>
+                <p class="text-xs text-gray-500 mt-1">{ANALYSIS_START_TIME} / {MID_WAVE_TRIGGER_TIME} 成交量選股　·　多策略逐輪判斷（{ANALYSIS_STOP_TIME} 後不再進場）　·　{HISTORY_SETTLE_TIME} 結算</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
@@ -549,7 +584,7 @@ def render_html_dashboard(
                 <div class="text-xl font-bold text-white mono mt-1">{len(wave2_stocks or wave1_stocks)} 檔</div>
             </div>
             <div class="panel border rounded-xl p-4">
-                <div class="text-[11px] text-gray-500">今日訊號</div>
+                <div class="text-[11px] text-gray-500">今日進場</div>
                 <div class="text-xl font-bold text-[#f5b942] mono mt-1">{total_signals} 筆</div>
             </div>
             <div class="panel border rounded-xl p-4">
@@ -695,7 +730,7 @@ def render_html_dashboard(
             <!-- 手機版：直式資訊卡 -->
             <div id="settle-cards" class="analysis-cards-wrap">{settle_cards}</div>
         </div>
-
+{CAPITAL_CARD_HTML}
         <!-- Footer -->
         <footer class="text-center text-xs text-gray-600 py-3">
             本儀表板由 GitHub Actions 全自動維護 · 密碼防護機制已啟用
@@ -715,7 +750,7 @@ def render_html_dashboard(
             const number = id => Number(document.getElementById(id).value);
             const enabled = {{}};
             Object.keys(ACTIVE_STRATEGY_SETTINGS.enabled_strategies || {{}}).forEach(key => {{ enabled[key] = document.getElementById(`strategy-enabled-${{key}}`).checked; }});
-            return {{ enabled_strategies: enabled, min_votes: number('setting-min-votes'), min_vote_margin: number('setting-min-vote-margin'), volume_multiple: number('setting-volume-multiple'), min_bars: number('setting-min-bars'), stop_atr: number('setting-stop-atr'), target_atr: number('setting-target-atr'), max_open_positions: number('setting-max-open-positions') }};
+            return {{ ...ACTIVE_STRATEGY_SETTINGS, enabled_strategies: enabled, min_votes: number('setting-min-votes'), min_vote_margin: number('setting-min-vote-margin'), volume_multiple: number('setting-volume-multiple'), min_bars: number('setting-min-bars'), stop_atr: number('setting-stop-atr'), target_atr: number('setting-target-atr'), max_open_positions: number('setting-max-open-positions') }};
         }}
         function setStrategySettings(settings) {{
             Object.entries(settings.enabled_strategies || {{}}).forEach(([key, value]) => {{ const el = document.getElementById(`strategy-enabled-${{key}}`); if (el) el.checked = !!value; }});
@@ -971,10 +1006,10 @@ def render_html_dashboard(
             const tbody = document.getElementById("analysis-tbody");
             const cardsWrap = document.getElementById("analysis-cards");
             const emptyRowHtml = isToday
-                ? '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中每 60 秒自動更新技術策略看板...</td></tr>'
+                ? '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">盤中依排程自動更新技術策略看板...</td></tr>'
                 : '<tr><td colspan="7" class="py-6 text-center text-gray-500 text-xs">此日期尚無分析資料</td></tr>';
             const emptyCardHtml = isToday
-                ? '<div class="text-center text-gray-500 text-xs py-6">盤中每 60 秒自動更新技術策略看板...</div>'
+                ? '<div class="text-center text-gray-500 text-xs py-6">盤中依排程自動更新技術策略看板...</div>'
                 : '<div class="text-center text-gray-500 text-xs py-6">此日期尚無分析資料</div>';
 
             CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(logRecords);
@@ -1259,6 +1294,7 @@ def render_html_dashboard(
             }}
         }}
     </script>
+<script>{CAPITAL_JS}</script>
 </body>
 </html>
 """
@@ -1340,6 +1376,10 @@ def load_dashboard_state(today_str: str, gemini=None, fugle=None, cfg: Optional[
         "open_positions": [],
         "strategy_trades": [],
         "settled_today": False,  # 今日是否已完成 13:25 收盤結算，避免收盤後的非盤中測試模式覆蓋掉正式看板
+        "symbol_rules": {},      # 個股交易限制快取（可否當沖、處置/注意股、漲跌停價），每檔每日只查一次
+        "capital": None,         # 每日資金池：{initial, cash, locked, realized, unrealized, equity, curve:[...]}
+        "wave1_fail_count": 0,   # 選股（Yahoo 爬蟲）連續失敗次數，用來決定何時改沿用上次標的
+        "wave2_fail_count": 0,
     }
     if not os.path.exists(STATE_FILE):
         print(f"ℹ️ {STATE_FILE} 不存在，視為今日第一次執行，建立全新狀態。")
@@ -1375,6 +1415,8 @@ def load_dashboard_state(today_str: str, gemini=None, fugle=None, cfg: Optional[
                         state.get("live_quotes", {}),
                         state.get("total_signals", 0),
                         cfg,
+                        allow_fetch=False,  # /intraday/candles 只回「今天」的K線，不能拿來結算昨天
+                        render=False,
                     )
                     print(f"✅ {stale_date} 的搶救性收盤結算已完成並存入歷史快照。")
                 except Exception as e:
@@ -1400,6 +1442,8 @@ def load_dashboard_state(today_str: str, gemini=None, fugle=None, cfg: Optional[
         if not isinstance(state.get("analysis_log"), list):
             print(f"⚠️ {STATE_FILE} 內 analysis_log 型別異常，判定檔案已損毀，改用全新狀態。")
             return default_state
+        if not isinstance(state.get("symbol_rules"), dict):
+            state["symbol_rules"] = {}
         if not isinstance(state.get("live_quotes"), dict):
             print(f"⚠️ {STATE_FILE} 內 live_quotes 型別異常，判定檔案已損毀，改用全新狀態。")
             return default_state
@@ -1459,8 +1503,7 @@ def append_analysis_log(log: List[Dict], new_record: Dict) -> List[Dict]:
     導致同一檔股票中間所有分析輪次都被悄悄蓋掉、收盤快照也只存到
     「最後一筆」，看起來就像「明明分析了一整天、卻只保存了一筆」。
     """
-    log.append(new_record)
-    return log
+    return te.append_log_compact(log, new_record)
 
 def save_daily_history_snapshot(
     date_str: str,
@@ -1469,6 +1512,7 @@ def save_daily_history_snapshot(
     analysis_log: List[Dict] = None,
     live_quotes: Dict = None,
     strategy_trades: List[Dict] = None,
+    capital: Dict = None,
 ):
     """
     收盤結算時呼叫：將當天的完整分析紀錄 (含觀望) 與結算損益，
@@ -1495,6 +1539,7 @@ def save_daily_history_snapshot(
         "live_quotes": live_quotes or {},
         "settle_records": settle_records,
         "strategy_trades": strategy_trades or [],
+        "capital": capital,
         "saved_at": get_tw_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     snapshot_path = f"history_records/analysis_{date_str}.json"
@@ -1554,6 +1599,53 @@ def _scan_history_snapshot_dates() -> List[str]:
         pass
     return dates
 
+def _http_get_retry(url: str, headers: Dict, attempts: int = 3, timeout: int = 10):
+    """GET 加簡單重試（1s、2s 退避）；Yahoo 偶發 5xx / 逾時時不要整輪選股就作廢。"""
+    last_err = None
+    for i in range(attempts):
+        try:
+            resp = requests.get(url, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException as e:
+            last_err = e
+            if i < attempts - 1:
+                time.sleep(i + 1)
+    raise last_err
+
+
+def load_fallback_stocks(today_str: str, limit: int = 8) -> List[Dict]:
+    """Yahoo 排行榜連續失敗時，沿用最近一個交易日快照裡的標的（價格僅供顯示，進場判斷一律用即時K線）。"""
+    try:
+        files = sorted(f for f in os.listdir("history_records")
+                       if re.match(r"^analysis_\d{4}-\d{2}-\d{2}\.json$", f))
+    except FileNotFoundError:
+        return []
+    for fname in reversed(files):
+        if fname[len("analysis_"):-len(".json")] >= today_str:
+            continue
+        try:
+            with open(os.path.join("history_records", fname), "r", encoding="utf-8") as f:
+                snap = json.load(f)
+        except (OSError, ValueError):
+            continue
+        quotes = snap.get("live_quotes") or {}
+        out = []
+        for rec in snap.get("analysis_records") or []:
+            sym = str(rec.get("symbol", ""))
+            if not sym or any(o["symbol"] == sym for o in out):
+                continue
+            out.append({"symbol": sym, "name": rec.get("name", sym),
+                        "price": (quotes.get(sym) or {}).get("price") or rec.get("entry") or 0,
+                        "volume": 0, "rank": str(len(out) + 1), "stale": True})
+            if len(out) >= limit:
+                break
+        if out:
+            print(f"ℹ️ 沿用 {fname} 的標的：{[o['symbol'] for o in out]}")
+            return out
+    return []
+
+
 def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool_size: int = 25) -> List[Dict]:
     """
     自 Yahoo 奇摩股市抓取即時成交量排行榜。
@@ -1586,8 +1678,14 @@ def get_free_top_volume_stocks(limit: int = 8, min_price: float = 10.0, min_pool
         for page in range(1, max_pages + 1):
             # Yahoo 股市排行頁面以 ?page=N 分頁，第 1 頁可省略參數
             url = base_url if page == 1 else f"{base_url}?page={page}"
-            resp = requests.get(url, headers=headers, timeout=10)
-            resp.raise_for_status()
+            try:
+                resp = _http_get_retry(url, headers)
+            except requests.RequestException as page_err:
+                if candidates:
+                    # 後面幾頁失敗不要丟掉已經抓到的候選池，用現有的繼續
+                    print(f"[Yahoo排行] 第 {page} 頁請求失敗（{page_err}），改用已取得的 {len(candidates)} 檔候選")
+                    break
+                raise
 
             soup = BeautifulSoup(resp.text, "html.parser")
             rows = soup.find_all("li", class_=lambda c: c and "List(n)" in c)
@@ -1701,611 +1799,670 @@ def filter_out_limit_up_stocks(stocks: List[Dict], fugle, limit: int) -> List[Di
 
     kept = []
     excluded = []
-    for s in stocks:
-        symbol = s["symbol"]
+
+    def _quote(sym):
         try:
-            quote = fugle.get_intraday_quote(symbol) or {}
-            prev_close = quote.get("previousClose")
-            current_price = s.get("price")
-            limits = _calc_limit_prices(prev_close) if prev_close else None
-            if limits:
-                limit_up, limit_down = limits
-                at_limit = _check_at_limit(current_price, limit_up, limit_down)
-                if at_limit == "up":
-                    excluded.append(s)
-                    print(f"   🚫 [排除漲停股] {symbol} {s.get('name', '')} 現價 {current_price} 已達漲停 {limit_up}，不納入當沖標的")
-                    continue
+            return fugle.get_intraday_quote(sym) or {}
+        except Exception as e:  # 以例外物件回傳，交給下方統一處理
+            return e
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        quotes = list(pool.map(lambda st: _quote(st["symbol"]), stocks))
+
+    for s, quote in zip(stocks, quotes):
+        symbol = s["symbol"]
+        if isinstance(quote, Exception):
+            # 查詢失敗（例如 API 額度用盡、逾時）時保守起見不排除
+            print(f"   ⚠️ [排除漲停股] {symbol} 查詢即時報價失敗，保留原判斷: {quote}")
             kept.append(s)
-        except Exception as e:
-            # 查詢失敗（例如 API 額度用盡、逾時）時保守起見不排除，
-            # 避免因為查詢異常就誤刪原本正常的候選股票。
-            print(f"   ⚠️ [排除漲停股] {symbol} 查詢即時報價失敗，保留原判斷: {e}")
-            kept.append(s)
+            continue
+        prev_close = quote.get("previousClose")
+        current_price = s.get("price")
+        limits = _calc_limit_prices(prev_close) if prev_close else None
+        if limits:
+            limit_up, limit_down = limits
+            if _check_at_limit(current_price, limit_up, limit_down) == "up":
+                excluded.append(s)
+                print(f"   🚫 [排除漲停股] {symbol} {s.get('name', '')} 現價 {current_price} 已達漲停 {limit_up}，不納入當沖標的")
+                continue
+        kept.append(s)
 
     if excluded:
         print(f"   ℹ️ [排除漲停股] 本輪共排除 {len(excluded)} 檔已漲停股票，剩餘 {len(kept)} 檔可用（目標 {limit} 檔）")
 
     return kept[:limit]
 
-def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
-                    latest_analysis_records: List[Dict], analysis_log: List[Dict], live_quotes: Dict,
-                    total_signals: int, cfg: Optional[Dict] = None):
-    """
-    執行收盤回放結算：把當天所有 pending 的下單訊號跟分K比對算出損益，
-    存成 CSV 報表，並把當日完整分析紀錄/歷程存成歷史快照，最後把
-    index.html 換成「已收盤結算完成」的正式畫面。
+# ═════════════════════════════════════════════════════════════════
+#  持久化 / 渲染（v22：先存檔、後渲染；渲染失敗只警告、不中斷）
+# ═════════════════════════════════════════════════════════════════
+CAPITAL_HISTORY_FILE = os.path.join("history_records", "capital_history.json")
 
-    cfg：main() 讀到的使用者設定（load_config() 結果），內含
-    broker_discount（手續費折扣）與 is_day_trade_tax（當沖證交稅
-    減半），會傳入 cache_service 讓結算損益扣除實際交易成本、
-    真正變成「淨損益」而不是價差毛額。
 
-    這段邏輯獨立抽成函式，是因為結算判斷式 `hm >= "13:25"` 原本只有在
-    is_market_session（08:50~13:30）範圍內才會被檢查到，一旦 13:25~13:30
-    這個 5 分鐘視窗剛好沒有任何一次排程準時觸發成功（GitHub Actions 排隊
-    延遲、API 逾時等），收盤結算就會被永久錯過，settled_today 永遠是
-    False，之後每一輪都會被判定為「非盤中時段」，被測試模式的畫面覆蓋掉。
-    抽成獨立函式後，main() 除了在盤中視窗內呼叫一次，也能在盤後任何
-    時間點（只要偵測到今天尚未結算過）補跑這個函式，修復「明明已經收盤
-    卻一直顯示測試資料」的問題。
-    """
-    pending_records = cache_service.get_pending_history_for_date(today_str)
-    print(f"\n🎯 開始收盤分K回放結算，今日待結算筆數: {len(pending_records)}")
+def load_capital_history() -> List[Dict]:
+    """每日資金摘要（每個交易日一筆），供「每日資金變化」圖使用。檔案不存在或損壞時回傳空清單。"""
+    try:
+        with open(CAPITAL_HISTORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        days = data.get("days", []) if isinstance(data, dict) else data
+        return [d for d in days if isinstance(d, dict) and d.get("date")]
+    except (OSError, ValueError):
+        return []
 
-    today_settled_list = []
-    if pending_records:
-        for rec in pending_records:
-            sym = rec["symbol"]
-            candles_raw = fugle.get_intraday_candles(sym, force_refresh=True)
-            day_candles = candles_raw.get("data", []) if candles_raw else []
-            if day_candles:
-                cache_service.settle_history_record_with_candles(rec["id"], day_candles, cfg)
-                # 結算時順便把這檔股票的參考價更新成「當天最後一根分K的收盤價」，
-                # 也就是真正的收盤價，讓收盤後看「展開歷史分析」時算出來的損益
-                # 是以收盤價計算，而不是停留在盤中最後一次分析時的價格。
-                live_quotes[sym] = {
-                    "price": day_candles[-1]["close"],
-                    "updated_at": "13:30:00",
-                }
 
-        all_data = cache_service._read_history()
-        today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
-
+def save_capital_history(summary: Dict) -> None:
+    try:
         os.makedirs("history_records", exist_ok=True)
-        df = pd.DataFrame(today_settled_list)
-        csv_path = f"history_records/backtest_{today_str}.csv"
-        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-        print(f"✅ 今日回測報表已成功產出：{csv_path}")
-    else:
-        # 沒有待結算資料，也可能代表今天已經結算過了；仍讀取既有結算清單顯示在網站上
-        all_data = cache_service._read_history()
-        today_settled_list = [r for r in all_data.get("records", []) if r.get("date") == today_str]
+        days = te.upsert_day_summary(load_capital_history(), summary)
+        with open(CAPITAL_HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump({"days": days}, f, ensure_ascii=False, indent=2)
+        print(f"✅ 每日資金摘要已更新：{CAPITAL_HISTORY_FILE}（共 {len(days)} 天）")
+    except OSError as e:
+        print(f"⚠️ 寫入每日資金摘要失敗: {e}")
 
-    # 當沖部位收盤前一律平倉，使用本日最後可得報價，並一併放入日報。
+
+def get_daily_capital(settings: Optional[Dict] = None) -> float:
+    """每日本金：環境變數 DAILY_CAPITAL（repo variable）優先，其次 strategy_settings.json 的 daily_capital。"""
+    raw = os.getenv("DAILY_CAPITAL")
+    if raw not in (None, ""):
+        try:
+            return normalize_settings({"daily_capital": float(raw)})["daily_capital"]
+        except (TypeError, ValueError):
+            print(f"⚠️ DAILY_CAPITAL「{raw}」無法解析，改用 strategy_settings.json 的設定")
+    return float((settings or load_strategy_settings())["daily_capital"])
+
+
+def update_capital(state: Dict, settings: Optional[Dict], now_hms: str, cfg: Dict, live_quotes: Dict) -> Dict:
+    """
+    由 strategy_trades 推算最新資金狀態並加入資金曲線。
+    本金在「當天第一次呼叫」時定下並存入 state，之後即使改了設定也不會讓當天曲線錯亂。
+    """
+    cap = state.get("capital") or {}
+    initial = float(cap.get("initial") or get_daily_capital(settings))
+    snap = te.capital_snapshot(initial, state.get("strategy_trades", []), live_quotes,
+                               float(cfg.get("broker_discount", 1.0)), bool(cfg.get("is_day_trade_tax", True)))
+    state["capital"] = te.append_capital_point(cap, now_hms, snap)
+    return state["capital"]
+
+
+def safe_render(**kwargs) -> bool:
+    """渲染 index.html。任何例外都只印警告，絕不讓一次渲染失敗毀掉整輪結果。"""
+    try:
+        render_html_dashboard(**kwargs)
+        return True
+    except Exception as e:
+        import traceback
+        print(f"⚠️ 儀表板渲染失敗（已略過，狀態已先行存檔，不影響交易紀錄）: {e}")
+        traceback.print_exc()
+        update_github_summary(f"⚠️ 儀表板渲染失敗：`{e}`（交易狀態已保存）")
+        return False
+
+
+def persist(state: Dict, **render_kwargs) -> None:
+    """統一的收尾：① 先存狀態 ② 再渲染（失敗不中斷）。"""
+    save_dashboard_state(state)
+    render_kwargs.setdefault("active_model", _StrategyDisplay.active_model)
+    render_kwargs.setdefault("wave1_stocks", state.get("wave1_stocks"))
+    render_kwargs.setdefault("wave2_stocks", state.get("wave2_stocks"))
+    render_kwargs.setdefault("latest_analysis", state.get("latest_analysis_records"))
+    render_kwargs.setdefault("analysis_log", state.get("analysis_log"))
+    render_kwargs.setdefault("live_quotes", state.get("live_quotes"))
+    render_kwargs.setdefault("total_signals", state.get("total_signals"))
+    render_kwargs.setdefault("open_positions", state.get("open_positions"))
+    render_kwargs.setdefault("strategy_trades", state.get("strategy_trades"))
+    render_kwargs.setdefault("capital", state.get("capital"))
+    render_kwargs.setdefault("capital_history", load_capital_history())
+    safe_render(**render_kwargs)
+
+
+TRADE_CSV_COLUMNS = ["id", "symbol", "name", "direction", "strategy_name", "shares", "entry_time", "entry_price",
+                     "stop_loss", "take_profit", "exit_time", "exit_price", "exit_reason", "pnl_gross",
+                     "cost_amount", "pnl_amount", "result"]
+
+
+def write_trades_csv(path: str, trades: List[Dict]) -> None:
+    """單一份交易明細 CSV（取代舊的 backtest_ / strategy_trades_ 兩份互相覆蓋的檔案）。"""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    rows, cols = [], list(TRADE_CSV_COLUMNS)
+    for t in trades:
+        row = {k: (json.dumps(v, ensure_ascii=False) if isinstance(v, (list, dict)) else v) for k, v in t.items()
+               if k not in ("strategy_votes",)}
+        rows.append(row)
+        cols.extend(k for k in row if k not in cols)
+    try:
+        with open(path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+            w.writeheader()
+            w.writerows(rows)
+        print(f"✅ 交易明細已輸出：{path}（{len(rows)} 筆）")
+    except OSError as e:
+        print(f"⚠️ 寫入 {path} 失敗: {e}")
+
+
+def fetch_candles_parallel(fugle, symbols: List[str], workers: int = 4) -> Dict[str, Optional[List[Dict]]]:
+    """並行抓取多檔 1 分 K（Fugle 客戶端內建全域節流，執行緒安全）。失敗的標的回傳 None。"""
+    def one(sym):
+        try:
+            raw = fugle.get_intraday_candles(sym, force_refresh=True)
+            if raw and "error" not in raw:
+                return sym, raw.get("data", []) or []
+            print(f"  [{sym}] 取得K線失敗: {(raw or {}).get('error', '無回應')}")
+        except Exception as e:
+            print(f"  [{sym}] 取得K線異常: {e}")
+        return sym, None
+    if not symbols:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(workers, len(symbols))) as pool:
+        return dict(pool.map(one, symbols))
+
+
+# ═════════════════════════════════════════════════════════════════
+#  收盤結算（v22：單一資料來源 strategy_trades；逐根回放；強平價即時重抓）
+# ═════════════════════════════════════════════════════════════════
+def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
+                   latest_analysis_records: List[Dict], analysis_log: List[Dict], live_quotes: Dict,
+                   total_signals: int, cfg: Optional[Dict] = None,
+                   allow_fetch: bool = True, render: bool = True):
+    """
+    13:25 收盤結算。
+
+    v22 修正（根因：結算清單曾經取自舊 AI 時代的 analysis_history.json，新策略流程沒人寫入，
+    導致只要收盤時沒有未平倉部位，清單就是空的，畫面顯示「尚未結算」且損益卡永遠停在「尚未結算」）：
+      1. 結算清單 = strategy_trades 中所有已平倉交易（停損 / 停利 / 強平全部都算）。
+      2. 仍持倉的部位：先重抓最新 1 分 K，從進場後逐根回放確認是否其實已觸價，
+         沒有才以 13:25 前最後一根 K 收盤價強平（不再使用上一輪可能已過期的 live_quotes）。
+      3. 順序：輸出 CSV / 歷史快照 → 存狀態 → 最後才渲染（渲染失敗不影響前兩者）。
+    allow_fetch=False：跨日搶救結算用（/intraday/candles 只能查「今天」，不可拿來結算昨天）。
+    """
+    cfg = cfg or {}
+    discount = float(cfg.get("broker_discount", 1.0))
+    day_tax = bool(cfg.get("is_day_trade_tax", True))
     strategy_trades = state.setdefault("strategy_trades", [])
-    for pos in list(state.setdefault("open_positions", [])):
-        price = float((live_quotes.get(pos["symbol"]) or {}).get("price") or pos["entry_price"])
-        long_side = pos.get("signal") == "BUY"
-        shares = int(pos.get("shares", (cfg or {}).get("trade_shares", 1000)))
-        discount = float((cfg or {}).get("broker_discount", 1.0))
-        tax_rate = 0.0015 if (cfg or {}).get("is_day_trade_tax", True) else 0.003
-        gross = (price - float(pos["entry_price"])) * shares * (1 if long_side else -1)
-        costs = max(float(pos["entry_price"]) * shares * 0.001425 * discount, 20) + max(price * shares * 0.001425 * discount, 20)
-        costs += (price if long_side else float(pos["entry_price"])) * shares * tax_rate
-        closed = {**pos, "status": "closed", "exit_price": round(price, 2), "exit_time": "13:25:00",
-                  "exit_reason": "forced_close", "pnl_amount": round(gross-costs, 2),
-                  "result": "win" if gross-costs > 0 else "loss"}
-        for index in range(len(strategy_trades)-1, -1, -1):
-            if strategy_trades[index].get("id") == pos.get("id"):
-                strategy_trades[index] = closed
+    open_positions = state.setdefault("open_positions", [])
+    print(f"\n🎯 開始收盤結算：未平倉 {len(open_positions)} 筆、今日進場 {len(strategy_trades)} 筆")
+
+    # ① 抓最新K線：持倉標的 + 全部監控標的（順便把參考價更新為收盤價，供歷史損益試算）
+    symbols = list(dict.fromkeys(
+        [p["symbol"] for p in open_positions] +
+        [str(s.get("symbol")) for s in (wave2_stocks or []) + (wave1_stocks or [])]))
+    candles_map = fetch_candles_parallel(fugle, symbols) if allow_fetch else {}
+    for sym, raw in candles_map.items():
+        bars = te.normalize_candles(raw)
+        if bars:
+            live_quotes[sym] = {"price": bars[-1]["close"], "updated_at": "13:30:00"}
+
+    # ② 未平倉部位：回放 → 強平
+    for pos in list(open_positions):
+        sym = pos["symbol"]
+        bars = te.normalize_candles(candles_map.get(sym))
+        closed = None
+        if bars:
+            hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
+            if hit:
+                closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+            else:
+                last = te.last_close_until(bars, HISTORY_SETTLE_TIME)
+                if last:
+                    closed = te.close_position(pos, last[0], f"{HISTORY_SETTLE_TIME}:00", "forced_close",
+                                               discount, day_tax, f"bar_{last[1]}_close")
+        if closed is None:
+            price = float((live_quotes.get(sym) or {}).get("price") or pos["entry_price"])
+            print(f"  ⚠️ [{sym}] 無法取得最新K線，強平價沿用最近一次報價 {price}")
+            closed = te.close_position(pos, price, f"{HISTORY_SETTLE_TIME}:00", "forced_close",
+                                       discount, day_tax, "stale_quote")
+        for i in range(len(strategy_trades) - 1, -1, -1):
+            if strategy_trades[i].get("id") == pos.get("id"):
+                strategy_trades[i] = closed
                 break
-        today_settled_list.append({
-            "symbol": pos["symbol"], "signal": pos.get("signal"), "strategy": pos.get("strategy_name"),
-            "entry_price": pos["entry_price"], "exit_price": closed["exit_price"],
-            "result": closed["result"], "pnl_amount": closed["pnl_amount"],
-            "exit_reason": "forced_close", "settle_status": "settled",
-        })
+        else:
+            strategy_trades.append(closed)
+        print(f"  ⏱ [{sym}] {closed['exit_reason']} @ {closed['exit_price']} 淨損益 {closed['pnl_amount']:+,.0f}")
     state["open_positions"] = []
-    os.makedirs("history_records", exist_ok=True)
-    pd.DataFrame(today_settled_list).to_csv(
-        f"history_records/backtest_{today_str}.csv", index=False, encoding="utf-8-sig"
-    )
 
-    # 將當日累積的盤中分析紀錄 (latest_analysis_records，含觀望在內)、完整分析歷程
-    # (analysis_log，同一檔股票每一輪都保留、不覆蓋) 與收盤參考價 (live_quotes)
-    # 一併保存成 history_records/analysis_YYYY-MM-DD.json，供網頁日後切換日期時
-    # 查看完整分析過程與收盤損益，而不是只能看到 backtest CSV 裡「有實際下單訊號」
-    # 的部分，也不會只剩最後一筆。
-    os.makedirs("history_records", exist_ok=True)
-    pd.DataFrame(strategy_trades).to_csv(
-        f"history_records/strategy_trades_{today_str}.csv", index=False, encoding="utf-8-sig"
-    )
-    save_daily_history_snapshot(today_str, latest_analysis_records, today_settled_list, analysis_log,
-                                live_quotes, strategy_trades)
+    # ③ 結算清單 = 所有已平倉交易；資金：全部平倉後「本金＋當日淨損益」回到資金池
+    settled_list = te.build_settle_records(strategy_trades)
+    cap = update_capital(state, None, f"{HISTORY_SETTLE_TIME}:00", cfg, live_quotes)
+    print(f"💰 資金結算：本金 {cap['initial']:,.0f} → 收盤 {cap['equity']:,.0f}"
+          f"（{cap['equity'] - cap['initial']:+,.0f}）")
+    summary = te.summarize_trades(strategy_trades)
+    wr = f"{summary['win_rate'] * 100:.1f}%" if summary["win_rate"] is not None else "-"
+    print(f"📊 今日 {summary['entries']} 筆進場 / {summary['closed']} 筆平倉 / 勝率 {wr} / "
+          f"成本 {summary['cost']:,.0f} / 淨損益 {summary['net_pnl']:+,.0f}")
+    update_github_summary(f"### 📊 {today_str} 收盤結算\n進場 {summary['entries']} 筆、勝率 {wr}、"
+                          f"成本 {summary['cost']:,.0f}、**淨損益 {summary['net_pnl']:+,.0f}**")
 
-    # 標記今日已完成收盤結算：往後收盤後若 cron 仍持續觸發，main() 開頭的
-    # 非盤中測試模式會讀到這個旗標，直接跳過、不再覆蓋這份正式的收盤結算頁面。
+    # ④ 輸出（CSV＋歷史快照）→ 存狀態 → 渲染
+    write_trades_csv(f"history_records/backtest_{today_str}.csv", [t for t in strategy_trades if t.get("status") == "closed"])
+    save_daily_history_snapshot(today_str, latest_analysis_records, settled_list, analysis_log, live_quotes,
+                                strategy_trades, capital=cap)
+    save_capital_history(te.capital_day_summary(today_str, cap, strategy_trades))
+
     state["settled_today"] = True
     state["live_quotes"] = live_quotes
-
-    render_html_dashboard(
-        status_text="已收盤結算完成",
-        active_model=gemini.active_model,
-        wave1_stocks=wave1_stocks,
-        wave2_stocks=wave2_stocks,
-        latest_analysis=latest_analysis_records,
-        analysis_log=analysis_log,
-        live_quotes=live_quotes,
-        settle_records=today_settled_list,
-        total_signals=total_signals,
-        open_positions=state.get("open_positions", []),
-        strategy_trades=strategy_trades,
-    )
     save_dashboard_state(state)
+
+    if render:
+        safe_render(
+            status_text="已收盤結算完成", active_model=gemini.active_model,
+            wave1_stocks=wave1_stocks, wave2_stocks=wave2_stocks, latest_analysis=latest_analysis_records,
+            analysis_log=analysis_log, live_quotes=live_quotes, settle_records=settled_list,
+            total_signals=total_signals, open_positions=[], strategy_trades=strategy_trades, settled=True,
+            capital=cap, capital_history=load_capital_history(),
+        )
     print("✅ 本輪次（收盤結算）執行完畢。")
 
+
+# ═════════════════════════════════════════════════════════════════
+#  進場前的所有檢查
+# ═════════════════════════════════════════════════════════════════
+def get_symbol_rules(state: Dict, fugle, symbol: str) -> Dict:
+    """個股交易限制（每檔每日只查一次，存在 state 供下一輪沿用）。查詢失敗回傳空 dict＝未知＝放行。"""
+    cache = state.setdefault("symbol_rules", {})
+    if symbol in cache:
+        return cache[symbol]
+    try:
+        ticker = fugle.get_intraday_ticker(symbol)
+        quote = None
+        if isinstance(ticker, dict) and "error" not in ticker:
+            if not (ticker.get("previousClose") or ticker.get("referencePrice")):
+                quote = fugle.get_intraday_quote(symbol)
+            rules = extract_symbol_rules(ticker, quote)
+            cache[symbol] = rules
+            return rules
+    except Exception as e:
+        print(f"  [{symbol}] 取得個股交易限制失敗（視為未知、放行）: {e}")
+    return {}
+
+
+def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, completed: List[Dict],
+                      now: datetime.datetime, settings: Dict, discount: float, day_tax: bool,
+                      today_str: str) -> (Optional[Dict], str, bool):
+    """
+    依序檢查：時間 → 持倉 → 放空許可 → 每日次數/冷卻 → 個股限制 → 部位大小 → 成本淨賺賠比。
+    回傳 (部位 or None, 未進場原因, 是否值得在畫面上提示)。
+    """
+    sig = res["signal"]
+    open_positions = state["open_positions"]
+    hm = now.strftime("%H:%M")
+    if hm >= ANALYSIS_STOP_TIME:
+        return None, f"{ANALYSIS_STOP_TIME} 後不再進場", False
+    if any(p.get("symbol") == symbol for p in open_positions):
+        return None, "已有持倉", False
+    if sig == "SHORT" and not settings["allow_short"]:
+        return None, "設定禁止放空", True
+    ok, why = te.can_enter(symbol, state["strategy_trades"], now.strftime("%H:%M:%S"), settings)
+    if not ok:
+        return None, why, True
+
+    entry_p = float(res.get("price") or completed[-1]["close"])
+    rules = get_symbol_rules(state, fugle, symbol)
+    ok, why = check_entry_allowed(sig, entry_p, rules, settings["skip_attention"])
+    if not ok:
+        return None, why, True
+
+    stop_p, target_p = position_levels(sig, entry_p, float(res.get("atr") or 0), settings)
+    shares, why = te.calc_shares(sig, entry_p, stop_p, settings, discount, day_tax)
+    if shares <= 0:
+        return None, why, True
+    metrics = te.evaluate_net_rr(sig, entry_p, stop_p, target_p, shares, discount, day_tax)
+    ok, why = te.check_cost_gate(metrics, settings)
+    if not ok:
+        return None, why, True
+
+    position = {
+        "id": f"{today_str}_{symbol}_{now.strftime('%H%M%S')}", "symbol": symbol, "name": name, "signal": sig,
+        "direction": "做多" if sig == "BUY" else "放空",
+        "strategy": res.get("strategy", ""), "strategy_name": res.get("strategy_name", "多策略共識"),
+        "strategy_votes": res.get("strategy_votes", []), "entry_price": round(entry_p, 2),
+        "stop_loss": stop_p, "take_profit": target_p, "shares": shares,
+        "entry_time": now.strftime("%H:%M:%S"), "entry_bar_hm": te.bar_hm(completed[-1]),
+        "status": "open", "reason": f"{res.get('strategy_name', '多策略共識')}：{res.get('reason', '')}",
+        "expected_net_win": metrics["net_win"], "expected_net_loss": metrics["net_loss"],
+        "expected_cost": metrics["cost"], "net_rr": metrics["net_rr"],
+    }
+    return position, "", False
+
+
+# ═════════════════════════════════════════════════════════════════
+#  單輪執行
+# ═════════════════════════════════════════════════════════════════
+def _parse_bucket(last_bucket: Optional[str]) -> Optional[datetime.datetime]:
+    if not last_bucket:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return TW_TZ.localize(datetime.datetime.strptime(last_bucket, fmt))
+        except ValueError:
+            continue
+    print(f"⚠️ 解析上次分析時間戳記「{last_bucket}」失敗，視為尚未分析過")
+    return None
+
+
+def build_context() -> Dict:
+    """讀取設定、建立 Fugle 連線。迴圈模式只需建立一次。"""
+    cfg = load_config()
+    fugle_api_key = os.getenv("FUGLE_API_KEY") or cfg.get("fugle_api_key", "")
+    if not fugle_api_key:
+        print("❌ 錯誤：未設定 FUGLE_API_KEY 環境變數！")
+        sys.exit(1)
+
+    valid_modes = set(RISK_MODE_PRESETS)
+    risk_mode = (os.getenv("RISK_MODE") or cfg.get("risk_mode") or "auto").strip().lower()
+    if risk_mode not in valid_modes:
+        print(f"⚠️ 未知的 RISK_MODE「{risk_mode}」，已回退為 auto")
+        risk_mode = "auto"
+
+    raw = os.getenv("BROKER_DISCOUNT")
+    try:
+        discount = float(raw) if raw not in (None, "") else float(cfg.get("broker_discount", 1.0))
+    except (TypeError, ValueError):
+        print(f"⚠️ BROKER_DISCOUNT「{raw}」無法解析，改用預設值")
+        discount = float(cfg.get("broker_discount", 1.0))
+    discount = max(0.1, min(1.0, discount))
+    cfg["broker_discount"] = discount
+    raw_tax = os.getenv("IS_DAY_TRADE_TAX")
+    if raw_tax not in (None, ""):
+        cfg["is_day_trade_tax"] = raw_tax.strip().lower() in ("1", "true", "yes", "on")
+    else:
+        cfg["is_day_trade_tax"] = bool(cfg.get("is_day_trade_tax", True))
+
+    return {
+        "cfg": cfg, "fugle": FugleService(api_key=fugle_api_key), "gemini": _StrategyDisplay(),
+        "risk_mode": risk_mode, "discount": discount, "day_tax": cfg["is_day_trade_tax"],
+        "force": os.getenv("FORCE_RUN", "").strip().lower() in ("1", "true", "yes", "on"),
+    }
+
+
+def run_once(ctx: Dict) -> str:
+    """
+    執行一輪。回傳狀態字串供迴圈模式判斷：
+      "ok" 正常跑完一輪 / "idle" 目前不需要做事 / "done" 今日已結算（可結束）
+    """
+    cfg, fugle, gemini = ctx["cfg"], ctx["fugle"], ctx["gemini"]
+    discount, day_tax = ctx["discount"], ctx["day_tax"]
+    settings = apply_risk_mode(load_strategy_settings(), ctx["risk_mode"])
+
+    now = get_tw_now()
+    hm = now.strftime("%H:%M")
+    today_str = now.strftime("%Y-%m-%d")
+    trading_day, day_why = market_calendar.is_trading_day(now.date())
+    print("=" * 65)
+    print(f"🕒 {now.strftime('%Y-%m-%d %H:%M:%S')}（{day_why}）｜風險模式 {ctx['risk_mode']}｜"
+          f"最少 {settings['min_votes']} 個獨立家族同向｜手續費折扣 {discount:.2f}")
+
+    is_market_session = ("08:50" <= hm <= "13:30") and trading_day
+
+    # ── 非盤中 ────────────────────────────────────────────────
+    if not is_market_session:
+        if not trading_day and not ctx["force"]:
+            print(f"ℹ️ 今日非交易日（{day_why}），不執行、不覆蓋 index.html。")
+            return "idle"
+        existing = load_dashboard_state(today_str, gemini, fugle, cfg)
+        if existing.get("settled_today"):
+            print(f"ℹ️ 今日 ({today_str}) 已完成收盤結算，直接結束。")
+            return "done"
+        # 補跑：13:25~13:30 視窗沒被觸發到時，盤後任何一輪都補做結算
+        if trading_day and existing.get("wave1_stocks") and hm >= HISTORY_SETTLE_TIME:
+            print(f"⚠️ 今日盤中流程已跑過但尚未結算，現在 {hm} 已過收盤，立即補跑結算。")
+            run_settlement(existing, today_str, gemini, fugle, existing.get("wave1_stocks", []),
+                           existing.get("wave2_stocks", []), existing.get("latest_analysis_records", []),
+                           existing.get("analysis_log", []), existing.get("live_quotes", {}),
+                           existing.get("total_signals", 0), cfg)
+            return "done"
+        if not ctx["force"]:
+            print("ℹ️ 目前不在交易時段，略過（不覆蓋 index.html）。手動測試請勾選 force_run。")
+            return "idle"
+
+        print("\n⚠️ force_run：進入【連線與即時看板測試模式】...")
+        test_stocks = get_free_top_volume_stocks(limit=3)
+        test_analysis = []
+        for s in test_stocks:
+            print(f"   📌 {s['symbol']} {s['name']} (參考價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
+        if test_stocks:
+            test_analysis.append({"symbol": test_stocks[0]["symbol"], "name": test_stocks[0]["name"],
+                                  "signal": "WATCH", "entry": test_stocks[0]["price"], "stop_loss": "-",
+                                  "target": "-", "reason": "純技術指標策略已載入"})
+        safe_render(status_text="非盤中連線測試（僅測3檔，平日盤中將完整執行8檔選股）",
+                    active_model=gemini.active_model, wave1_stocks=test_stocks, latest_analysis=test_analysis,
+                    analysis_log=existing.get("analysis_log", []), live_quotes=existing.get("live_quotes", {}))
+        print("🎉 測試完成，index.html 已更新。")
+        return "idle"
+
+    # ── 盤中 ──────────────────────────────────────────────────
+    state = load_dashboard_state(today_str, gemini, fugle, cfg)
+    if state.get("settled_today"):
+        print(f"ℹ️ 今日 ({today_str}) 已完成收盤結算，不重複結算。")
+        return "done"
+
+    wave1_stocks, wave2_stocks = state["wave1_stocks"], state["wave2_stocks"]
+    latest_analysis_records, analysis_log = state["latest_analysis_records"], state["analysis_log"]
+    live_quotes = state["live_quotes"]
+    current_stocks = wave2_stocks if wave2_stocks else wave1_stocks
+
+    if hm < ANALYSIS_START_TIME:
+        print(f"尚未到 {ANALYSIS_START_TIME} 開盤選股時間。")
+        persist(state, status_text=f"盤前準備中 (等待 {ANALYSIS_START_TIME})")
+        return "ok"
+
+    # 收盤結算優先於任何選股（避免前面輪次缺失時，13:25 之後的第一輪還跑去重新選股）
+    if hm >= HISTORY_SETTLE_TIME:
+        run_settlement(state, today_str, gemini, fugle, wave1_stocks, wave2_stocks, latest_analysis_records,
+                       analysis_log, live_quotes, state["total_signals"], cfg)
+        return "done"
+
+    # 第一波選股（13:00 後才補選已無意義，不再選）
+    if not wave1_stocks and hm < ANALYSIS_STOP_TIME:
+        print(f"\n⏰ 【第一波段：早盤動能成交量排行選股】")
+        candidates = get_free_top_volume_stocks(limit=13)
+        if candidates:
+            wave1_stocks = filter_out_limit_up_stocks(candidates, fugle, limit=8)
+        else:
+            state["wave1_fail_count"] = int(state.get("wave1_fail_count", 0)) + 1
+            if state["wave1_fail_count"] >= 3:
+                wave1_stocks = load_fallback_stocks(today_str, 8)
+            if not wave1_stocks:
+                print(f"⚠️ 選股失敗（連續 {state['wave1_fail_count']} 次），下一輪重試。")
+                persist(state, status_text=f"選股失敗，下一輪重試（第 {state['wave1_fail_count']} 次）")
+                return "ok"
+        state["wave1_stocks"] = wave1_stocks
+        for s in wave1_stocks:
+            print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)"
+                  f"{' [沿用上次標的]' if s.get('stale') else ''}")
+        persist(state, status_text="早盤第一波監控中" + ("（沿用上次標的）" if wave1_stocks and wave1_stocks[0].get("stale") else ""),
+                wave1_stocks=wave1_stocks)
+        print("✅ 本輪次（選股）執行完畢。")
+        return "ok"
+
+    # 第二波重挑
+    if MID_WAVE_TRIGGER_TIME <= hm < ANALYSIS_STOP_TIME and wave1_stocks and not state["mid_wave_triggered"]:
+        print(f"\n⏰ 【第二波段：中盤換手與輪動股票重挑】")
+        candidates = get_free_top_volume_stocks(limit=13)
+        wave2_stocks = filter_out_limit_up_stocks(candidates, fugle, limit=8) if candidates else []
+        if not wave2_stocks:
+            state["wave2_fail_count"] = int(state.get("wave2_fail_count", 0)) + 1
+            if state["wave2_fail_count"] < 3:
+                print(f"⚠️ 中盤選股失敗（第 {state['wave2_fail_count']} 次），下一輪重試。")
+                persist(state, status_text="中盤選股失敗，下一輪重試")
+                return "ok"
+            print("⚠️ 中盤選股連續失敗，沿用第一波標的。")
+        state["wave2_stocks"] = wave2_stocks
+        state["mid_wave_triggered"] = True
+        persist(state, status_text="中盤第二波監控中", wave2_stocks=wave2_stocks)
+        print("✅ 本輪次（中盤重挑）執行完畢。")
+        return "ok"
+
+    # 13:00 後且無持倉：不再分析
+    if hm >= ANALYSIS_STOP_TIME and not state.get("open_positions"):
+        print(f"已過 {ANALYSIS_STOP_TIME}，停止新進場，等待 {HISTORY_SETTLE_TIME} 收盤結算。")
+        persist(state, status_text=f"已停止新進場 (等待 {HISTORY_SETTLE_TIME} 收盤結算)")
+        return "ok"
+
+    # 同一分鐘內重複觸發的保護（60 秒）
+    last_dt = _parse_bucket(state.get("last_analysis_minute_bucket"))
+    if last_dt is not None and (now - last_dt).total_seconds() < 60:
+        print("距上次分析不滿 60 秒，本輪僅同步看板。")
+        persist(state, status_text=f"盤中監控中 ({hm})")
+        return "ok"
+
+    # ── 分析 + 進出場 ───────────────────────────────────────────
+    print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 執行技術策略分析...")
+    open_positions = state.setdefault("open_positions", [])
+    strategy_trades = state.setdefault("strategy_trades", [])
+    seen = {str(s.get("symbol")) for s in current_stocks}
+    monitored = list(current_stocks) + [{"symbol": p["symbol"], "name": p.get("name", p["symbol"])}
+                                        for p in open_positions if str(p.get("symbol")) not in seen]
+    candles_map = fetch_candles_parallel(fugle, [str(s["symbol"]) for s in monitored])
+
+    pending = []  # 本輪所有分析結果；進場候選先收集，掃完全部標的後依「可用資金」統一分配
+    for s_info in monitored:
+        symbol, name = str(s_info["symbol"]), s_info.get("name", s_info["symbol"])
+        try:
+            bars = te.normalize_candles(candles_map.get(symbol))
+            if len(bars) < 5:
+                continue
+            live_quotes[symbol] = {"price": bars[-1]["close"], "updated_at": now.strftime("%H:%M:%S")}
+
+            # ① 先處理出場：掃描「進場後的每一根 K 棒」（含進行中的這根，其高低點是已發生的真實成交）
+            #    出場即釋放資金（本金＋淨損益回到資金池），本輪後面的進場候選就能用到
+            for pos in list(open_positions):
+                if pos.get("symbol") != symbol:
+                    continue
+                hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
+                if not hit:
+                    continue
+                closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+                open_positions.remove(pos)
+                for i in range(len(strategy_trades) - 1, -1, -1):
+                    if strategy_trades[i].get("id") == pos.get("id"):
+                        strategy_trades[i] = closed
+                        break
+                print(f"   {'✅' if hit['reason'] == 'hit_tp' else '🛑'} [持倉出場] {symbol} {hit['reason']} "
+                      f"@ {closed['exit_price']}（{hit['time'][:5]}）淨損益 {closed['pnl_amount']:+,.0f}，"
+                      f"回補資金 {closed.get('position_value') or te.position_value(closed['entry_price'], closed['shares']):,.0f}")
+
+            # ② 訊號只用「已收完」的 K 棒（進行中的分K會重繪）
+            completed = te.drop_incomplete_bar(bars, hm)
+            res = evaluate_strategies(completed, settings)
+            sig = res["signal"]
+            entry_p = res.get("price") or (completed[-1]["close"] if completed else bars[-1]["close"])
+            stop_p, target_p = "-", "-"
+            reason = f"{res.get('strategy_name', '多策略共識')}：{res.get('reason', '')}"
+            cand = None
+            if sig in {"BUY", "SHORT"}:
+                stop_p, target_p = position_levels(sig, float(entry_p), float(res.get("atr") or 0), settings)
+                position, why, show = try_open_position(state, fugle, symbol, name, res, completed, now,
+                                                        settings, discount, day_tax, today_str)
+                if position:
+                    cand = {"position": position, "votes": int((res.get("vote_counts") or {}).get(sig, 0))}
+                elif show:
+                    reason += f"　⛔未進場：{why}"
+                    print(f"   ⛔ [{symbol}] {sig} 未進場：{why}")
+
+            print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
+            record = {"symbol": symbol, "name": name, "signal": sig, "entry": entry_p, "stop_loss": stop_p,
+                      "target": target_p, "reason": reason, "strategy": res.get("strategy_name", "多策略共識"),
+                      "updated_at": now.strftime("%H:%M:%S")}
+            pending.append({"record": record, "cand": cand})
+        except Exception as ex:
+            import traceback
+            print(f"  [{symbol}] 分析異常: {ex}")
+            traceback.print_exc()
+
+    # ③ 資金分配：同一輪若有多檔訊號，依「獨立票數 → 淨賺賠比」排序，資金用完為止；
+    #    資金不足一張的縮減張數，買不起就略過（原因會寫在該檔的分析理由裡）
+    initial_cap = float((state.get("capital") or {}).get("initial") or get_daily_capital(settings))
+    snap = te.capital_snapshot(initial_cap, strategy_trades, live_quotes, discount, day_tax)
+    cands = [p["cand"] for p in pending if p["cand"]]
+    if cands:
+        print(f"   💰 可用資金 {snap['cash']:,.0f} / 本金 {snap['initial']:,.0f}，本輪進場候選 {len(cands)} 檔")
+        allocs = {id(a["candidate"]): a for a in te.allocate_candidates(
+            cands, snap["cash"], len(open_positions), settings["max_open_positions"], discount, day_tax, settings)}
+        for p in pending:
+            if not p["cand"]:
+                continue
+            a = allocs[id(p["cand"])]
+            pos = a["position"]
+            if pos:
+                open_positions.append(pos)
+                strategy_trades.append(pos.copy())
+                state["total_signals"] = int(state.get("total_signals", 0)) + 1
+                p["record"]["reason"] += f"　💰 進場 {pos['shares']:,} 股，佔用資金 {pos['position_value']:,.0f} 元"
+                print(f"   👉 [進場] {pos['symbol']} {pos['signal']} {pos['shares']}股 @ {pos['entry_price']} "
+                      f"SL {pos['stop_loss']} / TP {pos['take_profit']}｜佔用 {pos['position_value']:,.0f}｜"
+                      f"預期淨賺 {pos['expected_net_win']:+,.0f} / 淨賠 -{pos['expected_net_loss']:,.0f}"
+                      f"（淨賺賠比 {pos['net_rr']}）{' [資金不足已縮減張數]' if pos.get('downsized') else ''}")
+            else:
+                p["record"]["reason"] += f"　⛔未進場：{a['why']}"
+                print(f"   ⛔ [{p['record']['symbol']}] 未進場：{a['why']}")
+
+    for p in pending:
+        latest_analysis_records = upsert_analysis_record(latest_analysis_records, p["record"])
+        analysis_log = append_analysis_log(analysis_log, p["record"])
+
+    update_capital(state, settings, now.strftime("%H:%M:%S"), cfg, live_quotes)
+
+    state.update(wave1_stocks=wave1_stocks, wave2_stocks=wave2_stocks, latest_analysis_records=latest_analysis_records,
+                 analysis_log=analysis_log, live_quotes=live_quotes, open_positions=open_positions,
+                 strategy_trades=strategy_trades, last_analysis_minute_bucket=now.strftime("%Y-%m-%d %H:%M:%S"))
+    persist(state, status_text=f"盤中分析中 ({hm})")
+    print("✅ 本輪次（技術指標分析）執行完畢。")
+    return "ok"
+
+
+# ═════════════════════════════════════════════════════════════════
+#  進入點：single（預設，一次觸發跑一輪）/ loop（單一 job 內每 60 秒一輪）
+# ═════════════════════════════════════════════════════════════════
+def _commit_push():
+    """loop 模式在 job 內定期推送，讓網站維持近即時更新。"""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "commit_push.sh")
+    if os.getenv("GITHUB_ACTIONS") and os.path.exists(script):
+        import subprocess
+        try:
+            subprocess.run(["bash", script], check=False, timeout=180)
+        except Exception as e:
+            print(f"⚠️ 中途推送失敗（不影響交易流程）: {e}")
+
+
+def run_loop(ctx: Dict):
+    interval = int(os.getenv("LOOP_INTERVAL_SEC", "60"))
+    end_hm = os.getenv("LOOP_END_TIME", "13:32")
+    commit_every = int(os.getenv("COMMIT_EVERY_MIN", "5"))
+    last_commit = time.monotonic()
+    print(f"🔁 loop 模式：每 {interval} 秒一輪，{end_hm} 結束，每 {commit_every} 分鐘推送一次")
+    while get_tw_now().strftime("%H:%M") <= end_hm:
+        t0 = time.monotonic()
+        try:
+            status = run_once(ctx)
+        except SystemExit:
+            raise
+        except Exception as e:  # 單輪失敗不可讓整個迴圈死掉
+            import traceback
+            print(f"⚠️ 本輪發生未預期錯誤，60 秒後重試: {e}")
+            traceback.print_exc()
+            status = "ok"
+        if status == "done":
+            break
+        if status == "idle" and not market_calendar.is_trading_day(get_tw_now().date())[0] and not ctx["force"]:
+            break
+        if commit_every > 0 and time.monotonic() - last_commit >= commit_every * 60:
+            _commit_push()
+            last_commit = time.monotonic()
+        time.sleep(max(1.0, interval - (time.monotonic() - t0)))
+    print("🏁 loop 結束")
 
 
 def main():
     print("=" * 65)
-    print("🚀 [GitHub Actions] 雲端當沖全自動雙波段選股與回測系統啟動")
+    print("🚀 [GitHub Actions] 雲端當沖技術策略系統啟動（v22）")
     print("=" * 65)
-
-    cfg = load_config()
-    strategy_settings = load_strategy_settings()
-    fugle_api_key = os.getenv("FUGLE_API_KEY") or cfg.get("fugle_api_key", "")
-
-    if not fugle_api_key:
-        print("❌ 錯誤：未設定 FUGLE_API_KEY 環境變數！")
-    if not fugle_api_key:
-        sys.exit(1)
-
-    fugle = FugleService(api_key=fugle_api_key)
-    gemini = _StrategyDisplay()
-    print("📈 使用本地技術指標策略；不呼叫 Gemini API")
-
-    # ── 風險模式設定（可用 RISK_MODE 環境變數覆蓋，預設 auto）──────────
-    # 合法值：aggressive / conservative / auto / relaxed（實驗性寬鬆模式）
-    VALID_RISK_MODES = {"aggressive", "conservative", "auto", "relaxed"}
-    RISK_MODE = (os.getenv("RISK_MODE") or cfg.get("risk_mode") or "auto").strip().lower()
-    if RISK_MODE not in VALID_RISK_MODES:
-        print(f"⚠️ 未知的 RISK_MODE 設定值「{RISK_MODE}」，已自動回退為 auto")
-        RISK_MODE = "auto"
-    if RISK_MODE == "relaxed":
-        print("🧪 目前使用【實驗性寬鬆模式】：訊號門檻降低，訊號數量會明顯變多，僅建議測試用途。")
+    ctx = build_context()
+    mode = (os.getenv("RUN_MODE") or "single").strip().lower()
+    if "--loop" in sys.argv:
+        mode = "loop"
+    if mode == "loop":
+        run_loop(ctx)
     else:
-        print(f"⚙️ 目前使用風險模式：{RISK_MODE}")
+        run_once(ctx)
 
-    # ── 手續費折扣 / 當沖證交稅設定（v20 新增，可用環境變數覆蓋）───────
-    # config.json 已被 .gitignore 排除、不會推上雲端，雲端這裡永遠只會
-    # 讀到 DEFAULT_CONFIG 裡的預設折扣值。為了讓使用者不用碰版控檔案
-    # 也能調整自己實際的手續費折數，比照 RISK_MODE 的做法，開放用
-    # GitHub Actions 的 Repo Variables（Settings > Secrets and
-    # variables > Actions > Variables）設定 BROKER_DISCOUNT /
-    # IS_DAY_TRADE_TAX 來覆蓋，沒有設定時才退回 config.py 的預設值。
-    # 折扣範圍強制夾在 0.1~1.0 之間，避免打錯數字（例如打成 60 而不是
-    # 0.6）導致手續費暴增或變成負數。
-    try:
-        broker_discount_raw = os.getenv("BROKER_DISCOUNT")
-        broker_discount = float(broker_discount_raw) if broker_discount_raw not in (None, "") else float(cfg.get("broker_discount", 1.0))
-    except (TypeError, ValueError):
-        print(f"⚠️ BROKER_DISCOUNT 設定值「{broker_discount_raw}」無法解析為數字，已改用預設值。")
-        broker_discount = float(cfg.get("broker_discount", 1.0))
-    broker_discount = max(0.1, min(1.0, broker_discount))
-    cfg["broker_discount"] = broker_discount
-
-    is_day_trade_tax_raw = os.getenv("IS_DAY_TRADE_TAX")
-    if is_day_trade_tax_raw is not None and is_day_trade_tax_raw != "":
-        is_day_trade_tax = is_day_trade_tax_raw.strip().lower() in ("1", "true", "yes", "on")
-    else:
-        is_day_trade_tax = bool(cfg.get("is_day_trade_tax", True))
-    cfg["is_day_trade_tax"] = is_day_trade_tax
-
-    tax_rate_display = "0.15%（當沖減半）" if is_day_trade_tax else "0.3%（一般稅率）"
-    print(f"💰 手續費折扣：{broker_discount:.2f}（單向費率 0.1425% × {broker_discount:.2f}）　"
-          f"證交稅率：{tax_rate_display}")
-
-    now = get_tw_now()
-    hm = now.strftime("%H:%M")
-    is_weekend = now.weekday() >= 5
-    today_str = now.strftime("%Y-%m-%d")
-
-    print(f"🕒 當前台灣時間: {now.strftime('%Y-%m-%d %H:%M:%S')} (星期{now.weekday()+1})")
-
-    # 模式判斷：若非盤中時間 (如晚上手動測試或週末)，執行快速測試模式
-    is_market_session = ("08:50" <= hm <= "13:30") and not is_weekend
-    if not is_market_session:
-        # 在進入測試模式、覆蓋 index.html 之前，先檢查今天是否已經完成過 13:25 收盤結算。
-        # 若已結算過，代表今天的正式流程已跑完，之後 cron 若仍持續每 5 分鐘觸發（收盤後、
-        # 隔天開盤前皆然），絕對不能再讓測試模式把正式的收盤結算頁面覆蓋掉。
-        existing_state = load_dashboard_state(today_str, gemini, fugle, cfg)
-        if existing_state.get("settled_today"):
-            print(f"\nℹ️ 今日 ({today_str}) 已完成 13:25 收盤結算，非盤中時段不再執行測試模式、"
-                  f"也不覆蓋 index.html，直接結束本輪。")
-            return
-
-        # ── 收盤結算補跑機制 ──────────────────────────────────────────
-        # 修復說明：原本收盤結算 (hm >= "13:25") 只有在 is_market_session
-        # (08:50~13:30) 範圍內才會被檢查，也就是說只有 13:25、13:30 這兩次
-        # 排程（每 5 分鐘觸發一次）有機會執行到。只要這個 5 分鐘視窗剛好因為
-        # GitHub Actions 排隊延遲、API 逾時等原因沒有任何一次成功跑完整段
-        # 結算流程，settled_today 就永遠不會被設成 True，之後每一輪都會被
-        # 判定為「非盤中時段」而走向這裡，用測試資料覆蓋掉本應顯示的正式
-        # 收盤結算頁面——這正是「已經收盤卻一直看到測試資料」的根本原因。
-        #
-        # 修法：只要偵測到「今天已經有正式盤中流程跑過 (wave1_stocks 非空，
-        # 代表不是還沒開盤的凌晨/盤前時段) 但尚未結算」，且現在時間已經在
-        # 收盤時間之後 (>= 13:25)，不管是不是週末判斷出的非盤中時段、
-        # 也不管現在到底幾點，都在這裡直接補跑一次收盤結算，而不是放著
-        # 讓測試模式覆蓋畫面、一路等到隔天才恢復正常。
-        if existing_state.get("wave1_stocks") and hm >= HISTORY_SETTLE_TIME:
-            print(f"\n⚠️ 偵測到今日 ({today_str}) 已執行過盤中流程，但尚未完成收盤結算"
-                  f"（可能是 {HISTORY_SETTLE_TIME}~13:30 的結算視窗剛好沒有排程準時觸發成功）。"
-                  f"現在時間 {hm} 已過收盤，立即補跑一次收盤結算，避免頁面繼續顯示測試資料。")
-            run_settlement(
-                existing_state, today_str, gemini, fugle,
-                existing_state.get("wave1_stocks", []),
-                existing_state.get("wave2_stocks", []),
-                existing_state.get("latest_analysis_records", []),
-                existing_state.get("analysis_log", []),
-                existing_state.get("live_quotes", {}),
-                existing_state.get("total_signals", 0),
-                cfg,
-            )
-            return
-
-        print("\n⚠️ 目前非台股盤中交易時間 (09:00~13:30)，進入【連線與即時看板測試模式】...")
-        test_stocks = get_free_top_volume_stocks(limit=3)
-        print("🔍 測試 Yahoo 成交量排行抓取：")
-        for s in test_stocks:
-            print(f"   📌 {s['symbol']} {s['name']} (參考價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
-        
-        ai_reply = "純技術指標策略已載入"
-        test_analysis = []
-        if test_stocks:
-            test_sym = test_stocks[0]["symbol"]
-            print(f"\n🔍 測試 Fugle 日K線抓取 ({test_sym})：")
-            try:
-                daily = fugle.get_historical_candles(test_sym)
-                daily_len = len(daily.get("data", [])) if daily else 0
-                print(f"   ✅ 富果 API 連線成功！取得 {daily_len} 根日K")
-            except Exception as e:
-                print(f"   ❌ 富果日K抓取異常: {e}")
-
-            test_analysis.append({
-                "symbol": test_sym,
-                "name": test_stocks[0]["name"],
-                "signal": "WATCH",
-                "entry": test_stocks[0]["price"],
-                "stop_loss": "-",
-                "target": "-",
-                "reason": ai_reply,
-            })
-
-        # 渲染出初始 index.html。這裡額外把 existing_state 內既有的 analysis_log 一併帶入，
-        # 避免非盤中測試模式重新整理畫面時，把白天盤中已經累積的「展開查看歷史分析」
-        # 按鈕暫時性地清空不見（latest_analysis 維持原本邏輯不變，僅補上 analysis_log）。
-        render_html_dashboard(
-            status_text="非盤中連線測試（僅測3檔，平日盤中將完整執行8檔選股）",
-            active_model=gemini.active_model,
-            wave1_stocks=test_stocks,
-            latest_analysis=test_analysis,
-            analysis_log=existing_state.get("analysis_log", []),
-            live_quotes=existing_state.get("live_quotes", {})
-        )
-
-        print("\n🎉 GitHub Actions 測試驗證全數通過！專屬網頁 index.html 已更新。")
-        return
-
-    # ── 正式盤中運作流程（v4.0：單輪執行模式）──────────────────────
-    # 讀取上一輪次留下的狀態（同一交易日內累積），這是讓分析紀錄能夠「累加」
-    # 而不是每次觸發都從零開始、只顯示最新幾筆的關鍵。
-    state = load_dashboard_state(today_str, gemini, fugle, cfg)
-    wave1_stocks = state["wave1_stocks"]
-    wave2_stocks = state["wave2_stocks"]
-    mid_wave_triggered = state["mid_wave_triggered"]
-    latest_analysis_records = state["latest_analysis_records"]
-    analysis_log = state["analysis_log"]
-    live_quotes = state["live_quotes"]
-    total_signals = state["total_signals"]
-    last_bucket = state["last_analysis_minute_bucket"]
-
-    current_stocks = wave2_stocks if wave2_stocks else wave1_stocks
-
-    # 盤前 (08:50~09:04)：只更新「準備中」狀態，不抓股也不分析
-    if hm < ANALYSIS_START_TIME:
-        print(f"[{now.strftime('%H:%M:%S')}] 尚未到 {ANALYSIS_START_TIME} 開盤選股時間，僅更新盤前準備狀態。")
-        render_html_dashboard(
-            status_text=f"盤前準備中 (等待 {ANALYSIS_START_TIME})",
-            active_model=gemini.active_model,
-            wave1_stocks=wave1_stocks,
-            wave2_stocks=wave2_stocks,
-            latest_analysis=latest_analysis_records,
-            analysis_log=analysis_log,
-            live_quotes=live_quotes,
-            total_signals=total_signals,
-            open_positions=state.get("open_positions", []),
-            strategy_trades=state.get("strategy_trades", [])
-        )
-        save_dashboard_state(state)
-        return
-
-    # ANALYSIS_START_TIME (09:05) 首次觸發：第一波段選股 (只在 wave1_stocks 還是空的時候做一次)
-    if hm >= ANALYSIS_START_TIME and not wave1_stocks:
-        print(f"\n⏰ 達到 {ANALYSIS_START_TIME}，開始執行【第一波段：早盤動能成交量排行選股】...")
-        # 多抓幾檔候選 (limit+5)，排除漲停股後仍有機會湊滿 limit 檔，
-        # 避免「候選8檔剛好有2檔漲停」導致最終監控標的縮水成6檔。
-        wave1_candidates = get_free_top_volume_stocks(limit=13)
-        wave1_stocks = filter_out_limit_up_stocks(wave1_candidates, fugle, limit=8)
-        current_stocks = wave1_stocks
-        print(f"🔥 早盤 09:15 已鎖定標的：")
-        for s in wave1_stocks:
-            print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
-
-        state["wave1_stocks"] = wave1_stocks
-        render_html_dashboard(
-            status_text="早盤第一波監控中",
-            active_model=gemini.active_model,
-            wave1_stocks=wave1_stocks,
-            latest_analysis=latest_analysis_records,
-            analysis_log=analysis_log,
-            live_quotes=live_quotes,
-            total_signals=total_signals,
-            open_positions=state.get("open_positions", []),
-            strategy_trades=state.get("strategy_trades", [])
-        )
-        save_dashboard_state(state)
-        # 選股完當輪就結束，讓 workflow 立即 commit/push，下一次 5 分鐘後的觸發再繼續分析
-        print("✅ 本輪次（選股）執行完畢。")
-        return
-
-    # 10:30 觸發：第二波段重挑股票 (只做一次)
-    if hm >= MID_WAVE_TRIGGER_TIME and not mid_wave_triggered:
-        print(f"\n⏰ 達到 {MID_WAVE_TRIGGER_TIME}，開始執行【第二波段：中盤換手與輪動股票重挑】...")
-        # 同上：多抓候選再過濾漲停，避免湊不滿 8 檔
-        wave2_candidates = get_free_top_volume_stocks(limit=13)
-        wave2_stocks = filter_out_limit_up_stocks(wave2_candidates, fugle, limit=8)
-        if wave2_stocks:
-            current_stocks = wave2_stocks
-            print(f"🔥 中盤 10:30 已更新監控標的：")
-            for s in wave2_stocks:
-                print(f"   📌 {s['symbol']} {s['name']} (現價: {s['price']} 元, 成交量: {s.get('volume', 0):,} 張)")
-
-        mid_wave_triggered = True
-        state["wave2_stocks"] = wave2_stocks
-        state["mid_wave_triggered"] = True
-        render_html_dashboard(
-            status_text="中盤第二波監控中",
-            active_model=gemini.active_model,
-            wave1_stocks=wave1_stocks,
-            wave2_stocks=wave2_stocks,
-            latest_analysis=latest_analysis_records,
-            analysis_log=analysis_log,
-            live_quotes=live_quotes,
-            total_signals=total_signals,
-            open_positions=state.get("open_positions", []),
-            strategy_trades=state.get("strategy_trades", [])
-        )
-        save_dashboard_state(state)
-        print("✅ 本輪次（中盤重挑）執行完畢。")
-        return
-
-    # 13:25 (或之後)：收盤回放結算 (只做一次；用 settled_today 判斷本日是否已結算過)
-    if hm >= HISTORY_SETTLE_TIME:
-        run_settlement(state, today_str, gemini, fugle, wave1_stocks, wave2_stocks,
-                        latest_analysis_records, analysis_log, live_quotes, total_signals, cfg)
-        return
-
-    # 13:00 (或之後，但還沒到 13:25 收盤結算)：AI 分析截止，不再丟給 AI 判斷。
-    # 當沖需要留時間完成「進場→出場」的來回，尾盤時間太短即使 AI 判斷出訊號
-    # 也很難真正走完一趟當沖，因此 13:00 後只單純更新看板顯示目前狀態、
-    # 等待 13:25 的收盤回放結算，不再消耗 AI 額度做新的盤中判斷。
-    if hm >= ANALYSIS_STOP_TIME and not state.get("open_positions"):
-        print(f"[{now.strftime('%H:%M:%S')}] 已過 {ANALYSIS_STOP_TIME}，停止新進場，等待 {HISTORY_SETTLE_TIME} 收盤結算。")
-        render_html_dashboard(
-            status_text=f"AI 分析已截止 (等待 {HISTORY_SETTLE_TIME} 收盤結算)",
-            active_model=gemini.active_model,
-            wave1_stocks=wave1_stocks,
-            wave2_stocks=wave2_stocks,
-            latest_analysis=latest_analysis_records,
-            analysis_log=analysis_log,
-            live_quotes=live_quotes,
-            total_signals=total_signals,
-            open_positions=state.get("open_positions", []),
-            strategy_trades=state.get("strategy_trades", [])
-        )
-        save_dashboard_state(state)
-        return
-
-    # ANALYSIS_START_TIME ~ ANALYSIS_STOP_TIME 盤中：每 10 分鐘執行一次分析
-    # (v20 調整後目標約為 09:05, 09:15, 09:25 ... 12:55，13:00 起不再進行新的 AI 分析，
-    #  實際觸發時間仍取決於 GitHub Actions 排程間隔與 queue latency)
-    # v4.1 修正說明：
-    # ────────────
-    # 舊版用 `now.minute % 10 == 0` 判斷「是否剛好命中整 10 分鐘」，前提是 GitHub Actions
-    # 每次都能準時在整 10 分鐘那一刻開始執行。但實際上 workflow_dispatch 從被 cron-job.org
-    # 呼叫、到 runner 排隊分配、再到 python 腳本真正開始跑，中間常有數十秒到數分鐘不等的
-    # queue latency；只要延遲跨過了那一分鐘，現在時間就不再是 10 的倍數，導致 current_bucket
-    # 直接變成 None、本輪整個跳過分析——而且因為沒有補跑機制，這個 10 分鐘窗口就永久錯過了。
-    # 這是先前「一整天只分析到一次」的根本原因。
-    #
-    # 新版改用「距離上次分析是否已經過了至少 10 分鐘」的時間差來判斷，不再要求分鐘數剛好
-    # 對上整數，只要間隔滿足就觸發，對排隊延遲有完整容錯空間。
-    last_bucket_dt = None
-    if last_bucket:
-        try:
-            try:
-                parsed_last = datetime.datetime.strptime(last_bucket, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                parsed_last = datetime.datetime.strptime(last_bucket, "%Y-%m-%d %H:%M")
-            last_bucket_dt = TW_TZ.localize(parsed_last)
-        except Exception as e:
-            print(f"⚠️ 解析上次分析時間戳記「{last_bucket}」失敗，視為尚未分析過: {e}")
-            last_bucket_dt = None
-
-    ANALYSIS_INTERVAL_SECONDS = 60
-    if last_bucket_dt is None:
-        should_analyze = True
-        seconds_since_last = None
-    else:
-        seconds_since_last = (now - last_bucket_dt).total_seconds()
-        should_analyze = seconds_since_last >= ANALYSIS_INTERVAL_SECONDS
-
-    current_bucket = now.strftime("%Y-%m-%d %H:%M:%S") if should_analyze else last_bucket
-
-    if not should_analyze:
-        remain = ANALYSIS_INTERVAL_SECONDS - seconds_since_last if seconds_since_last is not None else None
-        remain_msg = f"，距下次分析還需約 {int(remain // 60)} 分 {int(remain % 60)} 秒" if remain is not None else ""
-        print(f"[{now.strftime('%H:%M:%S')}] 距上次分析 ({last_bucket}) 尚未滿 60 秒{remain_msg}，本輪次僅同步目前看板狀態。")
-        render_html_dashboard(
-            status_text=f"盤中監控中 ({now.strftime('%H:%M')})",
-            active_model=gemini.active_model,
-            wave1_stocks=wave1_stocks,
-            wave2_stocks=wave2_stocks,
-            latest_analysis=latest_analysis_records,
-            analysis_log=analysis_log,
-            live_quotes=live_quotes,
-            total_signals=total_signals,
-            open_positions=state.get("open_positions", []),
-            strategy_trades=state.get("strategy_trades", []),
-        )
-        save_dashboard_state(state)
-        return
-
-    print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 執行每 60 秒技術策略分析...")
-    open_positions = state.setdefault("open_positions", [])
-    strategy_trades = state.setdefault("strategy_trades", [])
-    shares = int(cfg.get("trade_shares", 1000))
-    fee_rate = 0.001425 * broker_discount
-    tax_rate = 0.0015 if is_day_trade_tax else 0.003
-    # 持倉股票即使已離開最新選股池也持續取K線監控，直到停利、停損或收盤。
-    symbols_seen = {str(s.get("symbol")) for s in current_stocks}
-    monitored_stocks = list(current_stocks) + [
-        {"symbol": p["symbol"], "name": p.get("name", p["symbol"])}
-        for p in open_positions if str(p.get("symbol")) not in symbols_seen
-    ]
-    for s_info in monitored_stocks:
-        symbol = s_info["symbol"]
-        name = s_info["name"]
-        try:
-            candles_raw = fugle.get_intraday_candles(symbol, force_refresh=True)
-            candles = candles_raw.get("data", []) if candles_raw else []
-            if not candles or len(candles) < 5:
-                continue
-
-            # 記錄這一輪抓到的最新分K收盤價，做為「即時損益」計算的參考價。
-            # 用同一輪已經抓好的 candles，不用額外呼叫 API：candles[-1]["close"]
-            # 就是目前最新的成交價。不論這一輪分析結果是不是有訊號都會更新，
-            # 讓「展開歷史分析」清單裡，即使某檔股票的訊號後來轉為觀望，
-            # 先前留下的 BUY/SHORT 歷史紀錄一樣能對到最新的參考價計算損益。
-            live_quotes[symbol] = {
-                "price": candles[-1]["close"],
-                "updated_at": now.strftime("%H:%M:%S"),
-            }
-
-            res = evaluate_strategies(candles, strategy_settings)
-            sig = res["signal"]
-            entry_p = res.get("price") or candles[-1]["close"]
-            stop_p, target_p = ("-", "-")
-            if sig in {"BUY", "SHORT"}:
-                stop_p, target_p = position_levels(sig, float(entry_p), float(res.get("atr") or 0), strategy_settings)
-            reason = f"{res.get('strategy_name', '多策略共識')}：{res.get('reason', '')}"
-
-            print(f"  [{symbol} {name}] 訊號: {sig} | 進場: {entry_p} | 停損: {stop_p} | 停利: {target_p}")
-
-            analysis_record = {
-                "symbol": symbol,
-                "name": name,
-                "signal": sig,
-                "entry": entry_p,
-                "stop_loss": stop_p,
-                "target": target_p,
-                "reason": reason,
-                "strategy": res.get("strategy_name", "多策略共識"),
-                "updated_at": now.strftime("%H:%M:%S")
-            }
-
-            # 用 upsert 併入「即時總覽」清單：同一檔股票覆蓋更新為最新狀態，
-            # 讓即時看板顯示的是「當日所有被分析過的股票目前最新結果」
-            latest_analysis_records = upsert_analysis_record(latest_analysis_records, analysis_record)
-
-            # 同時 append 進「完整歷程」清單：同一檔股票每一輪都各自保留一筆，不覆蓋。
-            # 這是修復先前問題的關鍵——之前只有 upsert 這份會覆蓋掉中間所有分析輪次，
-            # 收盤快照也只存到覆蓋後的最後一筆。現在完整歷程獨立保存，收盤與盤中
-            # 查詢都能回溯每檔股票今天每一次分析的變化。
-            analysis_log = append_analysis_log(analysis_log, analysis_record)
-
-            # 出現買賣訊號時寫入歷史紀錄
-            already_open = any(p.get("symbol") == symbol for p in open_positions)
-            if now.strftime("%H:%M") < ANALYSIS_STOP_TIME and sig in {"BUY", "SHORT"} and not already_open and len(open_positions) < strategy_settings["max_open_positions"]:
-                total_signals += 1
-                position = {
-                    "id": f"{today_str}_{symbol}_{now.strftime('%H%M%S')}", "symbol": symbol,
-                    "name": name, "signal": sig, "direction": "做多" if sig == "BUY" else "放空",
-                    "strategy": res.get("strategy", ""), "strategy_name": res.get("strategy_name", "多策略共識"),
-                    "strategy_votes": res.get("strategy_votes", []), "entry_price": round(float(entry_p), 2),
-                    "stop_loss": stop_p, "take_profit": target_p, "shares": shares,
-                    "entry_time": now.strftime("%H:%M:%S"), "status": "open", "reason": reason,
-                }
-                open_positions.append(position)
-                strategy_trades.append(position.copy())
-                print(f"   👉 [策略進場] {symbol} {sig} / {position['strategy_name']} / SL {stop_p} / TP {target_p}")
-
-            # 每一輪以最新1分K的區間高低價偵測出場；同根同時觸及時保守計為停損。
-            bar = candles[-1]
-            for pos in list(open_positions):
-                if pos.get("symbol") != symbol:
-                    continue
-                if pos.get("entry_time") == now.strftime("%H:%M:%S"):
-                    continue  # 進場在本根K線收盤，避免拿進場前的高低價判斷出場。
-                long_side = pos.get("signal") == "BUY"
-                hit_sl = float(bar["low"]) <= float(pos["stop_loss"]) if long_side else float(bar["high"]) >= float(pos["stop_loss"])
-                hit_tp = float(bar["high"]) >= float(pos["take_profit"]) if long_side else float(bar["low"]) <= float(pos["take_profit"])
-                exit_reason = "hit_sl" if hit_sl else "hit_tp" if hit_tp else None
-                if exit_reason:
-                    exit_price = float(pos["stop_loss"] if hit_sl else pos["take_profit"])
-                    gross = (exit_price - float(pos["entry_price"])) * shares * (1 if long_side else -1)
-                    costs = max(float(pos["entry_price"]) * shares * fee_rate, 20) + max(exit_price * shares * fee_rate, 20)
-                    costs += (exit_price if long_side else float(pos["entry_price"])) * shares * tax_rate
-                    closed = {**pos, "status": "closed", "exit_price": round(exit_price, 2), "exit_time": now.strftime("%H:%M:%S"),
-                              "exit_reason": exit_reason, "pnl_amount": round(gross - costs, 2), "result": "win" if gross - costs > 0 else "loss"}
-                    open_positions.remove(pos)
-                    for index in range(len(strategy_trades)-1, -1, -1):
-                        if strategy_trades[index].get("id") == pos.get("id"):
-                            strategy_trades[index] = closed
-                            break
-                    print(f"   {'✅' if hit_tp else '🛑'} [持倉出場] {symbol} {exit_reason} @ {exit_price} 損益 {closed['pnl_amount']}")
-
-            time.sleep(2)
-
-        except Exception as ex:
-            print(f"  [{symbol}] 分析異常: {ex}")
-
-    state["wave1_stocks"] = wave1_stocks
-    state["wave2_stocks"] = wave2_stocks
-    state["mid_wave_triggered"] = mid_wave_triggered
-    state["latest_analysis_records"] = latest_analysis_records
-    state["analysis_log"] = analysis_log
-    state["live_quotes"] = live_quotes
-    state["total_signals"] = total_signals
-    state["open_positions"] = open_positions
-    state["strategy_trades"] = strategy_trades
-    state["last_analysis_minute_bucket"] = current_bucket
-
-    render_html_dashboard(
-        status_text=f"盤中分析中 ({now.strftime('%H:%M')})",
-        active_model=gemini.active_model,
-        wave1_stocks=wave1_stocks,
-        wave2_stocks=wave2_stocks,
-        latest_analysis=latest_analysis_records,
-        analysis_log=analysis_log,
-        live_quotes=live_quotes,
-        total_signals=total_signals,
-        open_positions=open_positions,
-        strategy_trades=strategy_trades,
-    )
-    save_dashboard_state(state)
-    print("✅ 本輪次（技術指標分析）執行完畢。")
 
 if __name__ == "__main__":
     main()
