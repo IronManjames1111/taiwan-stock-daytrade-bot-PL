@@ -205,14 +205,14 @@ def _minutes(hms: str) -> Optional[int]:
 
 def can_enter(symbol: str, trades: List[Dict], now_hm: str, settings: Dict) -> Tuple[bool, str]:
     """
-    重複進場限制（v23 放寬）：
-      • 每檔每日進場次數上限 max_entries_per_symbol（預設 5）
-      • 冷卻 cooldown_minutes（預設 5 分鐘）；cooldown_after_stop_only=True 時只有「停損出場」後才冷卻，
-        停利出場後趨勢仍在可以立刻再進。
+    重複進場限制：
+      • max_entries_per_symbol=0 時不限制每日進場次數；正數時才啟用上限。
+      • cooldown_minutes=0 時不限制出場後冷卻；正數時依設定冷卻。
     """
     mine = [t for t in trades if t.get("symbol") == symbol]
-    if len(mine) >= settings["max_entries_per_symbol"]:
-        return False, f"今日已進場 {len(mine)} 次，達每檔上限 {settings['max_entries_per_symbol']}"
+    entry_limit = int(settings.get("max_entries_per_symbol", 0) or 0)
+    if entry_limit > 0 and len(mine) >= entry_limit:
+        return False, f"今日已進場 {len(mine)} 次，達每檔上限 {entry_limit}"
     now_m = _minutes(now_hm)
     cooldown = settings["cooldown_minutes"]
     stop_only = settings.get("cooldown_after_stop_only", True)
@@ -225,7 +225,8 @@ def can_enter(symbol: str, trades: List[Dict], now_hm: str, settings: Dict) -> T
             continue
         ex = _minutes(t["exit_time"])
         if ex is not None and 0 <= now_m - ex < cooldown:
-            return False, f"{t['exit_time'][:5]} 停損出場，冷卻 {cooldown} 分鐘內不再進場"
+            exit_label = "停損出場" if t.get("exit_reason") == "hit_sl" else "前次出場"
+            return False, f"{t['exit_time'][:5]} {exit_label}，冷卻 {cooldown} 分鐘內不再進場"
     return True, ""
 
 

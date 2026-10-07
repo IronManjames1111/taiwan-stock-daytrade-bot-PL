@@ -36,22 +36,22 @@ DEFAULT_SETTINGS = {
     "min_votes": 2,              # 至少幾個「獨立家族」同向才進場（原為 1：任一策略觸發就進場）
     "min_vote_margin": 1,
     "count_by_family": True,     # True=同家族只算 1 票；False=沿用舊的逐策略計票
-    "volume_multiple": 1.0,
+    "volume_multiple": 1.2,
     "min_bars": 14,
     "stop_atr": 1.25,
     "target_atr": 1.8,
     "max_open_positions": 8,
     # ── 成本與風險控管（新增）──
     "min_target_cost_multiple": 3.0,  # 停利價差（毛）至少是來回成本的幾倍
-    "min_net_rr": 0.8,                # 扣成本後 淨賺 / 淨賠 至少多少
+    "min_net_rr": 1.0,                # 扣成本後 淨賺 / 淨賠至少 1:1
     "sizing_mode": "fixed_risk",      # fixed_risk / fixed_amount / fixed_shares
     "risk_per_trade": 2000.0,         # fixed_risk：每筆最大虧損（元，含成本）
     "position_amount": 200000.0,      # fixed_amount：每筆投入金額（元）
     "fixed_shares": 1000,             # fixed_shares：固定股數（舊行為）
     "max_position_value": 700000.0,   # 任一模式的單筆部位金額上限（元）
-    "max_entries_per_symbol": 5,      # 每檔每日最多進場次數（v23 放寬：原 2）
-    "cooldown_minutes": 5,            # 停損出場後，同檔冷卻幾分鐘（v23 放寬：原 15；0=不冷卻）
-    "cooldown_after_stop_only": True, # True=只有停損後才冷卻，停利後可立刻再進
+    "max_entries_per_symbol": 0,      # 0=不限制每日進場次數
+    "cooldown_minutes": 0,            # 0=不限制出場後冷卻
+    "cooldown_after_stop_only": False,
     "daily_capital": 1_000_000.0,     # 每天可用於當沖的本金（元）；每天開盤重置
     "allow_short": True,
     "skip_attention": True,           # 注意股一律不進場
@@ -63,11 +63,52 @@ SIZING_MODES = ("fixed_risk", "fixed_amount", "fixed_shares")
 # auto = 完全使用 strategy_settings.json 的設定，不覆蓋。
 RISK_MODE_PRESETS = {
     "auto": {},
-    "aggressive": {"min_votes": 1, "stop_atr": 1.5, "target_atr": 3.0, "min_net_rr": 0.7},
+    "aggressive": {"min_votes": 2, "volume_multiple": 1.2, "stop_atr": 1.5, "target_atr": 3.0, "min_net_rr": 1.0,
+                    "max_entries_per_symbol": 0, "cooldown_minutes": 0, "cooldown_after_stop_only": False},
     "conservative": {"min_votes": 3, "stop_atr": 0.8, "target_atr": 1.6, "min_net_rr": 1.0,
-                     "max_entries_per_symbol": 2, "cooldown_minutes": 15, "cooldown_after_stop_only": False},
-    "relaxed": {"min_votes": 1, "min_vote_margin": 1, "min_net_rr": 0.5, "min_target_cost_multiple": 2.0},
+                     "max_entries_per_symbol": 0, "cooldown_minutes": 0, "cooldown_after_stop_only": False},
+    "relaxed": {"min_votes": 1, "min_vote_margin": 1, "volume_multiple": 1.2, "min_net_rr": 1.0,
+                "min_target_cost_multiple": 3.0, "max_entries_per_symbol": 0,
+                "cooldown_minutes": 0, "cooldown_after_stop_only": False},
 }
+
+# 五組固定設定，供每日並行影子交易；每組有獨立持倉與本金，能公平比較策略組合。
+EXPERIMENT_MODE_CONFIGS = {
+    "vwap_momentum": {
+        "name": "VWAP 動能確認",
+        "enabled": ("vwap_momentum", "macd_volume", "ema_momentum", "orb_breakout", "range_breakout"),
+        "settings": {"min_votes": 2, "volume_multiple": 1.2, "stop_atr": 1.1, "target_atr": 2.0, "min_net_rr": 1.0, "max_open_positions": 20},
+    },
+    "trend_pullback": {
+        "name": "EMA 趨勢回檔",
+        "enabled": ("ema_pullback", "ema_momentum", "stochastic_trend", "macd_volume"),
+        "settings": {"min_votes": 2, "volume_multiple": 1.0, "stop_atr": 1.2, "target_atr": 1.8, "min_net_rr": 1.0, "max_open_positions": 20},
+    },
+    "volume_breakout": {
+        "name": "放量區間突破",
+        "enabled": ("orb_breakout", "range_breakout", "vwap_momentum", "macd_volume"),
+        "settings": {"min_votes": 2, "volume_multiple": 1.5, "stop_atr": 1.1, "target_atr": 2.2, "min_net_rr": 1.0, "max_open_positions": 20},
+    },
+    "reversal_confirm": {
+        "name": "RSI 反轉確認",
+        "enabled": ("rsi_reversal", "vwap_momentum", "stochastic_trend"),
+        "settings": {"min_votes": 2, "volume_multiple": 1.1, "stop_atr": 0.9, "target_atr": 1.6, "min_net_rr": 1.0, "max_open_positions": 20},
+    },
+    "all_families": {
+        "name": "全策略家族共識",
+        "enabled": tuple(STRATEGY_NAMES),
+        "settings": {"min_votes": 2, "volume_multiple": 1.2, "stop_atr": 1.25, "target_atr": 2.0, "min_net_rr": 1.0, "max_open_positions": 20},
+    },
+}
+
+
+def experiment_settings() -> Dict[str, Dict]:
+    """回傳五組固定實驗設定；與主策略及使用者當前風險模式分離。"""
+    result = {}
+    for mode_key, mode in EXPERIMENT_MODE_CONFIGS.items():
+        enabled = {key: key in mode["enabled"] for key in STRATEGY_NAMES}
+        result[mode_key] = normalize_settings({**mode["settings"], "enabled_strategies": enabled})
+    return result
 
 
 def apply_risk_mode(settings: Dict, mode: str) -> Dict:
@@ -97,7 +138,7 @@ def normalize_settings(settings: Optional[Dict] = None) -> Dict:
         "position_amount": (10_000.0, 10_000_000.0, float),
         "fixed_shares": (1, 100_000, int),
         "max_position_value": (10_000.0, 20_000_000.0, float),
-        "max_entries_per_symbol": (1, 20, int),
+        "max_entries_per_symbol": (0, 20, int),
         "cooldown_minutes": (0, 240, int),
         "daily_capital": (100_000.0, 1_000_000_000.0, float),
     }
@@ -243,6 +284,10 @@ def evaluate(candles: List[Dict], settings: Optional[Dict] = None) -> Dict:
         other_trend = any(STRATEGY_FAMILY.get(v["key"]) != REVERSAL_FAMILY for v in votes[other])
         if has_rev and other_trend:
             conflict = "逆勢反轉訊號與順勢訊號方向相反，觀望"
+    # 所有方向訊號都必須先通過量能確認，避免 EMA/KD 等未個別檢查量能的策略
+    # 在成交量偏低、容易來回震盪時單獨觸發進場。
+    if side in {"BUY", "SHORT"} and not vol_ok:
+        conflict = f"量能不足（需達近期均量 {cfg['volume_multiple']:.1f} 倍），觀望"
     if conflict or count < cfg["min_votes"] or side == "WATCH" or abs(buy_n - short_n) < cfg["min_vote_margin"]:
         side = "WATCH"
     chosen = votes.get(side, []) if side != "WATCH" else []

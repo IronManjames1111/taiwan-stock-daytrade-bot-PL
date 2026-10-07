@@ -6,7 +6,7 @@ v23 重點（詳見「更新說明_v23.md」）：
   • 每日固定本金資金池（預設 100 萬）：進場扣除佔用資金、出場「本金＋淨損益」回補；
     同輪多檔訊號由程式依票數與淨賺賠比分配資金，不足則縮減張數或略過
   • 儀表板新增「當日資金曲線 / 資金佔用 / 每日資金變化」圖表，資金摘要存於 history_records/capital_history.json
-  • 重複進場放寬：每檔每日 5 次、僅停損後冷卻 5 分鐘
+  • 同檔每日進場次數與出場冷卻預設不設限；新增五組獨立影子策略並行記錄每日績效
 
 v22 重點（詳見「優化說明_v22.md」）：
   • 結算清單改以 strategy_trades 為單一來源（修復收盤後仍顯示「尚未結算」）
@@ -62,7 +62,8 @@ from tw_market_rules import calc_limit_prices as _calc_limit_prices, check_at_li
 from tw_market_rules import extract_symbol_rules, check_entry_allowed
 from indicator_strategies import (DEFAULT_SETTINGS, STRATEGY_NAMES, evaluate as evaluate_strategies,
                                   load_strategy_settings, normalize_settings, position_levels,
-                                  apply_risk_mode, RISK_MODE_PRESETS)
+                                  apply_risk_mode, RISK_MODE_PRESETS, EXPERIMENT_MODE_CONFIGS,
+                                  experiment_settings)
 import trade_engine as te
 import market_calendar
 from dashboard_capital import CAPITAL_CARD_HTML, CAPITAL_JS
@@ -81,6 +82,41 @@ TW_TZ = pytz.timezone("Asia/Taipei")
 class _StrategyDisplay:
     """Compatibility label for legacy dashboard/settlement helpers; no AI calls."""
     active_model = "純技術指標（本地策略）"
+
+
+def new_strategy_experiment_state(date_str: str) -> Dict:
+    """建立五組互相獨立的影子交易帳本，使用固定設定以供跨日比較。"""
+    mode_settings = experiment_settings()
+    return {
+        "date": date_str,
+        "modes": {
+            key: {
+                "name": spec["name"], "settings": mode_settings[key],
+                "open_positions": [], "trades": [], "analysis_log": [],
+                "summary": None,
+            }
+            for key, spec in EXPERIMENT_MODE_CONFIGS.items()
+        },
+    }
+
+
+def ensure_strategy_experiment_state(state: Dict, date_str: str) -> Dict:
+    """補齊舊版或部分損壞的實驗狀態，保留當日已有交易與日誌。"""
+    experiments = state.get("strategy_experiments")
+    if not isinstance(experiments, dict) or experiments.get("date") != date_str:
+        experiments = new_strategy_experiment_state(date_str)
+        state["strategy_experiments"] = experiments
+        return experiments
+    experiments.setdefault("modes", {})
+    defaults = new_strategy_experiment_state(date_str)["modes"]
+    for key, default in defaults.items():
+        mode = experiments["modes"].setdefault(key, default)
+        for field in ("open_positions", "trades", "analysis_log"):
+            if not isinstance(mode.get(field), list):
+                mode[field] = []
+        mode.setdefault("name", default["name"])
+        mode.setdefault("settings", default["settings"])
+    return experiments
 
 # ── 盤中時間節點設定（v20 調整）──────────────────────────────────
 # 集中放在這裡管理，避免同一個時間點散落在程式各處、改一處漏改
@@ -132,6 +168,7 @@ def render_html_dashboard(
     open_positions: List[Dict] = None,
     strategy_trades: List[Dict] = None,
     strategy_settings: Dict = None,
+    strategy_experiments: Dict = None,
     settled: bool = False,
     capital: Dict = None,
     capital_history: List[Dict] = None,
@@ -169,6 +206,7 @@ def render_html_dashboard(
     settle_records = settle_records or []
     open_positions = open_positions or []
     strategy_trades = strategy_trades or []
+    strategy_experiments = strategy_experiments or {}
     strategy_settings = normalize_settings(strategy_settings or load_strategy_settings())
     strategy_labels_html = "".join(
         f'<label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-{key}" class="accent-blue-400">{label}</label>'
@@ -195,6 +233,17 @@ def render_html_dashboard(
         f'<tr><td>{_esc(name)}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{_win_rate_text(stat)}</td><td>{stat["pnl"]:,.0f}</td></tr>'
         for name, stat in sorted(strategy_stats.items(), key=lambda item: (item[1]["entries"], item[1]["pnl"]), reverse=True)
     ) or '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>'
+    experiment_rows = []
+    for mode_key, mode in (strategy_experiments.get("modes") or {}).items():
+        summary = te.summarize_trades(mode.get("trades") or [])
+        win_rate = f"{summary['win_rate'] * 100:.1f}%" if summary["win_rate"] is not None else "-"
+        experiment_rows.append(
+            f'<tr><td class="py-2 px-3">{_esc(mode.get("name") or mode_key)}</td>'
+            f'<td>{summary["entries"]}</td><td>{summary["closed"]}</td><td>{win_rate}</td>'
+            f'<td class="mono">{summary["net_pnl"]:+,.0f}</td>'
+            f'<td>{len(mode.get("open_positions") or [])}</td></tr>'
+        )
+    experiment_stats_html = "".join(experiment_rows) or '<tr><td colspan="6" class="py-2 text-center text-gray-500">尚無平行策略紀錄</td></tr>'
 
     # ── 下載功能：把本次看板的完整原始資料打包成 JSON，供頁面右上角下載按鈕使用 ──
     # today_str 一併放入 payload：供前端日期切換選單判斷「目前選的是不是今天」，
@@ -217,6 +266,7 @@ def render_html_dashboard(
         "open_positions": open_positions,
         "strategy_trades": strategy_trades,
         "strategy_settings": strategy_settings,
+        "strategy_experiments": strategy_experiments,
         "capital": capital,
         "capital_history": capital_history or [],
     }
@@ -353,6 +403,9 @@ def render_html_dashboard(
             net_str = f"+${net_p:,}" if net_p > 0 else f"-${abs(net_p):,}" if net_p < 0 else "$0"
             net_color = "text-[#ff5470]" if net_p > 0 else "text-[#00d68f]" if net_p < 0 else "text-gray-300"
             symbol = _esc(r.get("symbol", ""))
+            stock_name = _esc(r.get("name", ""))
+            symbol_label = f'{symbol} <span class="text-gray-400 font-normal">{stock_name}</span>' if stock_name else symbol
+            stock_name_label = f'<span class="text-gray-400 font-normal text-xs">{stock_name}</span>' if stock_name else ""
             signal = _esc(r.get("signal", ""))
             strategy = _esc(r.get("strategy") or r.get("strategy_name") or "-")
             entry_price = _esc(r.get("entry_price", "-"))
@@ -363,7 +416,7 @@ def render_html_dashboard(
 
             settle_rows += f"""
             <tr class="hover:bg-white/[0.02]">
-                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">{symbol}</td>
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">{symbol_label}</td>
                 <td class="py-2 px-3 font-semibold whitespace-nowrap">{signal}</td>
                 <td class="py-2 px-3 text-[#8db3ff]">{strategy}</td>
                 <td class="py-2 px-3 mono whitespace-nowrap">{entry_price}</td>
@@ -377,7 +430,7 @@ def render_html_dashboard(
             settle_cards += f"""
             <div class="data-card">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="font-bold text-white text-sm">{symbol}　<span class="text-gray-400 font-normal text-xs">{signal}</span></span>
+                    <span class="font-bold text-white text-sm">{symbol}　{stock_name_label} <span class="text-gray-400 font-normal text-xs">{signal}</span></span>
                     {res_badge}
                 </div>
                 <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">{entry_price} → {exit_price}</span></div>
@@ -628,12 +681,18 @@ def render_html_dashboard(
             <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略</th><th>進場次數</th><th>已結算</th><th>勝率</th><th>累積淨損益</th></tr></thead><tbody id="strategy-stat-tbody">{strategy_html}</tbody></table></div>
         </section>
 
+        <section class="panel border rounded-2xl p-5">
+            <h2 class="font-bold text-white text-base mb-1">五組策略每日比較（影子交易）</h2>
+            <p class="text-xs text-gray-500 mb-3">各組使用獨立本金與持倉；每輪訊號、進出場明細及設定會保存在 JSON 日誌。</p>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>勝率</th><th>淨損益</th><th>持倉</th></tr></thead><tbody>{experiment_stats_html}</tbody></table></div>
+        </section>
+
         <details class="panel border rounded-2xl p-5">
             <summary class="font-bold text-white cursor-pointer">策略與風控設定</summary>
             <p class="text-xs text-gray-400 mt-3">勾選策略及調整門檻。此靜態網頁不能直接修改 GitHub；按下載後，將 strategy_settings.json 放到 repo 根目錄並提交，下一輪 Actions 才會套用。瀏覽器會暫存本機草稿。</p>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">{strategy_labels_html}</div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs">
-                <label>最少同向策略數<input id="setting-min-votes" type="number" min="1" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>最少同向策略家族數<input id="setting-min-votes" type="number" min="2" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>領先反向票數<input id="setting-min-vote-margin" type="number" min="1" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>量能倍數<input id="setting-volume-multiple" type="number" min="0.5" max="5" step="0.1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>最低K線數<input id="setting-min-bars" type="number" min="14" max="120" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
@@ -649,7 +708,7 @@ def render_html_dashboard(
             <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-white/5 pb-3 mb-4 gap-2">
                 <div>
                     <h2 class="font-bold text-white text-base">即時多空訊號</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">8 種可設定策略並行判斷；預設至少 1 個同向訊號可進場</p>
+                    <p class="text-xs text-gray-500 mt-0.5">8 種可設定策略並行判斷；預設至少 2 個獨立策略家族同向確認，並通過量能與淨賺賠比條件</p>
                 </div>
                 <span class="text-[11px] text-gray-500 mono whitespace-nowrap">每 60 秒自動刷新</span>
             </div>
@@ -932,6 +991,7 @@ def render_html_dashboard(
                 renderAnalysisTable(EXPORT_DATA.latest_analysis, true, EXPORT_DATA.analysis_log || [], EXPORT_DATA.live_quotes || {{}});
                 renderSettleTable(EXPORT_DATA.settle_records);
                 renderStrategyStats(EXPORT_DATA.strategy_trades || []);
+                renderStrategyExperimentStats(EXPORT_DATA.strategy_experiments || {{}});
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
                 return;
             }}
@@ -945,6 +1005,7 @@ def render_html_dashboard(
                 renderAnalysisTable(snapshot.analysis_records || [], false, snapshot.analysis_log || [], snapshot.live_quotes || {{}});
                 renderSettleTable(snapshot.settle_records || []);
                 renderStrategyStats(snapshot.strategy_trades || []);
+                renderStrategyExperimentStats(snapshot.strategy_experiments || {{}});
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
             }} catch (e) {{
                 errorMsg.classList.remove("hidden");
@@ -975,6 +1036,22 @@ def render_html_dashboard(
                 `<tr><td>${{escapeHtml(name)}}</td><td>${{s.entries}}</td><td>${{s.closed}}</td><td>${{s.closed ? (s.wins/s.closed*100).toFixed(1)+'%' : '—'}}</td><td>${{Math.round(s.pnl).toLocaleString()}}</td></tr>`
             ).join("");
             document.getElementById("strategy-stat-tbody").innerHTML = rows || '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>';
+        }}
+
+        function renderStrategyExperimentStats(experiments) {{
+            const tbody = document.getElementById("strategy-experiment-tbody");
+            if (!tbody) return;
+            const modes = experiments?.modes || {{}};
+            const rows = Object.entries(modes).map(([key, mode]) => {{
+                const trades = mode.trades || [];
+                const closed = trades.filter(t => t.status === "closed");
+                const wins = closed.filter(t => Number(t.pnl_amount || 0) > 0).length;
+                const pnl = closed.reduce((sum, t) => sum + Number(t.pnl_amount || 0), 0);
+                const winRate = closed.length ? `${{(wins / closed.length * 100).toFixed(1)}}%` : "-";
+                const pnlClass = pnl > 0 ? "text-[#ff5470]" : (pnl < 0 ? "text-[#00d68f]" : "text-gray-300");
+                return `<tr><td class="py-2 px-3">${{escapeHtml(mode.name || key)}}</td><td>${{trades.length}}</td><td>${{closed.length}}</td><td>${{winRate}}</td><td class="mono ${{pnlClass}}">${{pnl > 0 ? "+" : ""}}${{Math.round(pnl).toLocaleString()}}</td><td>${{(mode.open_positions || []).length}}</td></tr>`;
+            }}).join("");
+            tbody.innerHTML = rows || '<tr><td colspan="6" class="py-2 text-center text-gray-500">尚無平行策略紀錄</td></tr>';
         }}
 
         // 依訊號分類重新產生分析表格/卡片的 HTML，邏輯對應 Python 端 render_html_dashboard()
@@ -1211,6 +1288,8 @@ def render_html_dashboard(
                 const badge = `<span class="sig-badge ${{badgeClass}}">${{escapeHtml(resultText)}}</span>`;
 
                 const symbol = escapeHtml(r.symbol);
+                const stockName = escapeHtml(r.name || "");
+                const symbolLabel = stockName ? `${{symbol}} <span class="text-gray-400 font-normal">${{stockName}}</span>` : symbol;
                 const direction = escapeHtml(r.direction || "-");
                 const strategy = escapeHtml(r.strategy || r.strategy_name || "-");
                 const entryPrice = escapeHtml(r.entry_price ?? "-");
@@ -1220,7 +1299,7 @@ def render_html_dashboard(
 
                 rowsHtml += `
                 <tr class="hover:bg-white/[0.02]">
-                    <td class="py-2 px-3 font-bold text-white whitespace-nowrap">${{symbol}}</td>
+                    <td class="py-2 px-3 font-bold text-white whitespace-nowrap">${{symbolLabel}}</td>
                     <td class="py-2 px-3 whitespace-nowrap">${{direction}}</td>
                     <td class="py-2 px-3 text-[#8db3ff]">${{strategy}}</td>
                     <td class="py-2 px-3 mono whitespace-nowrap">${{entryPrice}}</td>
@@ -1233,7 +1312,7 @@ def render_html_dashboard(
                 cardsHtml += `
                 <div class="data-card">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="font-bold text-white text-sm">${{symbol}}　<span class="text-gray-400 font-normal text-xs">${{direction}}</span></span>
+                        <span class="font-bold text-white text-sm">${{symbolLabel}}　<span class="text-gray-400 font-normal text-xs">${{direction}}</span></span>
                         ${{badge}}
                     </div>
                     <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">${{entryPrice}} → ${{exitPrice}}</span></div>
@@ -1375,6 +1454,7 @@ def load_dashboard_state(today_str: str, gemini=None, fugle=None, cfg: Optional[
         "last_analysis_minute_bucket": None,
         "open_positions": [],
         "strategy_trades": [],
+        "strategy_experiments": new_strategy_experiment_state(today_str),
         "settled_today": False,  # 今日是否已完成 13:25 收盤結算，避免收盤後的非盤中測試模式覆蓋掉正式看板
         "symbol_rules": {},      # 個股交易限制快取（可否當沖、處置/注意股、漲跌停價），每檔每日只查一次
         "capital": None,         # 每日資金池：{initial, cash, locked, realized, unrealized, equity, curve:[...]}
@@ -1513,6 +1593,7 @@ def save_daily_history_snapshot(
     live_quotes: Dict = None,
     strategy_trades: List[Dict] = None,
     capital: Dict = None,
+    strategy_experiments: Dict = None,
 ):
     """
     收盤結算時呼叫：將當天的完整分析紀錄 (含觀望) 與結算損益，
@@ -1539,6 +1620,7 @@ def save_daily_history_snapshot(
         "live_quotes": live_quotes or {},
         "settle_records": settle_records,
         "strategy_trades": strategy_trades or [],
+        "strategy_experiments": strategy_experiments or {},
         "capital": capital,
         "saved_at": get_tw_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -1549,6 +1631,14 @@ def save_daily_history_snapshot(
         print(f"✅ 已保存當日分析快照：{snapshot_path}")
     except Exception as e:
         print(f"⚠️ 寫入 {snapshot_path} 失敗: {e}")
+
+    experiment_path = f"history_records/strategy_experiments_{date_str}.json"
+    try:
+        with open(experiment_path, "w", encoding="utf-8") as f:
+            json.dump(strategy_experiments or {}, f, ensure_ascii=False, indent=2)
+        print(f"✅ 已保存五組策略比較日誌：{experiment_path}")
+    except Exception as e:
+        print(f"⚠️ 寫入 {experiment_path} 失敗: {e}")
 
     # 更新日期索引檔（v21 修正：改為「掃描資料夾實際檔案」重建索引，
     # 不再只靠讀取舊 index.json 內容 append）─────────────────────────
@@ -1909,6 +1999,7 @@ def persist(state: Dict, **render_kwargs) -> None:
     render_kwargs.setdefault("total_signals", state.get("total_signals"))
     render_kwargs.setdefault("open_positions", state.get("open_positions"))
     render_kwargs.setdefault("strategy_trades", state.get("strategy_trades"))
+    render_kwargs.setdefault("strategy_experiments", state.get("strategy_experiments"))
     render_kwargs.setdefault("capital", state.get("capital"))
     render_kwargs.setdefault("capital_history", load_capital_history())
     safe_render(**render_kwargs)
@@ -1978,11 +2069,13 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
     day_tax = bool(cfg.get("is_day_trade_tax", True))
     strategy_trades = state.setdefault("strategy_trades", [])
     open_positions = state.setdefault("open_positions", [])
+    experiments = ensure_strategy_experiment_state(state, today_str)
     print(f"\n🎯 開始收盤結算：未平倉 {len(open_positions)} 筆、今日進場 {len(strategy_trades)} 筆")
 
     # ① 抓最新K線：持倉標的 + 全部監控標的（順便把參考價更新為收盤價，供歷史損益試算）
     symbols = list(dict.fromkeys(
         [p["symbol"] for p in open_positions] +
+        [p["symbol"] for mode in experiments["modes"].values() for p in mode.get("open_positions", [])] +
         [str(s.get("symbol")) for s in (wave2_stocks or []) + (wave1_stocks or [])]))
     candles_map = fetch_candles_parallel(fugle, symbols) if allow_fetch else {}
     for sym, raw in candles_map.items():
@@ -2018,6 +2111,34 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
         print(f"  ⏱ [{sym}] {closed['exit_reason']} @ {closed['exit_price']} 淨損益 {closed['pnl_amount']:+,.0f}")
     state["open_positions"] = []
 
+    # 五組影子帳本各自依收盤前 K 線平倉，績效不混入正式策略交易。
+    for mode_key, mode in experiments["modes"].items():
+        trades = mode.setdefault("trades", [])
+        for pos in list(mode.get("open_positions") or []):
+            bars = te.normalize_candles(candles_map.get(pos["symbol"]))
+            closed = None
+            if bars:
+                hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
+                if hit:
+                    closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+                else:
+                    last = te.last_close_until(bars, HISTORY_SETTLE_TIME)
+                    if last:
+                        closed = te.close_position(pos, last[0], f"{HISTORY_SETTLE_TIME}:00", "forced_close",
+                                                   discount, day_tax, f"bar_{last[1]}_close")
+            if closed is None:
+                price = float((live_quotes.get(pos["symbol"]) or {}).get("price") or pos["entry_price"])
+                closed = te.close_position(pos, price, f"{HISTORY_SETTLE_TIME}:00", "forced_close",
+                                           discount, day_tax, "stale_quote")
+            for i in range(len(trades) - 1, -1, -1):
+                if trades[i].get("id") == pos.get("id"):
+                    trades[i] = closed
+                    break
+            else:
+                trades.append(closed)
+        mode["open_positions"] = []
+        mode["summary"] = te.summarize_trades(trades)
+
     # ③ 結算清單 = 所有已平倉交易；資金：全部平倉後「本金＋當日淨損益」回到資金池
     settled_list = te.build_settle_records(strategy_trades)
     cap = update_capital(state, None, f"{HISTORY_SETTLE_TIME}:00", cfg, live_quotes)
@@ -2033,7 +2154,7 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
     # ④ 輸出（CSV＋歷史快照）→ 存狀態 → 渲染
     write_trades_csv(f"history_records/backtest_{today_str}.csv", [t for t in strategy_trades if t.get("status") == "closed"])
     save_daily_history_snapshot(today_str, latest_analysis_records, settled_list, analysis_log, live_quotes,
-                                strategy_trades, capital=cap)
+                                strategy_trades, capital=cap, strategy_experiments=experiments)
     save_capital_history(te.capital_day_summary(today_str, cap, strategy_trades))
 
     state["settled_today"] = True
@@ -2046,7 +2167,7 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
             wave1_stocks=wave1_stocks, wave2_stocks=wave2_stocks, latest_analysis=latest_analysis_records,
             analysis_log=analysis_log, live_quotes=live_quotes, settle_records=settled_list,
             total_signals=total_signals, open_positions=[], strategy_trades=strategy_trades, settled=True,
-            capital=cap, capital_history=load_capital_history(),
+            capital=cap, capital_history=load_capital_history(), strategy_experiments=experiments,
         )
     print("✅ 本輪次（收盤結算）執行完畢。")
 
@@ -2075,7 +2196,7 @@ def get_symbol_rules(state: Dict, fugle, symbol: str) -> Dict:
 
 def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, completed: List[Dict],
                       now: datetime.datetime, settings: Dict, discount: float, day_tax: bool,
-                      today_str: str) -> (Optional[Dict], str, bool):
+                      today_str: str, experiment_id: str = "", rule_state: Dict = None) -> (Optional[Dict], str, bool):
     """
     依序檢查：時間 → 持倉 → 放空許可 → 每日次數/冷卻 → 個股限制 → 部位大小 → 成本淨賺賠比。
     回傳 (部位 or None, 未進場原因, 是否值得在畫面上提示)。
@@ -2094,7 +2215,7 @@ def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, com
         return None, why, True
 
     entry_p = float(res.get("price") or completed[-1]["close"])
-    rules = get_symbol_rules(state, fugle, symbol)
+    rules = get_symbol_rules(rule_state if rule_state is not None else state, fugle, symbol)
     ok, why = check_entry_allowed(sig, entry_p, rules, settings["skip_attention"])
     if not ok:
         return None, why, True
@@ -2108,8 +2229,9 @@ def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, com
     if not ok:
         return None, why, True
 
+    trade_id = f"{today_str}_{experiment_id}_{symbol}_{now.strftime('%H%M%S')}_{len(state.get('strategy_trades', [])) + 1}" if experiment_id else f"{today_str}_{symbol}_{now.strftime('%H%M%S')}"
     position = {
-        "id": f"{today_str}_{symbol}_{now.strftime('%H%M%S')}", "symbol": symbol, "name": name, "signal": sig,
+        "id": trade_id, "symbol": symbol, "name": name, "signal": sig,
         "direction": "做多" if sig == "BUY" else "放空",
         "strategy": res.get("strategy", ""), "strategy_name": res.get("strategy_name", "多策略共識"),
         "strategy_votes": res.get("strategy_votes", []), "entry_price": round(entry_p, 2),
@@ -2229,6 +2351,7 @@ def run_once(ctx: Dict) -> str:
 
     # ── 盤中 ──────────────────────────────────────────────────
     state = load_dashboard_state(today_str, gemini, fugle, cfg)
+    experiments = ensure_strategy_experiment_state(state, today_str)
     if state.get("settled_today"):
         print(f"ℹ️ 今日 ({today_str}) 已完成收盤結算，不重複結算。")
         return "done"
@@ -2291,7 +2414,8 @@ def run_once(ctx: Dict) -> str:
         return "ok"
 
     # 13:00 後且無持倉：不再分析
-    if hm >= ANALYSIS_STOP_TIME and not state.get("open_positions"):
+    has_experiment_positions = any(mode.get("open_positions") for mode in experiments["modes"].values())
+    if hm >= ANALYSIS_STOP_TIME and not state.get("open_positions") and not has_experiment_positions:
         print(f"已過 {ANALYSIS_STOP_TIME}，停止新進場，等待 {HISTORY_SETTLE_TIME} 收盤結算。")
         persist(state, status_text=f"已停止新進場 (等待 {HISTORY_SETTLE_TIME} 收盤結算)")
         return "ok"
@@ -2310,9 +2434,15 @@ def run_once(ctx: Dict) -> str:
     seen = {str(s.get("symbol")) for s in current_stocks}
     monitored = list(current_stocks) + [{"symbol": p["symbol"], "name": p.get("name", p["symbol"])}
                                         for p in open_positions if str(p.get("symbol")) not in seen]
+    seen.update(str(p.get("symbol")) for p in open_positions)
+    for mode in experiments["modes"].values():
+        monitored.extend({"symbol": p["symbol"], "name": p.get("name", p["symbol"])}
+                         for p in mode.get("open_positions", []) if str(p.get("symbol")) not in seen)
+        seen.update(str(p.get("symbol")) for p in mode.get("open_positions", []))
     candles_map = fetch_candles_parallel(fugle, [str(s["symbol"]) for s in monitored])
 
     pending = []  # 本輪所有分析結果；進場候選先收集，掃完全部標的後依「可用資金」統一分配
+    experiment_pending = {key: [] for key in experiments["modes"]}
     for s_info in monitored:
         symbol, name = str(s_info["symbol"]), s_info.get("name", s_info["symbol"])
         try:
@@ -2341,6 +2471,54 @@ def run_once(ctx: Dict) -> str:
 
             # ② 訊號只用「已收完」的 K 棒（進行中的分K會重繪）
             completed = te.drop_incomplete_bar(bars, hm)
+
+            # 五種策略組合平行跑影子交易：每組有獨立持倉、交易帳本與設定，互不影響正式帳本。
+            for mode_key, mode in experiments["modes"].items():
+                mode_settings = normalize_settings(mode.get("settings"))
+                mode_trades = mode.setdefault("trades", [])
+                mode_positions = mode.setdefault("open_positions", [])
+                for pos in list(mode_positions):
+                    if pos.get("symbol") != symbol:
+                        continue
+                    hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
+                    if not hit:
+                        continue
+                    closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"],
+                                               discount, day_tax, "candles")
+                    mode_positions.remove(pos)
+                    for trade_index in range(len(mode_trades) - 1, -1, -1):
+                        if mode_trades[trade_index].get("id") == pos.get("id"):
+                            mode_trades[trade_index] = closed
+                            break
+
+                mode_res = evaluate_strategies(completed, mode_settings)
+                mode_signal = mode_res.get("signal", "WATCH")
+                mode_entry = mode_res.get("price") or (completed[-1]["close"] if completed else bars[-1]["close"])
+                mode_record = {
+                    "time": now.strftime("%H:%M:%S"), "symbol": symbol, "name": name,
+                    "signal": mode_signal, "price": mode_entry,
+                    "reason": mode_res.get("reason", ""),
+                    "strategy_votes": mode_res.get("strategy_votes", []),
+                    "vote_counts": mode_res.get("vote_counts", {}),
+                }
+                mode_candidate = None
+                if mode_signal in {"BUY", "SHORT"}:
+                    position, why, _show = try_open_position(
+                        mode, fugle, symbol, name, mode_res, completed, now, mode_settings,
+                        discount, day_tax, today_str, experiment_id=mode_key, rule_state=state,
+                    )
+                    if position:
+                        position["experiment_mode"] = mode_key
+                        position["experiment_name"] = mode.get("name")
+                        mode_candidate = {"position": position,
+                                          "votes": int((mode_res.get("vote_counts") or {}).get(mode_signal, 0))}
+                        mode_record["entry_candidate"] = True
+                    else:
+                        mode_record["entry_candidate"] = False
+                        mode_record["entry_block_reason"] = why
+                mode.setdefault("analysis_log", []).append(mode_record)
+                experiment_pending[mode_key].append({"record": mode_record, "candidate": mode_candidate})
+
             res = evaluate_strategies(completed, settings)
             sig = res["signal"]
             entry_p = res.get("price") or (completed[-1]["close"] if completed else bars[-1]["close"])
@@ -2393,6 +2571,34 @@ def run_once(ctx: Dict) -> str:
             else:
                 p["record"]["reason"] += f"　⛔未進場：{a['why']}"
                 print(f"   ⛔ [{p['record']['symbol']}] 未進場：{a['why']}")
+
+    # 各影子組合獨立分配相同的每日本金與持倉上限，不會互相搶正式策略資金。
+    for mode_key, mode in experiments["modes"].items():
+        mode_candidates = [item["candidate"] for item in experiment_pending[mode_key] if item["candidate"]]
+        mode_trades = mode.setdefault("trades", [])
+        mode_positions = mode.setdefault("open_positions", [])
+        if mode_candidates:
+            mode_settings = normalize_settings(mode.get("settings"))
+            mode_initial = get_daily_capital(mode_settings)
+            mode_cash = te.capital_snapshot(mode_initial, mode_trades, live_quotes, discount, day_tax)["cash"]
+            allocations = {id(item["candidate"]): item for item in te.allocate_candidates(
+                mode_candidates, mode_cash, len(mode_positions), mode_settings["max_open_positions"],
+                discount, day_tax, mode_settings)}
+            for item in experiment_pending[mode_key]:
+                candidate = item["candidate"]
+                if not candidate:
+                    continue
+                allocation = allocations[id(candidate)]
+                position = allocation["position"]
+                if position:
+                    mode_positions.append(position)
+                    mode_trades.append(position.copy())
+                    item["record"]["entered"] = True
+                    item["record"]["trade_id"] = position["id"]
+                else:
+                    item["record"]["entered"] = False
+                    item["record"]["entry_block_reason"] = allocation["why"]
+        mode["summary"] = te.summarize_trades(mode_trades)
 
     for p in pending:
         latest_analysis_records = upsert_analysis_record(latest_analysis_records, p["record"])

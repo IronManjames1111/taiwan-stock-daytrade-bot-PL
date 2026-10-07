@@ -314,12 +314,18 @@
             <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略</th><th>進場次數</th><th>已結算</th><th>勝率</th><th>累積淨損益</th></tr></thead><tbody id="strategy-stat-tbody"><tr><td>EMA 趨勢回檔</td><td>27</td><td>27</td><td>48.1%</td><td>-8,737</td></tr><tr><td>區間高低突破</td><td>5</td><td>5</td><td>60.0%</td><td>864</td></tr><tr><td>RSI 布林反轉</td><td>3</td><td>3</td><td>0.0%</td><td>-4,803</td></tr><tr><td>MACD 量能確認</td><td>2</td><td>2</td><td>0.0%</td><td>-3,271</td></tr><tr><td>EMA 快慢線動能</td><td>2</td><td>2</td><td>0.0%</td><td>-3,275</td></tr></tbody></table></div>
         </section>
 
+        <section class="panel border rounded-2xl p-5">
+            <h2 class="font-bold text-white text-base mb-1">五組策略每日比較（影子交易）</h2>
+            <p class="text-xs text-gray-500 mb-3">各組使用獨立本金與持倉；每輪訊號、進出場明細及設定會保存在 JSON 日誌。</p>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>勝率</th><th>淨損益</th><th>持倉</th></tr></thead><tbody id="strategy-experiment-tbody"><tr><td colspan="6" class="py-2 text-center text-gray-500">等待每日平行策略分析</td></tr></tbody></table></div>
+        </section>
+
         <details class="panel border rounded-2xl p-5">
             <summary class="font-bold text-white cursor-pointer">策略與風控設定</summary>
             <p class="text-xs text-gray-400 mt-3">勾選策略及調整門檻。此靜態網頁不能直接修改 GitHub；按下載後，將 strategy_settings.json 放到 repo 根目錄並提交，下一輪 Actions 才會套用。瀏覽器會暫存本機草稿。</p>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4"><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-vwap_momentum" class="accent-blue-400">VWAP 動能突破</label><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-ema_pullback" class="accent-blue-400">EMA 趨勢回檔</label><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-rsi_reversal" class="accent-blue-400">RSI 布林反轉</label><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-macd_volume" class="accent-blue-400">MACD 量能確認</label><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-orb_breakout" class="accent-blue-400">開盤區間突破</label><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-ema_momentum" class="accent-blue-400">EMA 快慢線動能</label><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-stochastic_trend" class="accent-blue-400">KD 順勢交叉</label><label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-range_breakout" class="accent-blue-400">區間高低突破</label></div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs">
-                <label>最少同向策略數<input id="setting-min-votes" type="number" min="1" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
+                <label>最少同向策略家族數<input id="setting-min-votes" type="number" min="2" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>領先反向票數<input id="setting-min-vote-margin" type="number" min="1" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>量能倍數<input id="setting-volume-multiple" type="number" min="0.5" max="5" step="0.1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>最低K線數<input id="setting-min-bars" type="number" min="14" max="120" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
@@ -335,7 +341,7 @@
             <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-white/5 pb-3 mb-4 gap-2">
                 <div>
                     <h2 class="font-bold text-white text-base">即時多空訊號</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">8 種可設定策略並行判斷；預設至少 1 個同向訊號可進場</p>
+                    <p class="text-xs text-gray-500 mt-0.5">8 種可設定策略並行判斷；預設至少 2 個獨立策略家族同向確認，並通過量能與淨賺賠比條件</p>
                 </div>
                 <span class="text-[11px] text-gray-500 mono whitespace-nowrap">每 60 秒自動刷新</span>
             </div>
@@ -10223,6 +10229,7 @@
       "price_source": "candles"
     }
   ],
+  "strategy_experiments": {},
   "strategy_settings": {
     "enabled_strategies": {
       "vwap_momentum": true,
@@ -10237,21 +10244,21 @@
     "min_votes": 2,
     "min_vote_margin": 1,
     "count_by_family": true,
-    "volume_multiple": 1.0,
+    "volume_multiple": 1.2,
     "min_bars": 14,
     "stop_atr": 1.25,
     "target_atr": 1.8,
     "max_open_positions": 8,
     "min_target_cost_multiple": 3.0,
-    "min_net_rr": 0.8,
+    "min_net_rr": 1.0,
     "sizing_mode": "fixed_risk",
     "risk_per_trade": 2000.0,
     "position_amount": 200000.0,
     "fixed_shares": 1000,
     "max_position_value": 700000.0,
-    "max_entries_per_symbol": 5,
-    "cooldown_minutes": 5,
-    "cooldown_after_stop_only": true,
+    "max_entries_per_symbol": 0,
+    "cooldown_minutes": 0,
+    "cooldown_after_stop_only": false,
     "daily_capital": 1000000.0,
     "allow_short": true,
     "skip_attention": true
@@ -11645,6 +11652,8 @@
             // 也才能正確查到資料、算出即時損益。
             CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(EXPORT_DATA.analysis_log || []);
             CURRENT_LIVE_QUOTES = EXPORT_DATA.live_quotes || {};
+            renderSettleTable(EXPORT_DATA.settle_records || []);
+            renderStrategyExperimentStats(EXPORT_DATA.strategy_experiments || {});
             initSignalFilter();
             initHistoryDateSelect();
         });
@@ -11687,6 +11696,7 @@
                 renderAnalysisTable(EXPORT_DATA.latest_analysis, true, EXPORT_DATA.analysis_log || [], EXPORT_DATA.live_quotes || {});
                 renderSettleTable(EXPORT_DATA.settle_records);
                 renderStrategyStats(EXPORT_DATA.strategy_trades || []);
+                renderStrategyExperimentStats(EXPORT_DATA.strategy_experiments || {});
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
                 return;
             }
@@ -11700,6 +11710,7 @@
                 renderAnalysisTable(snapshot.analysis_records || [], false, snapshot.analysis_log || [], snapshot.live_quotes || {});
                 renderSettleTable(snapshot.settle_records || []);
                 renderStrategyStats(snapshot.strategy_trades || []);
+                renderStrategyExperimentStats(snapshot.strategy_experiments || {});
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
             } catch (e) {
                 errorMsg.classList.remove("hidden");
@@ -11730,6 +11741,22 @@
                 `<tr><td>${escapeHtml(name)}</td><td>${s.entries}</td><td>${s.closed}</td><td>${s.closed ? (s.wins/s.closed*100).toFixed(1)+'%' : '—'}</td><td>${Math.round(s.pnl).toLocaleString()}</td></tr>`
             ).join("");
             document.getElementById("strategy-stat-tbody").innerHTML = rows || '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>';
+        }
+
+        function renderStrategyExperimentStats(experiments) {
+            const tbody = document.getElementById("strategy-experiment-tbody");
+            if (!tbody) return;
+            const modes = experiments?.modes || {};
+            const rows = Object.entries(modes).map(([key, mode]) => {
+                const trades = mode.trades || [];
+                const closed = trades.filter(t => t.status === "closed");
+                const wins = closed.filter(t => Number(t.pnl_amount || 0) > 0).length;
+                const pnl = closed.reduce((sum, t) => sum + Number(t.pnl_amount || 0), 0);
+                const winRate = closed.length ? `${(wins / closed.length * 100).toFixed(1)}%` : "-";
+                const pnlClass = pnl > 0 ? "text-[#ff5470]" : (pnl < 0 ? "text-[#00d68f]" : "text-gray-300");
+                return `<tr><td class="py-2 px-3">${escapeHtml(mode.name || key)}</td><td>${trades.length}</td><td>${closed.length}</td><td>${winRate}</td><td class="mono ${pnlClass}">${pnl > 0 ? "+" : ""}${Math.round(pnl).toLocaleString()}</td><td>${(mode.open_positions || []).length}</td></tr>`;
+            }).join("");
+            tbody.innerHTML = rows || '<tr><td colspan="6" class="py-2 text-center text-gray-500">尚無平行策略紀錄</td></tr>';
         }
 
         // 依訊號分類重新產生分析表格/卡片的 HTML，邏輯對應 Python 端 render_html_dashboard()
@@ -11966,6 +11993,8 @@
                 const badge = `<span class="sig-badge ${badgeClass}">${escapeHtml(resultText)}</span>`;
 
                 const symbol = escapeHtml(r.symbol);
+                const stockName = escapeHtml(r.name || "");
+                const symbolLabel = stockName ? `${symbol} <span class="text-gray-400 font-normal">${stockName}</span>` : symbol;
                 const direction = escapeHtml(r.direction || "-");
                 const strategy = escapeHtml(r.strategy || r.strategy_name || "-");
                 const entryPrice = escapeHtml(r.entry_price ?? "-");
@@ -11975,7 +12004,7 @@
 
                 rowsHtml += `
                 <tr class="hover:bg-white/[0.02]">
-                    <td class="py-2 px-3 font-bold text-white whitespace-nowrap">${symbol}</td>
+                    <td class="py-2 px-3 font-bold text-white whitespace-nowrap">${symbolLabel}</td>
                     <td class="py-2 px-3 whitespace-nowrap">${direction}</td>
                     <td class="py-2 px-3 text-[#8db3ff]">${strategy}</td>
                     <td class="py-2 px-3 mono whitespace-nowrap">${entryPrice}</td>
@@ -11988,7 +12017,7 @@
                 cardsHtml += `
                 <div class="data-card">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="font-bold text-white text-sm">${symbol}　<span class="text-gray-400 font-normal text-xs">${direction}</span></span>
+                        <span class="font-bold text-white text-sm">${symbolLabel}　<span class="text-gray-400 font-normal text-xs">${direction}</span></span>
                         ${badge}
                     </div>
                     <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">${entryPrice} → ${exitPrice}</span></div>
