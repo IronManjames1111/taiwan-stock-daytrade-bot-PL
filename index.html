@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">已停止新進場 (等待 13:25 收盤結算)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">已收盤結算完成</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-10-07 13:24:23</span>
+                    <span class="text-white mono ml-1.5">2026-10-07 13:25:38</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -195,7 +195,7 @@
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">結算損益</div>
-                <div class="text-xl font-bold text-gray-400 mono mt-1">尚未結算</div>
+                <div class="text-xl font-bold text-[#00d68f] mono mt-1">-$19,222</div>
             </div>
         </div>
 
@@ -695,12 +695,870 @@
                             <th class="py-2 px-3">出場原因</th>
                         </tr>
                     </thead>
-                    <tbody id="settle-tbody" class="divide-y divide-white/5"><tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 (13:25)</td></tr></tbody>
+                    <tbody id="settle-tbody" class="divide-y divide-white/5">
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">3481</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">51.3</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">51.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,669</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2303</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">149.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">148.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,342</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1711</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">48.95</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">47.9</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,876</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2409</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">MACD 量能確認</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">38.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.7</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,934</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2303</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">148.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">147.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,159</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1714</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">區間高低突破</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">18.95</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">18.65</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,796</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1711</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">RSI 布林反轉</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">47.55</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">47.15</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,526</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6456</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">104.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">102.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,736</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2409</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">區間高低突破</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.55</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.3</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,310</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2409</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">區間高低突破</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.45</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.2</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,312</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">3481</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">50.9</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">51.1</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,902</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1714</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">18.7</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">18.9</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,701</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2409</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.25</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.45</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,714</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2303</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">147.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">146.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,162</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1711</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">區間高低突破</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">46.25</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">46.55</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,626</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6456</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">區間高低突破</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">98.8</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">100.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,928</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2303</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">146.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">147.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,337</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1711</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">46.65</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">46.25</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$586</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">3481</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">51.2</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">51.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,091</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1714</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 快慢線動能</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">18.7</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">18.85</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,737</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6456</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">99.4</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">100.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,329</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1711</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">46.35</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">46.55</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,840</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2409</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.15</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">37.3</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,883</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">3481</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">50.9</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">51.1</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,902</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1714</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">RSI 布林反轉</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">19.1</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">19.25</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,746</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1301</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">71.8</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">71.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,858</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2303</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">MACD 量能確認</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">146.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">147.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,337</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6456</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">100.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">100.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,460</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1714</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">19.45</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">19.65</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,394</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1301</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">71.9</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">72.3</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$936</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6456</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">SHORT</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">100.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">99.2</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,141</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6147</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 快慢線動能</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">235.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">234.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,538</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1301</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">72.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">73.1</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,297</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1301</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">73.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">73.4</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$926</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6147</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">RSI 布林反轉</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">232.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">231.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,531</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">1301</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">73.9</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">74.4</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$988</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6147</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">233.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">235.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$961</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6147</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">234.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">236.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$958</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6147</td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">235.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">234.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,539</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            </tbody>
                 </table>
             </div>
 
             <!-- 手機版：直式資訊卡 -->
-            <div id="settle-cards" class="analysis-cards-wrap"><div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 (13:25)</div></div>
+            <div id="settle-cards" class="analysis-cards-wrap">
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">3481　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">51.3 → 51.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,669</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2303　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">149.5 → 148.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,342</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1711　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">48.95 → 47.9</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,876</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2409　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">38.0 → 37.7</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">MACD 量能確認</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,934</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2303　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">148.5 → 147.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,159</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1714　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">18.95 → 18.65</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">區間高低突破</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,796</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1711　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">47.55 → 47.15</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">RSI 布林反轉</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,526</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6456　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">104.0 → 102.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,736</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2409　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">37.55 → 37.3</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">區間高低突破</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,310</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2409　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">37.45 → 37.2</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">區間高低突破</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,312</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">3481　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">50.9 → 51.1</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,902</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1714　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">18.7 → 18.9</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,701</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2409　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">37.25 → 37.45</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,714</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2303　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">147.5 → 146.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,162</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1711　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">46.25 → 46.55</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">區間高低突破</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,626</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6456　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">98.8 → 100.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">區間高低突破</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,928</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2303　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">146.5 → 147.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,337</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1711　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">46.65 → 46.25</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$586</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">3481　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">51.2 → 51.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,091</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1714　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">18.7 → 18.85</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 快慢線動能</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,737</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6456　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">99.4 → 100.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,329</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1711　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">46.35 → 46.55</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,840</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2409　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">37.15 → 37.3</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,883</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">3481　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">50.9 → 51.1</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,902</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1714　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">19.1 → 19.25</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">RSI 布林反轉</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,746</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1301　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">71.8 → 71.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,858</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2303　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">146.5 → 147.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">MACD 量能確認</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,337</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6456　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">100.0 → 100.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,460</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1714　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">19.45 → 19.65</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,394</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1301　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">71.9 → 72.3</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$936</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6456　<span class="text-gray-400 font-normal text-xs">SHORT</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">100.0 → 99.2</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,141</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6147　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">235.0 → 234.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 快慢線動能</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,538</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1301　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">72.5 → 73.1</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,297</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1301　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">73.0 → 73.4</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$926</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6147　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">232.0 → 231.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">RSI 布林反轉</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,531</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">1301　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">73.9 → 74.4</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$988</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6147　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">233.5 → 235.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$961</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6147　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">234.5 → 236.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$958</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">6147　<span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">235.5 → 234.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,539</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            </div>
         </div>
 
         <!-- 💰 資金變化卡片 -->
@@ -738,9 +1596,9 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-10-07 13:24:23",
+  "generated_at": "2026-10-07 13:25:38",
   "today_str": "2026-10-07",
-  "status_text": "已停止新進場 (等待 13:25 收盤結算)",
+  "status_text": "已收盤結算完成",
   "active_model": "純技術指標（本地策略）",
   "total_signals": 39,
   "wave1_stocks": [
@@ -7038,51 +7896,871 @@
   ],
   "live_quotes": {
     "2409": {
-      "price": 37.6,
-      "updated_at": "12:59:22"
+      "price": 37.95,
+      "updated_at": "13:30:00"
     },
     "2303": {
-      "price": 148,
-      "updated_at": "12:59:22"
+      "price": 148.5,
+      "updated_at": "13:30:00"
     },
     "1714": {
       "price": 19.55,
-      "updated_at": "12:59:22"
+      "updated_at": "13:30:00"
     },
     "6456": {
-      "price": 102.5,
-      "updated_at": "12:59:22"
+      "price": 101.5,
+      "updated_at": "13:30:00"
     },
     "1711": {
-      "price": 46.05,
-      "updated_at": "10:28:22"
+      "price": 45.4,
+      "updated_at": "13:30:00"
     },
     "3441": {
-      "price": 271,
-      "updated_at": "10:28:22"
+      "price": 249,
+      "updated_at": "13:30:00"
     },
     "2327": {
-      "price": 651,
-      "updated_at": "12:59:22"
+      "price": 649,
+      "updated_at": "13:30:00"
     },
     "3481": {
-      "price": 51,
-      "updated_at": "10:28:22"
+      "price": 52.4,
+      "updated_at": "13:30:00"
     },
     "1303": {
-      "price": 314.5,
-      "updated_at": "12:59:22"
+      "price": 313.5,
+      "updated_at": "13:30:00"
     },
     "6147": {
-      "price": 230.5,
-      "updated_at": "12:59:22"
+      "price": 232,
+      "updated_at": "13:30:00"
     },
     "1301": {
       "price": 75.4,
-      "updated_at": "12:59:22"
+      "updated_at": "13:30:00"
     }
   },
-  "settle_records": [],
+  "settle_records": [
+    {
+      "symbol": "3481",
+      "name": "群創",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 4000,
+      "position_value": 205200.0,
+      "entry_time": "09:14:21",
+      "exit_time": "09:36:00",
+      "entry_price": 51.3,
+      "exit_price": 51.0,
+      "stop_loss": 51.0,
+      "take_profit": 51.8,
+      "result": "loss",
+      "pnl_amount": -1669.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 469.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2303",
+      "name": "聯電",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 149500.0,
+      "entry_time": "09:15:37",
+      "exit_time": "09:24:00",
+      "entry_price": 149.5,
+      "exit_price": 148.5,
+      "stop_loss": 148.5,
+      "take_profit": 151.0,
+      "result": "loss",
+      "pnl_amount": -1342.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 342.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1711",
+      "name": "永光",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 2000,
+      "position_value": 97900.0,
+      "entry_time": "09:17:21",
+      "exit_time": "09:31:00",
+      "entry_price": 48.95,
+      "exit_price": 47.9,
+      "stop_loss": 49.7,
+      "take_profit": 47.9,
+      "result": "win",
+      "pnl_amount": 1876.0,
+      "pnl_gross": 2100.0,
+      "cost_amount": 224.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "MACD 量能確認",
+      "shares": 5000,
+      "position_value": 190000.0,
+      "entry_time": "09:19:19",
+      "exit_time": "09:28:00",
+      "entry_price": 38.0,
+      "exit_price": 37.7,
+      "stop_loss": 37.7,
+      "take_profit": 38.4,
+      "result": "loss",
+      "pnl_amount": -1934.0,
+      "pnl_gross": -1500.0,
+      "cost_amount": 434.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2303",
+      "name": "聯電",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 148500.0,
+      "entry_time": "09:29:25",
+      "exit_time": "09:46:00",
+      "entry_price": 148.5,
+      "exit_price": 147.0,
+      "stop_loss": 149.5,
+      "take_profit": 147.0,
+      "result": "win",
+      "pnl_amount": 1159.0,
+      "pnl_gross": 1500.0,
+      "cost_amount": 341.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1714",
+      "name": "和桐",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "區間高低突破",
+      "shares": 7000,
+      "position_value": 132650.0,
+      "entry_time": "09:30:38",
+      "exit_time": "09:41:00",
+      "entry_price": 18.95,
+      "exit_price": 18.65,
+      "stop_loss": 19.15,
+      "take_profit": 18.65,
+      "result": "win",
+      "pnl_amount": 1796.0,
+      "pnl_gross": 2100.0,
+      "cost_amount": 304.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1711",
+      "name": "永光",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "RSI 布林反轉",
+      "shares": 3000,
+      "position_value": 142650.0,
+      "entry_time": "09:33:20",
+      "exit_time": "09:39:00",
+      "entry_price": 47.55,
+      "exit_price": 47.15,
+      "stop_loss": 47.15,
+      "take_profit": 48.1,
+      "result": "loss",
+      "pnl_amount": -1526.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 326.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6456",
+      "name": "GIS-KY",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 104000.0,
+      "entry_time": "09:35:28",
+      "exit_time": "09:38:00",
+      "entry_price": 104.0,
+      "exit_price": 102.5,
+      "stop_loss": 102.5,
+      "take_profit": 106.0,
+      "result": "loss",
+      "pnl_amount": -1736.0,
+      "pnl_gross": -1500.0,
+      "cost_amount": 236.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "區間高低突破",
+      "shares": 8000,
+      "position_value": 300400.0,
+      "entry_time": "09:37:22",
+      "exit_time": "09:38:00",
+      "entry_price": 37.55,
+      "exit_price": 37.3,
+      "stop_loss": 37.7,
+      "take_profit": 37.3,
+      "result": "win",
+      "pnl_amount": 1310.0,
+      "pnl_gross": 2000.0,
+      "cost_amount": 690.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "區間高低突破",
+      "shares": 8000,
+      "position_value": 299600.0,
+      "entry_time": "09:38:30",
+      "exit_time": "09:38:00",
+      "entry_price": 37.45,
+      "exit_price": 37.2,
+      "stop_loss": 37.6,
+      "take_profit": 37.2,
+      "result": "win",
+      "pnl_amount": 1312.0,
+      "pnl_gross": 2000.0,
+      "cost_amount": 688.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "3481",
+      "name": "群創",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 6000,
+      "position_value": 305400.0,
+      "entry_time": "09:42:23",
+      "exit_time": "09:56:00",
+      "entry_price": 50.9,
+      "exit_price": 51.1,
+      "stop_loss": 51.1,
+      "take_profit": 50.6,
+      "result": "loss",
+      "pnl_amount": -1902.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 702.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1714",
+      "name": "和桐",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 7000,
+      "position_value": 130900.0,
+      "entry_time": "09:44:23",
+      "exit_time": "09:58:00",
+      "entry_price": 18.7,
+      "exit_price": 18.9,
+      "stop_loss": 18.9,
+      "take_profit": 18.4,
+      "result": "loss",
+      "pnl_amount": -1701.0,
+      "pnl_gross": -1400.0,
+      "cost_amount": 301.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 6000,
+      "position_value": 223500.0,
+      "entry_time": "09:47:17",
+      "exit_time": "09:58:00",
+      "entry_price": 37.25,
+      "exit_price": 37.45,
+      "stop_loss": 37.45,
+      "take_profit": 36.95,
+      "result": "loss",
+      "pnl_amount": -1714.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 514.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2303",
+      "name": "聯電",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 147500.0,
+      "entry_time": "09:47:17",
+      "exit_time": "09:50:00",
+      "entry_price": 147.5,
+      "exit_price": 146.0,
+      "stop_loss": 148.5,
+      "take_profit": 146.0,
+      "result": "win",
+      "pnl_amount": 1162.0,
+      "pnl_gross": 1500.0,
+      "cost_amount": 338.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1711",
+      "name": "永光",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "區間高低突破",
+      "shares": 4000,
+      "position_value": 185000.0,
+      "entry_time": "09:47:17",
+      "exit_time": "09:49:00",
+      "entry_price": 46.25,
+      "exit_price": 46.55,
+      "stop_loss": 46.55,
+      "take_profit": 45.8,
+      "result": "loss",
+      "pnl_amount": -1626.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 426.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6456",
+      "name": "GIS-KY",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "區間高低突破",
+      "shares": 1000,
+      "position_value": 98800.0,
+      "entry_time": "09:50:33",
+      "exit_time": "09:58:00",
+      "entry_price": 98.8,
+      "exit_price": 100.5,
+      "stop_loss": 100.5,
+      "take_profit": 96.6,
+      "result": "loss",
+      "pnl_amount": -1928.0,
+      "pnl_gross": -1700.0,
+      "cost_amount": 228.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2303",
+      "name": "聯電",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 146500.0,
+      "entry_time": "09:54:20",
+      "exit_time": "10:20:00",
+      "entry_price": 146.5,
+      "exit_price": 147.5,
+      "stop_loss": 147.5,
+      "take_profit": 145.0,
+      "result": "loss",
+      "pnl_amount": -1337.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 337.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1711",
+      "name": "永光",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 2000,
+      "position_value": 93300.0,
+      "entry_time": "09:54:20",
+      "exit_time": "10:04:00",
+      "entry_price": 46.65,
+      "exit_price": 46.25,
+      "stop_loss": 46.9,
+      "take_profit": 46.25,
+      "result": "win",
+      "pnl_amount": 586.0,
+      "pnl_gross": 800.0,
+      "cost_amount": 214.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "3481",
+      "name": "群創",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 6000,
+      "position_value": 307200.0,
+      "entry_time": "10:02:24",
+      "exit_time": "10:02:00",
+      "entry_price": 51.2,
+      "exit_price": 51.5,
+      "stop_loss": 51.0,
+      "take_profit": 51.5,
+      "result": "win",
+      "pnl_amount": 1091.0,
+      "pnl_gross": 1800.0,
+      "cost_amount": 709.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1714",
+      "name": "和桐",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 快慢線動能",
+      "shares": 9000,
+      "position_value": 168300.0,
+      "entry_time": "10:05:25",
+      "exit_time": "10:11:00",
+      "entry_price": 18.7,
+      "exit_price": 18.85,
+      "stop_loss": 18.85,
+      "take_profit": 18.5,
+      "result": "loss",
+      "pnl_amount": -1737.0,
+      "pnl_gross": -1350.0,
+      "cost_amount": 387.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6456",
+      "name": "GIS-KY",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 99400.0,
+      "entry_time": "10:07:26",
+      "exit_time": "10:13:00",
+      "entry_price": 99.4,
+      "exit_price": 100.5,
+      "stop_loss": 100.5,
+      "take_profit": 98.4,
+      "result": "loss",
+      "pnl_amount": -1329.0,
+      "pnl_gross": -1100.0,
+      "cost_amount": 229.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1711",
+      "name": "永光",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 6000,
+      "position_value": 278100.0,
+      "entry_time": "10:10:34",
+      "exit_time": "10:13:00",
+      "entry_price": 46.35,
+      "exit_price": 46.55,
+      "stop_loss": 46.55,
+      "take_profit": 46.05,
+      "result": "loss",
+      "pnl_amount": -1840.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 640.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 8000,
+      "position_value": 297200.0,
+      "entry_time": "10:11:59",
+      "exit_time": "10:20:00",
+      "entry_price": 37.15,
+      "exit_price": 37.3,
+      "stop_loss": 37.3,
+      "take_profit": 36.9,
+      "result": "loss",
+      "pnl_amount": -1883.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 683.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "3481",
+      "name": "群創",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 6000,
+      "position_value": 305400.0,
+      "entry_time": "10:14:23",
+      "exit_time": "10:19:00",
+      "entry_price": 50.9,
+      "exit_price": 51.1,
+      "stop_loss": 51.1,
+      "take_profit": 50.6,
+      "result": "loss",
+      "pnl_amount": -1902.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 702.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1714",
+      "name": "和桐",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "RSI 布林反轉",
+      "shares": 9000,
+      "position_value": 171900.0,
+      "entry_time": "10:24:22",
+      "exit_time": "10:25:00",
+      "entry_price": 19.1,
+      "exit_price": 19.25,
+      "stop_loss": 19.25,
+      "take_profit": 18.9,
+      "result": "loss",
+      "pnl_amount": -1746.0,
+      "pnl_gross": -1350.0,
+      "cost_amount": 396.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1301",
+      "name": "台塑",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 4000,
+      "position_value": 287200.0,
+      "entry_time": "10:31:20",
+      "exit_time": "10:37:00",
+      "entry_price": 71.8,
+      "exit_price": 71.5,
+      "stop_loss": 71.5,
+      "take_profit": 72.2,
+      "result": "loss",
+      "pnl_amount": -1858.0,
+      "pnl_gross": -1200.0,
+      "cost_amount": 658.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "2303",
+      "name": "聯電",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "MACD 量能確認",
+      "shares": 1000,
+      "position_value": 146500.0,
+      "entry_time": "10:43:22",
+      "exit_time": "10:52:00",
+      "entry_price": 146.5,
+      "exit_price": 147.5,
+      "stop_loss": 147.5,
+      "take_profit": 145.0,
+      "result": "loss",
+      "pnl_amount": -1337.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 337.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6456",
+      "name": "GIS-KY",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 2000,
+      "position_value": 200000.0,
+      "entry_time": "10:46:27",
+      "exit_time": "10:46:00",
+      "entry_price": 100.0,
+      "exit_price": 100.5,
+      "stop_loss": 100.5,
+      "take_profit": 99.2,
+      "result": "loss",
+      "pnl_amount": -1460.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 460.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1714",
+      "name": "和桐",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 9000,
+      "position_value": 175050.0,
+      "entry_time": "10:50:31",
+      "exit_time": "10:57:00",
+      "entry_price": 19.45,
+      "exit_price": 19.65,
+      "stop_loss": 19.3,
+      "take_profit": 19.65,
+      "result": "win",
+      "pnl_amount": 1394.0,
+      "pnl_gross": 1800.0,
+      "cost_amount": 406.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1301",
+      "name": "台塑",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 4000,
+      "position_value": 287600.0,
+      "entry_time": "10:55:30",
+      "exit_time": "10:56:00",
+      "entry_price": 71.9,
+      "exit_price": 72.3,
+      "stop_loss": 71.6,
+      "take_profit": 72.3,
+      "result": "win",
+      "pnl_amount": 936.0,
+      "pnl_gross": 1600.0,
+      "cost_amount": 664.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6456",
+      "name": "GIS-KY",
+      "signal": "SHORT",
+      "direction": "放空",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 2000,
+      "position_value": 200000.0,
+      "entry_time": "10:55:30",
+      "exit_time": "11:11:00",
+      "entry_price": 100.0,
+      "exit_price": 99.2,
+      "stop_loss": 100.5,
+      "take_profit": 99.2,
+      "result": "win",
+      "pnl_amount": 1141.0,
+      "pnl_gross": 1600.0,
+      "cost_amount": 459.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6147",
+      "name": "頎邦",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 快慢線動能",
+      "shares": 1000,
+      "position_value": 235000.0,
+      "entry_time": "11:04:22",
+      "exit_time": "11:05:00",
+      "entry_price": 235.0,
+      "exit_price": 234.0,
+      "stop_loss": 234.0,
+      "take_profit": 236.5,
+      "result": "loss",
+      "pnl_amount": -1538.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 538.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1301",
+      "name": "台塑",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 3000,
+      "position_value": 217500.0,
+      "entry_time": "11:05:24",
+      "exit_time": "11:12:00",
+      "entry_price": 72.5,
+      "exit_price": 73.1,
+      "stop_loss": 72.1,
+      "take_profit": 73.1,
+      "result": "win",
+      "pnl_amount": 1297.0,
+      "pnl_gross": 1800.0,
+      "cost_amount": 503.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1301",
+      "name": "台塑",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 4000,
+      "position_value": 292000.0,
+      "entry_time": "11:14:19",
+      "exit_time": "11:19:00",
+      "entry_price": 73.0,
+      "exit_price": 73.4,
+      "stop_loss": 72.7,
+      "take_profit": 73.4,
+      "result": "win",
+      "pnl_amount": 926.0,
+      "pnl_gross": 1600.0,
+      "cost_amount": 674.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6147",
+      "name": "頎邦",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "RSI 布林反轉",
+      "shares": 1000,
+      "position_value": 232000.0,
+      "entry_time": "11:17:18",
+      "exit_time": "11:18:00",
+      "entry_price": 232.0,
+      "exit_price": 231.0,
+      "stop_loss": 231.0,
+      "take_profit": 233.5,
+      "result": "loss",
+      "pnl_amount": -1531.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 531.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "1301",
+      "name": "台塑",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 3000,
+      "position_value": 221700.0,
+      "entry_time": "11:32:22",
+      "exit_time": "11:34:00",
+      "entry_price": 73.9,
+      "exit_price": 74.4,
+      "stop_loss": 73.5,
+      "take_profit": 74.4,
+      "result": "win",
+      "pnl_amount": 988.0,
+      "pnl_gross": 1500.0,
+      "cost_amount": 512.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6147",
+      "name": "頎邦",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 233500.0,
+      "entry_time": "11:34:28",
+      "exit_time": "11:40:00",
+      "entry_price": 233.5,
+      "exit_price": 235.0,
+      "stop_loss": 232.5,
+      "take_profit": 235.0,
+      "result": "win",
+      "pnl_amount": 961.0,
+      "pnl_gross": 1500.0,
+      "cost_amount": 539.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6147",
+      "name": "頎邦",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 234500.0,
+      "entry_time": "11:40:34",
+      "exit_time": "11:40:00",
+      "entry_price": 234.5,
+      "exit_price": 236.0,
+      "stop_loss": 233.5,
+      "take_profit": 236.0,
+      "result": "win",
+      "pnl_amount": 958.0,
+      "pnl_gross": 1500.0,
+      "cost_amount": 542.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "6147",
+      "name": "頎邦",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 235500.0,
+      "entry_time": "11:44:30",
+      "exit_time": "11:44:00",
+      "entry_price": 235.5,
+      "exit_price": 234.5,
+      "stop_loss": 234.5,
+      "take_profit": 237.0,
+      "result": "loss",
+      "pnl_amount": -1539.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 539.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    }
+  ],
   "open_positions": [],
   "strategy_trades": [
     {
@@ -9793,10 +11471,33 @@
         "locked": 0.0,
         "realized": -19222.0,
         "unrealized": 0.0
+      },
+      {
+        "t": "13:25:00",
+        "equity": 980778.0,
+        "cash": 980778.0,
+        "locked": 0.0,
+        "realized": -19222.0,
+        "unrealized": 0.0
       }
     ]
   },
-  "capital_history": []
+  "capital_history": [
+    {
+      "date": "2026-10-07",
+      "initial": 1000000.0,
+      "final": 980778.0,
+      "pnl": -19222.0,
+      "pnl_pct": -1.922,
+      "entries": 39,
+      "closed": 39,
+      "wins": 16,
+      "win_rate": 0.4103,
+      "cost": 18222.0,
+      "max_locked": 998400.0,
+      "low_equity": 975214.0
+    }
+  ]
 };
         const ACTIVE_STRATEGY_SETTINGS = EXPORT_DATA.strategy_settings || {};
 
