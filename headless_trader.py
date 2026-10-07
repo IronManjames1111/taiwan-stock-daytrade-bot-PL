@@ -62,7 +62,7 @@ from tw_market_rules import calc_limit_prices as _calc_limit_prices, check_at_li
 from tw_market_rules import extract_symbol_rules, check_entry_allowed
 from indicator_strategies import (DEFAULT_SETTINGS, STRATEGY_NAMES, evaluate as evaluate_strategies,
                                   load_strategy_settings, normalize_settings, position_levels,
-                                  apply_risk_mode, RISK_MODE_PRESETS, EXPERIMENT_MODE_CONFIGS,
+                                  apply_risk_mode, RISK_MODE_PRESETS,
                                   experiment_settings)
 import trade_engine as te
 import market_calendar
@@ -84,38 +84,49 @@ class _StrategyDisplay:
     active_model = "純技術指標（本地策略）"
 
 
-def new_strategy_experiment_state(date_str: str) -> Dict:
-    """建立五組互相獨立的影子交易帳本，使用固定設定以供跨日比較。"""
-    mode_settings = experiment_settings()
+def new_strategy_experiment_state(date_str: str, strategy_settings: Dict = None) -> Dict:
+    """建立五組互相獨立的影子交易帳本，依使用者選定的訊號模組組合執行。"""
+    mode_configs = experiment_settings(strategy_settings)
     return {
         "date": date_str,
         "modes": {
             key: {
-                "name": spec["name"], "settings": mode_settings[key],
+                "name": spec["name"], "indicators": spec["indicators"], "settings": spec["settings"],
                 "open_positions": [], "trades": [], "analysis_log": [],
                 "summary": None,
             }
-            for key, spec in EXPERIMENT_MODE_CONFIGS.items()
+            for key, spec in mode_configs.items()
         },
     }
 
 
-def ensure_strategy_experiment_state(state: Dict, date_str: str) -> Dict:
-    """補齊舊版或部分損壞的實驗狀態，保留當日已有交易與日誌。"""
+def ensure_strategy_experiment_state(state: Dict, date_str: str, strategy_settings: Dict = None) -> Dict:
+    """補齊舊版狀態並套用最新五組設定；保留當日已有交易、持倉與日誌。"""
     experiments = state.get("strategy_experiments")
     if not isinstance(experiments, dict) or experiments.get("date") != date_str:
-        experiments = new_strategy_experiment_state(date_str)
+        experiments = new_strategy_experiment_state(date_str, strategy_settings)
         state["strategy_experiments"] = experiments
         return experiments
-    experiments.setdefault("modes", {})
-    defaults = new_strategy_experiment_state(date_str)["modes"]
+    if not isinstance(experiments.get("modes"), dict):
+        experiments["modes"] = {}
+    defaults = new_strategy_experiment_state(date_str, strategy_settings)["modes"]
+    modes = experiments["modes"]
+    legacy_modes = {key: value for key, value in modes.items() if key not in defaults}
+    if legacy_modes:
+        if not isinstance(experiments.get("legacy_modes"), dict):
+            experiments["legacy_modes"] = {}
+        experiments["legacy_modes"].update(legacy_modes)
+    experiments["modes"] = {key: modes.get(key, default) for key, default in defaults.items()}
     for key, default in defaults.items():
-        mode = experiments["modes"].setdefault(key, default)
+        mode = experiments["modes"][key]
+        if not isinstance(mode, dict):
+            mode = default
+            experiments["modes"][key] = mode
         for field in ("open_positions", "trades", "analysis_log"):
             if not isinstance(mode.get(field), list):
                 mode[field] = []
-        mode.setdefault("name", default["name"])
-        mode.setdefault("settings", default["settings"])
+        # 取最新設定供後續輪次使用；每筆分析/交易另存設定快照以保留可追溯性。
+        mode.update(name=default["name"], indicators=default["indicators"], settings=default["settings"])
     return experiments
 
 # ── 盤中時間節點設定（v20 調整）──────────────────────────────────
@@ -212,27 +223,75 @@ def render_html_dashboard(
         f'<label class="flex items-center gap-2 rounded-lg bg-black/20 p-2 text-xs"><input type="checkbox" id="strategy-enabled-{key}" class="accent-blue-400">{label}</label>'
         for key, label in STRATEGY_NAMES.items()
     )
+    def _experiment_indicator_labels(combo):
+        return "".join(
+            f'<label class="flex items-start gap-2 rounded bg-slate-900/70 p-2 text-[11px]"><input type="checkbox" id="experiment-config-indicator-{combo["id"]}-{key}" class="accent-blue-400 mt-0.5" {"checked" if key in combo["indicators"] else ""}><span>{_esc(label)}</span></label>'
+            for key, label in STRATEGY_NAMES.items()
+        )
+
+    experiment_config_html = "".join(
+        '<article class="rounded-xl border border-white/10 bg-black/20 p-3">'
+        f'<label class="block text-xs text-gray-400">策略名稱<input id="experiment-config-name-{combo["id"]}" type="text" maxlength="48" value="{_esc(combo["name"])}" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2 text-white"></label>'
+        '<p class="text-[11px] text-gray-500 mt-2">勾選項目必須全部同方向成立（至少 2 項）</p>'
+        f'<div class="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2">{_experiment_indicator_labels(combo)}</div>'
+        '</article>'
+        for combo in strategy_settings["experiment_strategies"]
+    )
     strategy_stats = {}
     for trade in strategy_trades:
         key = trade.get("strategy_name", trade.get("strategy", "未分類"))
-        stat = strategy_stats.setdefault(key, {"entries": 0, "closed": 0, "wins": 0, "pnl": 0.0})
+        stat = strategy_stats.setdefault(key, {"entries": 0, "closed": 0, "open": 0, "wins": 0, "pnl": 0.0, "floating_pnl": 0.0})
         stat["entries"] += 1
         if trade.get("status") == "closed":
             stat["closed"] += 1
             stat["wins"] += int(float(trade.get("pnl_amount", 0) or 0) > 0)
             stat["pnl"] += float(trade.get("pnl_amount", 0) or 0)
-    positions_html = "".join(
-        f'<tr><td>{_esc(p.get("symbol"))} {_esc(p.get("name", ""))}</td><td>{_esc(p.get("direction"))}</td><td>{_esc(p.get("strategy_name"))}</td><td>{p.get("entry_price")}</td><td>{p.get("stop_loss")}</td><td>{p.get("take_profit")}</td><td>{live_quotes.get(p.get("symbol"), {}).get("price", "-")}</td></tr>'
-        for p in open_positions
-    ) or '<tr><td colspan="7" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr>'
+        elif trade.get("status") == "open":
+            stat["open"] += 1
+            quote = live_quotes.get(str(trade.get("symbol")), {})
+            try:
+                stat["floating_pnl"] += te.gross_pnl(trade.get("signal", "BUY"), float(trade["entry_price"]),
+                                                    float(quote["price"]), int(trade.get("shares", 0)))
+            except (KeyError, TypeError, ValueError):
+                pass
+    position_rows = []
+    for pos in open_positions:
+        symbol = str(pos.get("symbol", ""))
+        quote = live_quotes.get(symbol, {})
+        current_price = quote.get("price")
+        floating_pnl = None
+        progress = None
+        try:
+            entry_price = float(pos["entry_price"])
+            target_price = float(pos["take_profit"])
+            if current_price is not None:
+                current_price = float(current_price)
+                floating_pnl = te.gross_pnl(pos.get("signal", "BUY"), entry_price, current_price, int(pos.get("shares", 0)))
+                distance = target_price - entry_price
+                progress = (current_price - entry_price) / distance * 100 if distance else None
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            pass
+        pnl_class = "text-[#ff5470]" if floating_pnl is not None and floating_pnl > 0 else "text-[#00d68f]" if floating_pnl is not None and floating_pnl < 0 else "text-gray-400"
+        pnl_text = f'{floating_pnl:+,.0f}' if floating_pnl is not None else "-"
+        progress_text = f'{progress:.0f}%' if progress is not None else "-"
+        position_rows.append(
+            f'<tr><td class="py-2 px-3 whitespace-nowrap">{_esc(symbol)} {_esc(pos.get("name", ""))}</td>'
+            f'<td>{_esc(pos.get("direction"))}</td><td>{_esc(pos.get("strategy_name"))}</td>'
+            f'<td class="mono">{_esc(pos.get("entry_time", "-"))}</td><td class="mono">{pos.get("entry_price", "-")}</td>'
+            f'<td class="mono">{current_price if current_price is not None else "-"}</td>'
+            f'<td class="mono {pnl_class}">{pnl_text}<span class="block text-[10px] text-gray-500">未扣費稅</span></td>'
+            f'<td class="mono text-[#00d68f]">{pos.get("stop_loss", "-")}</td><td class="mono text-[#ff5470]">{pos.get("take_profit", "-")}</td>'
+            f'<td class="mono">{progress_text}</td></tr>'
+        )
+    positions_html = "".join(position_rows) or '<tr><td colspan="10" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr>'
     def _win_rate_text(stat):
         # 已平倉筆數為 0（例如剛進場尚未出場）時不可相除，改顯示 "-"
         closed = stat["closed"]
         return f"{stat['wins'] / closed * 100:.1f}%" if closed > 0 else "-"
     strategy_html = "".join(
-        f'<tr><td>{_esc(name)}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{_win_rate_text(stat)}</td><td>{stat["pnl"]:,.0f}</td></tr>'
+        f'<tr><td>{_esc(name)}</td><td>{stat["entries"]}</td><td>{stat["closed"]}</td><td>{stat["open"]}</td><td>{_win_rate_text(stat)}</td><td>{stat["pnl"]:+,.0f}</td><td>{stat["floating_pnl"]:+,.0f}</td></tr>'
         for name, stat in sorted(strategy_stats.items(), key=lambda item: (item[1]["entries"], item[1]["pnl"]), reverse=True)
-    ) or '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>'
+    ) or '<tr><td colspan="7" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>'
     experiment_rows = []
     for mode_key, mode in (strategy_experiments.get("modes") or {}).items():
         summary = te.summarize_trades(mode.get("trades") or [])
@@ -672,25 +731,31 @@ def render_html_dashboard(
         </div>
 
         <section class="panel border rounded-2xl p-5">
-            <h2 class="font-bold text-white text-base mb-3">目前持倉（每分鐘監控停利／停損）</h2>
-            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場</th><th>停損</th><th>停利</th><th>最新價</th></tr></thead><tbody>{positions_html}</tbody></table></div>
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3"><div><h2 class="font-bold text-white text-base">目前持倉監控</h2><p class="text-[11px] text-gray-500 mt-1">策略每輪（預設每分鐘）以分 K 高低價檢查停利／停損；浮動損益為未扣費稅估值。</p></div><span class="text-[11px] text-gray-500">正式策略模擬持倉 · <b id="open-position-count">{len(open_positions)}</b> 檔</span></div>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場時間</th><th>進場價</th><th>最新價</th><th>浮動損益</th><th>停損</th><th>停利</th><th>目標進度</th></tr></thead><tbody id="open-position-tbody">{positions_html}</tbody></table></div>
         </section>
 
         <section class="panel border rounded-2xl p-5">
-            <h2 class="font-bold text-white text-base mb-3">策略績效</h2>
-            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略</th><th>進場次數</th><th>已結算</th><th>勝率</th><th>累積淨損益</th></tr></thead><tbody id="strategy-stat-tbody">{strategy_html}</tbody></table></div>
+            <h2 class="font-bold text-white text-base mb-1">正式策略績效</h2><p class="text-[11px] text-gray-500 mb-3">已平倉損益已扣手續費與稅；未實現損益尚未扣費稅。</p>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>持倉</th><th>勝率</th><th>已實現淨損益</th><th>未實現損益</th></tr></thead><tbody id="strategy-stat-tbody">{strategy_html}</tbody></table></div>
         </section>
 
         <section class="panel border rounded-2xl p-5">
-            <h2 class="font-bold text-white text-base mb-1">五組策略每日比較（影子交易）</h2>
-            <p class="text-xs text-gray-500 mb-3">各組使用獨立本金與持倉；每輪訊號、進出場明細及設定會保存在 JSON 日誌。</p>
-            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>勝率</th><th>淨損益</th><th>持倉</th></tr></thead><tbody>{experiment_stats_html}</tbody></table></div>
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-3"><div><h2 class="font-bold text-white text-base mb-1">五組策略每日比較（影子交易）</h2><p class="text-xs text-gray-500">五組各自獨立持倉與本金；組內勾選的指標模組須全數同方向成立。完整訊號與成交明細會保存在每日 JSON 日誌。</p></div><div class="flex flex-wrap items-end gap-2"><label class="text-xs text-gray-400">切換策略<select id="experiment-strategy-select" class="setting-input block min-w-64 mt-1 rounded bg-slate-900 border border-slate-700 p-2 text-white"><option>載入策略中…</option></select></label><button onclick="downloadStrategyExperimentLogs()" class="px-3 py-2 rounded-lg bg-slate-700 text-white text-xs">下載這天的策略日誌 JSON</button></div></div>
+            <div id="experiment-selected-meta" class="text-xs text-gray-400 mb-3">選擇策略查看組合條件、績效與明細。</div>
+            <div id="experiment-selected-metrics" class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4"></div>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div><h3 class="text-xs text-gray-400 mb-2">五組績效總覽（點列可切換）</h3><div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>指標條件</th><th>進場</th><th>平倉</th><th>勝率</th><th>已實現淨損益</th><th>未實現毛損益</th><th>持倉</th></tr></thead><tbody id="strategy-experiment-tbody"><tr><td colspan="8" class="py-2 text-center text-gray-500">尚無平行策略紀錄</td></tr></tbody></table></div></div>
+                <div><h3 class="text-xs text-gray-400 mb-2">該策略目前持倉（影子）</h3><div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-2">標的</th><th>方向</th><th>進場</th><th>現價</th><th>停損／停利</th><th>浮動損益</th></tr></thead><tbody id="experiment-open-tbody"><tr><td colspan="6" class="py-2 text-center text-gray-500">尚無持倉</td></tr></tbody></table></div></div>
+                <div><h3 class="text-xs text-gray-400 mb-2">該策略已進場紀錄</h3><div class="analysis-table-wrap overflow-x-auto max-h-72"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-2">標的</th><th>方向</th><th>進場／出場</th><th>結果</th><th>淨損益</th></tr></thead><tbody id="experiment-trades-tbody"><tr><td colspan="5" class="py-2 text-center text-gray-500">尚無交易</td></tr></tbody></table></div></div>
+                <div><h3 class="text-xs text-gray-400 mb-2">最近訊號日誌</h3><div class="analysis-table-wrap overflow-x-auto max-h-72"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-2">時間</th><th>標的</th><th>訊號</th><th>結果／條件</th></tr></thead><tbody id="experiment-log-tbody"><tr><td colspan="4" class="py-2 text-center text-gray-500">尚無分析日誌</td></tr></tbody></table></div></div>
+            </div>
         </section>
 
         <details class="panel border rounded-2xl p-5">
             <summary class="font-bold text-white cursor-pointer">策略與風控設定</summary>
-            <p class="text-xs text-gray-400 mt-3">勾選策略及調整門檻。此靜態網頁不能直接修改 GitHub；按下載後，將 strategy_settings.json 放到 repo 根目錄並提交，下一輪 Actions 才會套用。瀏覽器會暫存本機草稿。</p>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">{strategy_labels_html}</div>
+            <p class="text-xs text-gray-400 mt-3">每組策略可重新命名並勾選訊號模組；組內所有勾選項必須同方向、同時成立才會建立影子交易。此靜態頁面不能直接修改 GitHub，按下載後請將 strategy_settings.json 放回 repo 根目錄並提交，下一輪 Actions 才會套用。瀏覽器會暫存本機草稿。</p>
+            <h3 class="font-bold text-white text-sm mt-4 mb-2">正式策略模組（主帳本）</h3><div class="grid grid-cols-2 md:grid-cols-4 gap-2">{strategy_labels_html}</div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs">
                 <label>最少同向策略家族數<input id="setting-min-votes" type="number" min="2" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>領先反向票數<input id="setting-min-vote-margin" type="number" min="1" max="8" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
@@ -700,6 +765,7 @@ def render_html_dashboard(
                 <label>停利 ATR 倍數<input id="setting-target-atr" type="number" min="0.5" max="10" step="0.05" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
                 <label>最大持倉檔數<input id="setting-max-open-positions" type="number" min="1" max="20" step="1" class="setting-input w-full mt-1 rounded bg-slate-900 border border-slate-700 p-2"></label>
             </div>
+            <h3 class="font-bold text-white text-sm mt-5 mb-2">五組影子策略的指標搭配</h3><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">{experiment_config_html}</div>
             <div class="flex flex-wrap gap-2 mt-4"><button onclick="downloadStrategySettings()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs">下載 strategy_settings.json</button><button onclick="restoreActiveSettings()" class="px-4 py-2 rounded-lg bg-slate-700 text-white text-xs">還原目前線上設定</button><span id="settings-status" class="text-xs text-gray-400 self-center"></span></div>
         </details>
 
@@ -809,15 +875,25 @@ def render_html_dashboard(
             const number = id => Number(document.getElementById(id).value);
             const enabled = {{}};
             Object.keys(ACTIVE_STRATEGY_SETTINGS.enabled_strategies || {{}}).forEach(key => {{ enabled[key] = document.getElementById(`strategy-enabled-${{key}}`).checked; }});
-            return {{ ...ACTIVE_STRATEGY_SETTINGS, enabled_strategies: enabled, min_votes: number('setting-min-votes'), min_vote_margin: number('setting-min-vote-margin'), volume_multiple: number('setting-volume-multiple'), min_bars: number('setting-min-bars'), stop_atr: number('setting-stop-atr'), target_atr: number('setting-target-atr'), max_open_positions: number('setting-max-open-positions') }};
+            const experiment_strategies = (ACTIVE_STRATEGY_SETTINGS.experiment_strategies || []).map(combo => ({{
+                id: combo.id,
+                name: document.getElementById(`experiment-config-name-${{combo.id}}`).value.trim(),
+                indicators: Object.keys(ACTIVE_STRATEGY_SETTINGS.enabled_strategies || {{}}).filter(key => document.getElementById(`experiment-config-indicator-${{combo.id}}-${{key}}`).checked)
+            }}));
+            return {{ ...ACTIVE_STRATEGY_SETTINGS, enabled_strategies: enabled, experiment_strategies, min_votes: number('setting-min-votes'), min_vote_margin: number('setting-min-vote-margin'), volume_multiple: number('setting-volume-multiple'), min_bars: number('setting-min-bars'), stop_atr: number('setting-stop-atr'), target_atr: number('setting-target-atr'), max_open_positions: number('setting-max-open-positions') }};
         }}
         function setStrategySettings(settings) {{
             Object.entries(settings.enabled_strategies || {{}}).forEach(([key, value]) => {{ const el = document.getElementById(`strategy-enabled-${{key}}`); if (el) el.checked = !!value; }});
             [['min-votes','min_votes'],['min-vote-margin','min_vote_margin'],['volume-multiple','volume_multiple'],['min-bars','min_bars'],['stop-atr','stop_atr'],['target-atr','target_atr'],['max-open-positions','max_open_positions']].forEach(([id,key]) => {{ const el=document.getElementById(`setting-${{id}}`); if(el && settings[key] !== undefined) el.value=settings[key]; }});
+            (settings.experiment_strategies || []).forEach(combo => {{
+                const name = document.getElementById(`experiment-config-name-${{combo.id}}`);
+                if (name) name.value = combo.name || '';
+                Object.keys(settings.enabled_strategies || {{}}).forEach(key => {{ const el=document.getElementById(`experiment-config-indicator-${{combo.id}}-${{key}}`); if(el) el.checked=(combo.indicators || []).includes(key); }});
+            }});
         }}
         function saveSettingsDraft() {{ try {{ localStorage.setItem('daytrade_strategy_settings_draft', JSON.stringify(readStrategySettingsForm())); document.getElementById('settings-status').textContent='本機草稿已儲存'; }} catch(e) {{}} }}
         function restoreActiveSettings() {{ setStrategySettings(ACTIVE_STRATEGY_SETTINGS); localStorage.removeItem('daytrade_strategy_settings_draft'); document.getElementById('settings-status').textContent='已還原本次頁面內的線上設定'; }}
-        function downloadStrategySettings() {{ const data=readStrategySettingsForm(); const blob=new Blob([JSON.stringify(data,null,2)+'\\n'],{{type:'application/json'}}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='strategy_settings.json'; a.click(); URL.revokeObjectURL(a.href); saveSettingsDraft(); }}
+        function downloadStrategySettings() {{ const data=readStrategySettingsForm(); const invalid=data.experiment_strategies.find(combo => combo.indicators.length < 2); if(invalid) {{ document.getElementById('settings-status').textContent=`${{invalid.name || invalid.id}} 至少要勾選 2 個指標模組`; return; }} const blob=new Blob([JSON.stringify(data,null,2)+'\\n'],{{type:'application/json'}}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='strategy_settings.json'; a.click(); URL.revokeObjectURL(a.href); saveSettingsDraft(); }}
 
         function triggerDownload(content, filename, mimeType) {{
             const blob = new Blob([content], {{ type: mimeType }});
@@ -938,7 +1014,7 @@ def render_html_dashboard(
         window.addEventListener("DOMContentLoaded", () => {{
             setStrategySettings(ACTIVE_STRATEGY_SETTINGS);
             try {{ const draft=localStorage.getItem('daytrade_strategy_settings_draft'); if(draft) setStrategySettings(JSON.parse(draft)); }} catch(e) {{}}
-            document.querySelectorAll('[id^="strategy-enabled-"], [id^="setting-"]').forEach(el => el.addEventListener('change', saveSettingsDraft));
+            document.querySelectorAll('[id^="strategy-enabled-"], [id^="setting-"], [id^="experiment-config-"]').forEach(el => el.addEventListener('change', saveSettingsDraft));
             const savedToken = localStorage.getItem("daytrade_auth_token");
             if (savedToken === PWD_B64 || savedToken === PWD_HASH) {{
                 unlockUI();
@@ -949,6 +1025,9 @@ def render_html_dashboard(
             // 也才能正確查到資料、算出即時損益。
             CURRENT_LOG_BY_SYMBOL = buildLogBySymbol(EXPORT_DATA.analysis_log || []);
             CURRENT_LIVE_QUOTES = EXPORT_DATA.live_quotes || {{}};
+            renderOpenPositionTable(EXPORT_DATA.open_positions || [], EXPORT_DATA.live_quotes || {{}});
+            renderStrategyStats(EXPORT_DATA.strategy_trades || [], EXPORT_DATA.live_quotes || {{}});
+            renderStrategyExperimentStats(EXPORT_DATA.strategy_experiments || {{}});
             initSignalFilter();
             initHistoryDateSelect();
         }});
@@ -990,7 +1069,8 @@ def render_html_dashboard(
                 // 切回今日：直接用頁面產生當下就內嵌好的 EXPORT_DATA 還原，不需要重新 fetch
                 renderAnalysisTable(EXPORT_DATA.latest_analysis, true, EXPORT_DATA.analysis_log || [], EXPORT_DATA.live_quotes || {{}});
                 renderSettleTable(EXPORT_DATA.settle_records);
-                renderStrategyStats(EXPORT_DATA.strategy_trades || []);
+                renderOpenPositionTable(EXPORT_DATA.open_positions || [], EXPORT_DATA.live_quotes || {{}});
+                renderStrategyStats(EXPORT_DATA.strategy_trades || [], EXPORT_DATA.live_quotes || {{}});
                 renderStrategyExperimentStats(EXPORT_DATA.strategy_experiments || {{}});
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
                 return;
@@ -1004,7 +1084,8 @@ def render_html_dashboard(
 
                 renderAnalysisTable(snapshot.analysis_records || [], false, snapshot.analysis_log || [], snapshot.live_quotes || {{}});
                 renderSettleTable(snapshot.settle_records || []);
-                renderStrategyStats(snapshot.strategy_trades || []);
+                renderOpenPositionTable([], {{}});
+                renderStrategyStats(snapshot.strategy_trades || [], snapshot.live_quotes || {{}});
                 renderStrategyExperimentStats(snapshot.strategy_experiments || {{}});
                 setSignalFilter(localStorage.getItem("daytrade_signal_filter") || "all");
             }} catch (e) {{
@@ -1024,34 +1105,162 @@ def render_html_dashboard(
             return div.innerHTML;
         }}
 
-        function renderStrategyStats(trades) {{
+        const STRATEGY_INDICATOR_LABELS = {{
+            vwap_momentum: "VWAP 動能突破", ema_pullback: "EMA 趨勢回檔", rsi_reversal: "RSI 布林反轉",
+            macd_volume: "MACD 量能確認", orb_breakout: "開盤區間突破", ema_momentum: "EMA 快慢線動能",
+            stochastic_trend: "KD 順勢交叉", range_breakout: "區間高低突破"
+        }};
+        let CURRENT_STRATEGY_EXPERIMENTS = {{}};
+
+        function renderOpenPositionTable(positions, quotes) {{
+            const tbody = document.getElementById("open-position-tbody");
+            if (!tbody) return;
+            const count = document.getElementById("open-position-count");
+            if (count) count.textContent = (positions || []).length;
+            const rows = (positions || []).map(pos => {{
+                const quote = (quotes || {{}})[pos.symbol] || {{}};
+                const current = Number(quote.price);
+                const entry = Number(pos.entry_price);
+                const target = Number(pos.take_profit);
+                const shares = Number(pos.shares || 0);
+                const side = (pos.signal || "BUY").toUpperCase();
+                const hasQuote = Number.isFinite(current) && current > 0;
+                const pnl = hasQuote ? (current - entry) * (side === "SHORT" ? -1 : 1) * shares : null;
+                const progress = hasQuote && Number.isFinite(target) && target !== entry ? (current - entry) / (target - entry) * 100 : null;
+                const pnlClass = pnl > 0 ? "text-[#ff5470]" : pnl < 0 ? "text-[#00d68f]" : "text-gray-400";
+                return `<tr><td class="py-2 px-3 whitespace-nowrap">${{escapeHtml(pos.symbol)}} ${{escapeHtml(pos.name || "")}}</td><td>${{escapeHtml(pos.direction || (side === "SHORT" ? "放空" : "做多"))}}</td><td>${{escapeHtml(pos.strategy_name || "-")}}</td><td class="mono">${{escapeHtml(pos.entry_time || "-")}}</td><td class="mono">${{Number.isFinite(entry) ? entry.toFixed(2) : "-"}}</td><td class="mono">${{hasQuote ? current.toFixed(2) : "-"}}</td><td class="mono ${{pnlClass}}">${{pnl === null ? "-" : (pnl > 0 ? "+" : "") + Math.round(pnl).toLocaleString()}}<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">${{escapeHtml(pos.stop_loss ?? "-")}}</td><td class="mono text-[#ff5470]">${{escapeHtml(pos.take_profit ?? "-")}}</td><td class="mono">${{progress === null ? "-" : `${{Math.round(progress)}}%`}}</td></tr>`;
+            }}).join("");
+            tbody.innerHTML = rows || '<tr><td colspan="10" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr>';
+        }}
+
+        function renderStrategyStats(trades, liveQuotes) {{
             const stats = {{}};
             (trades || []).forEach(t => {{
                 const name = t.strategy_name || t.strategy || "未分類";
-                const s = stats[name] || (stats[name] = {{ entries: 0, closed: 0, wins: 0, pnl: 0 }});
+                const s = stats[name] || (stats[name] = {{ entries: 0, closed: 0, open: 0, wins: 0, pnl: 0, floating: 0 }});
                 s.entries++;
                 if (t.status === "closed") {{ s.closed++; s.wins += Number((t.pnl_amount || 0) > 0); s.pnl += Number(t.pnl_amount || 0); }}
+                else if (t.status === "open") {{
+                    s.open++;
+                    const price = Number((liveQuotes || {{}})[t.symbol]?.price);
+                    const entry = Number(t.entry_price);
+                    if (Number.isFinite(price) && Number.isFinite(entry)) s.floating += (price - entry) * ((t.signal || "BUY").toUpperCase() === "SHORT" ? -1 : 1) * Number(t.shares || 0);
+                }}
             }});
             const rows = Object.entries(stats).sort((a,b) => b[1].entries-a[1].entries || b[1].pnl-a[1].pnl).map(([name,s]) =>
-                `<tr><td>${{escapeHtml(name)}}</td><td>${{s.entries}}</td><td>${{s.closed}}</td><td>${{s.closed ? (s.wins/s.closed*100).toFixed(1)+'%' : '—'}}</td><td>${{Math.round(s.pnl).toLocaleString()}}</td></tr>`
+                `<tr><td>${{escapeHtml(name)}}</td><td>${{s.entries}}</td><td>${{s.closed}}</td><td>${{s.open}}</td><td>${{s.closed ? (s.wins/s.closed*100).toFixed(1)+'%' : '—'}}</td><td class="mono">${{s.pnl > 0 ? '+' : ''}}${{Math.round(s.pnl).toLocaleString()}}</td><td class="mono">${{s.floating > 0 ? '+' : ''}}${{Math.round(s.floating).toLocaleString()}}</td></tr>`
             ).join("");
-            document.getElementById("strategy-stat-tbody").innerHTML = rows || '<tr><td colspan="5" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>';
+            document.getElementById("strategy-stat-tbody").innerHTML = rows || '<tr><td colspan="7" class="py-4 text-center text-gray-500">尚無策略交易</td></tr>';
         }}
 
         function renderStrategyExperimentStats(experiments) {{
             const tbody = document.getElementById("strategy-experiment-tbody");
-            if (!tbody) return;
+            const select = document.getElementById("experiment-strategy-select");
+            if (!tbody || !select) return;
+            CURRENT_STRATEGY_EXPERIMENTS = experiments || {{}};
             const modes = experiments?.modes || {{}};
-            const rows = Object.entries(modes).map(([key, mode]) => {{
+            const entries = Object.entries(modes);
+            let preferred = select.value;
+            try {{ preferred = preferred || localStorage.getItem("daytrade_selected_experiment"); }} catch (e) {{}}
+            select.innerHTML = entries.map(([key, mode]) => `<option value="${{escapeHtml(key)}}">${{escapeHtml(mode.name || key)}}</option>`).join("") || '<option value="">尚無策略資料</option>';
+            select.value = entries.some(([key]) => key === preferred) ? preferred : (entries[0]?.[0] || "");
+            select.onchange = () => {{
+                try {{ localStorage.setItem("daytrade_selected_experiment", select.value); }} catch (e) {{}}
+                tbody.querySelectorAll("[data-experiment-select]").forEach(row => row.classList.toggle("bg-white/5", row.dataset.experimentSelect === select.value));
+                renderStrategyExperimentDetail(select.value);
+            }};
+            tbody.onclick = event => {{
+                const row = event.target.closest("[data-experiment-select]");
+                if (!row) return;
+                select.value = row.dataset.experimentSelect;
+                select.dispatchEvent(new Event("change"));
+            }};
+            const rows = entries.map(([key, mode]) => {{
                 const trades = mode.trades || [];
                 const closed = trades.filter(t => t.status === "closed");
                 const wins = closed.filter(t => Number(t.pnl_amount || 0) > 0).length;
                 const pnl = closed.reduce((sum, t) => sum + Number(t.pnl_amount || 0), 0);
+                const floating = (mode.open_positions || []).reduce((sum, pos) => {{
+                    const price = Number(CURRENT_LIVE_QUOTES?.[pos.symbol]?.price), entry = Number(pos.entry_price);
+                    if (!Number.isFinite(price) || !Number.isFinite(entry)) return sum;
+                    return sum + (price-entry) * ((pos.signal || "BUY").toUpperCase() === "SHORT" ? -1 : 1) * Number(pos.shares || 0);
+                }}, 0);
                 const winRate = closed.length ? `${{(wins / closed.length * 100).toFixed(1)}}%` : "-";
                 const pnlClass = pnl > 0 ? "text-[#ff5470]" : (pnl < 0 ? "text-[#00d68f]" : "text-gray-300");
-                return `<tr><td class="py-2 px-3">${{escapeHtml(mode.name || key)}}</td><td>${{trades.length}}</td><td>${{closed.length}}</td><td>${{winRate}}</td><td class="mono ${{pnlClass}}">${{pnl > 0 ? "+" : ""}}${{Math.round(pnl).toLocaleString()}}</td><td>${{(mode.open_positions || []).length}}</td></tr>`;
+                const floatingClass = floating > 0 ? "text-[#ff5470]" : (floating < 0 ? "text-[#00d68f]" : "text-gray-300");
+                const indicators = mode.indicators || Object.keys(mode.settings?.enabled_strategies || {{}}).filter(k => mode.settings.enabled_strategies[k]);
+                const indicatorNames = indicators.map(k => STRATEGY_INDICATOR_LABELS[k] || k).join(" + ") || "未設定（不會進場）";
+                return `<tr data-experiment-select="${{escapeHtml(key)}}" class="cursor-pointer hover:bg-white/5 ${{select.value === key ? "bg-white/5" : ""}}"><td class="py-2 px-3 whitespace-nowrap">${{escapeHtml(mode.name || key)}}</td><td class="max-w-64">${{escapeHtml(indicatorNames)}}</td><td>${{trades.length}}</td><td>${{closed.length}}</td><td>${{winRate}}</td><td class="mono ${{pnlClass}}">${{pnl > 0 ? "+" : ""}}${{Math.round(pnl).toLocaleString()}}</td><td class="mono ${{floatingClass}}">${{floating > 0 ? "+" : ""}}${{Math.round(floating).toLocaleString()}}</td><td>${{(mode.open_positions || []).length}}</td></tr>`;
             }}).join("");
-            tbody.innerHTML = rows || '<tr><td colspan="6" class="py-2 text-center text-gray-500">尚無平行策略紀錄</td></tr>';
+            tbody.innerHTML = rows || '<tr><td colspan="8" class="py-2 text-center text-gray-500">尚無平行策略紀錄</td></tr>';
+            renderStrategyExperimentDetail(select.value);
+        }}
+
+        function downloadStrategyExperimentLogs() {{
+            const data = CURRENT_STRATEGY_EXPERIMENTS || {{}};
+            const date = data.date || EXPORT_DATA.today_str || "unknown-date";
+            triggerDownload(JSON.stringify(data, null, 2) + "\\n", `strategy_experiments_${{date}}.json`, "application/json;charset=utf-8");
+        }}
+
+        function renderStrategyExperimentDetail(modeKey) {{
+            const mode = CURRENT_STRATEGY_EXPERIMENTS?.modes?.[modeKey];
+            const meta = document.getElementById("experiment-selected-meta");
+            const metrics = document.getElementById("experiment-selected-metrics");
+            const openBody = document.getElementById("experiment-open-tbody");
+            const tradesBody = document.getElementById("experiment-trades-tbody");
+            const logBody = document.getElementById("experiment-log-tbody");
+            if (!meta || !metrics || !openBody || !tradesBody || !logBody) return;
+            if (!mode) {{
+                meta.textContent = "尚無策略資料。策略設定套用後，盤中開始累積影子分析。";
+                metrics.innerHTML = "";
+                openBody.innerHTML = '<tr><td colspan="6" class="py-2 text-center text-gray-500">尚無持倉</td></tr>';
+                tradesBody.innerHTML = '<tr><td colspan="5" class="py-2 text-center text-gray-500">尚無交易</td></tr>';
+                logBody.innerHTML = '<tr><td colspan="4" class="py-2 text-center text-gray-500">尚無分析日誌</td></tr>';
+                return;
+            }}
+            const trades = mode.trades || [];
+            const closed = trades.filter(t => t.status === "closed");
+            const wins = closed.filter(t => Number(t.pnl_amount || 0) > 0).length;
+            const netPnl = closed.reduce((sum, t) => sum + Number(t.pnl_amount || 0), 0);
+            const openPositions = mode.open_positions || [];
+            const quoteMap = CURRENT_LIVE_QUOTES || {{}};
+            const floating = openPositions.reduce((sum, pos) => {{
+                const price = Number(quoteMap[pos.symbol]?.price), entry = Number(pos.entry_price);
+                if (!Number.isFinite(price) || !Number.isFinite(entry)) return sum;
+                return sum + (price-entry) * ((pos.signal || "BUY").toUpperCase() === "SHORT" ? -1 : 1) * Number(pos.shares || 0);
+            }}, 0);
+            const indicators = mode.indicators || Object.keys(mode.settings?.enabled_strategies || {{}}).filter(k => mode.settings.enabled_strategies[k]);
+            const indicatorNames = indicators.map(k => STRATEGY_INDICATOR_LABELS[k] || k).join(" + ") || "未設定（至少勾選兩項）";
+            meta.innerHTML = `<span class="text-white font-semibold">${{escapeHtml(mode.name || modeKey)}}</span><span class="text-gray-500"> · 組合條件：${{escapeHtml(indicatorNames)}}（全數同方向成立）</span>`;
+            const metricCards = [
+                ["進場筆數", trades.length], ["已平倉", closed.length],
+                ["勝率", closed.length ? `${{(wins/closed.length*100).toFixed(1)}}%` : "—"],
+                ["已實現淨損益", `${{netPnl > 0 ? "+" : ""}}${{Math.round(netPnl).toLocaleString()}}`],
+                ["持倉／浮動毛損益", `${{openPositions.length}} 檔 · ${{floating > 0 ? "+" : ""}}${{Math.round(floating).toLocaleString()}}`]
+            ];
+            metrics.innerHTML = metricCards.map(([label, value]) => `<div class="rounded-lg border border-white/10 bg-black/20 p-2"><div class="text-[10px] text-gray-500">${{escapeHtml(label)}}</div><div class="text-sm font-semibold text-white mt-1">${{escapeHtml(value)}}</div></div>`).join("");
+            const openRows = openPositions.map(pos => {{
+                const quote = quoteMap[pos.symbol] || {{}};
+                const price = Number(quote.price), entry = Number(pos.entry_price);
+                const hasPrice = Number.isFinite(price);
+                const pnl = hasPrice ? (price-entry) * ((pos.signal || "BUY").toUpperCase() === "SHORT" ? -1 : 1) * Number(pos.shares || 0) : null;
+                const pnlClass = pnl > 0 ? "text-[#ff5470]" : pnl < 0 ? "text-[#00d68f]" : "text-gray-400";
+                return `<tr><td class="py-2 px-2 whitespace-nowrap">${{escapeHtml(pos.symbol)}} ${{escapeHtml(pos.name || "")}}</td><td>${{escapeHtml(pos.direction || "-")}}</td><td class="mono">${{escapeHtml(pos.entry_price ?? "-")}}</td><td class="mono">${{hasPrice ? price.toFixed(2) : "-"}}</td><td class="mono"><span class="text-[#00d68f]">${{escapeHtml(pos.stop_loss ?? "-")}}</span> / <span class="text-[#ff5470]">${{escapeHtml(pos.take_profit ?? "-")}}</span></td><td class="mono ${{pnlClass}}">${{pnl === null ? "-" : (pnl > 0 ? "+" : "") + Math.round(pnl).toLocaleString()}}</td></tr>`;
+            }}).join("");
+            openBody.innerHTML = openRows || '<tr><td colspan="6" class="py-2 text-center text-gray-500">尚無持倉</td></tr>';
+            const tradeRows = trades.slice().reverse().slice(0, 25).map(t => {{
+                const status = t.status === "open" ? "持倉中" : (t.result === "win" ? "獲利" : t.result === "loss" ? "虧損" : "已平倉");
+                const pnl = Number(t.pnl_amount || 0);
+                const pnlClass = pnl > 0 ? "text-[#ff5470]" : pnl < 0 ? "text-[#00d68f]" : "text-gray-400";
+                return `<tr><td class="py-2 px-2 whitespace-nowrap">${{escapeHtml(t.symbol)}} ${{escapeHtml(t.name || "")}}</td><td>${{escapeHtml(t.direction || "-")}}</td><td class="mono">${{escapeHtml(t.entry_time || "-")}}${{t.exit_time ? ` / ${{escapeHtml(t.exit_time)}}` : ""}}</td><td>${{status}}</td><td class="mono ${{pnlClass}}">${{t.status === "closed" ? (pnl > 0 ? "+" : "") + Math.round(pnl).toLocaleString() : "-"}}</td></tr>`;
+            }}).join("");
+            tradesBody.innerHTML = tradeRows || '<tr><td colspan="5" class="py-2 text-center text-gray-500">尚無交易</td></tr>';
+            const logs = (mode.analysis_log || []).slice(-12).reverse().map(log => {{
+                const signal = log.signal === "BUY" ? "做多" : log.signal === "SHORT" ? "放空" : "觀望";
+                const outcome = log.entered === true ? "已進場" : log.entry_candidate ? `未進場：${{log.entry_block_reason || "資金/持倉限制"}}` : (log.reason || "未觸發全部條件");
+                return `<tr><td class="py-2 px-2 mono whitespace-nowrap">${{escapeHtml(log.time || "-")}}</td><td class="whitespace-nowrap">${{escapeHtml(log.symbol || "")}} ${{escapeHtml(log.name || "")}}</td><td>${{signal}}</td><td class="text-gray-400 min-w-48">${{escapeHtml(outcome)}}</td></tr>`;
+            }}).join("");
+            logBody.innerHTML = logs || '<tr><td colspan="4" class="py-2 text-center text-gray-500">尚無分析日誌</td></tr>';
         }}
 
         // 依訊號分類重新產生分析表格/卡片的 HTML，邏輯對應 Python 端 render_html_dashboard()
@@ -2052,7 +2261,8 @@ def fetch_candles_parallel(fugle, symbols: List[str], workers: int = 4) -> Dict[
 def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
                    latest_analysis_records: List[Dict], analysis_log: List[Dict], live_quotes: Dict,
                    total_signals: int, cfg: Optional[Dict] = None,
-                   allow_fetch: bool = True, render: bool = True):
+                   allow_fetch: bool = True, render: bool = True,
+                   strategy_settings: Optional[Dict] = None):
     """
     13:25 收盤結算。
 
@@ -2069,13 +2279,17 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
     day_tax = bool(cfg.get("is_day_trade_tax", True))
     strategy_trades = state.setdefault("strategy_trades", [])
     open_positions = state.setdefault("open_positions", [])
-    experiments = ensure_strategy_experiment_state(state, today_str)
+    experiments = ensure_strategy_experiment_state(state, today_str, strategy_settings or load_strategy_settings())
+    legacy_modes = experiments.get("legacy_modes")
+    if not isinstance(legacy_modes, dict):
+        legacy_modes = {}
+    all_experiment_modes = list(experiments["modes"].values()) + list(legacy_modes.values())
     print(f"\n🎯 開始收盤結算：未平倉 {len(open_positions)} 筆、今日進場 {len(strategy_trades)} 筆")
 
     # ① 抓最新K線：持倉標的 + 全部監控標的（順便把參考價更新為收盤價，供歷史損益試算）
     symbols = list(dict.fromkeys(
         [p["symbol"] for p in open_positions] +
-        [p["symbol"] for mode in experiments["modes"].values() for p in mode.get("open_positions", [])] +
+        [p["symbol"] for mode in all_experiment_modes for p in mode.get("open_positions", [])] +
         [str(s.get("symbol")) for s in (wave2_stocks or []) + (wave1_stocks or [])]))
     candles_map = fetch_candles_parallel(fugle, symbols) if allow_fetch else {}
     for sym, raw in candles_map.items():
@@ -2112,7 +2326,7 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
     state["open_positions"] = []
 
     # 五組影子帳本各自依收盤前 K 線平倉，績效不混入正式策略交易。
-    for mode_key, mode in experiments["modes"].items():
+    for mode in all_experiment_modes:
         trades = mode.setdefault("trades", [])
         for pos in list(mode.get("open_positions") or []):
             bars = te.normalize_candles(candles_map.get(pos["symbol"]))
@@ -2210,7 +2424,8 @@ def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, com
         return None, "已有持倉", False
     if sig == "SHORT" and not settings["allow_short"]:
         return None, "設定禁止放空", True
-    ok, why = te.can_enter(symbol, state["strategy_trades"], now.strftime("%H:%M:%S"), settings)
+    trade_ledger = state.get("strategy_trades", state.get("trades", []))
+    ok, why = te.can_enter(symbol, trade_ledger, now.strftime("%H:%M:%S"), settings)
     if not ok:
         return None, why, True
 
@@ -2229,11 +2444,12 @@ def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, com
     if not ok:
         return None, why, True
 
-    trade_id = f"{today_str}_{experiment_id}_{symbol}_{now.strftime('%H%M%S')}_{len(state.get('strategy_trades', [])) + 1}" if experiment_id else f"{today_str}_{symbol}_{now.strftime('%H%M%S')}"
+    trade_id = f"{today_str}_{experiment_id}_{symbol}_{now.strftime('%H%M%S')}_{len(trade_ledger) + 1}" if experiment_id else f"{today_str}_{symbol}_{now.strftime('%H%M%S')}"
+    strategy_label = (res.get("strategy_name") if experiment_id else " + ".join(res.get("strategy_matches") or [])) or "多策略共識"
     position = {
         "id": trade_id, "symbol": symbol, "name": name, "signal": sig,
         "direction": "做多" if sig == "BUY" else "放空",
-        "strategy": res.get("strategy", ""), "strategy_name": res.get("strategy_name", "多策略共識"),
+        "strategy": res.get("strategy", ""), "strategy_name": strategy_label,
         "strategy_votes": res.get("strategy_votes", []), "entry_price": round(entry_p, 2),
         "stop_loss": stop_p, "take_profit": target_p, "shares": shares,
         "entry_time": now.strftime("%H:%M:%S"), "entry_bar_hm": te.bar_hm(completed[-1]),
@@ -2328,7 +2544,7 @@ def run_once(ctx: Dict) -> str:
             run_settlement(existing, today_str, gemini, fugle, existing.get("wave1_stocks", []),
                            existing.get("wave2_stocks", []), existing.get("latest_analysis_records", []),
                            existing.get("analysis_log", []), existing.get("live_quotes", {}),
-                           existing.get("total_signals", 0), cfg)
+                           existing.get("total_signals", 0), cfg, strategy_settings=settings)
             return "done"
         if not ctx["force"]:
             print("ℹ️ 目前不在交易時段，略過（不覆蓋 index.html）。手動測試請勾選 force_run。")
@@ -2351,7 +2567,7 @@ def run_once(ctx: Dict) -> str:
 
     # ── 盤中 ──────────────────────────────────────────────────
     state = load_dashboard_state(today_str, gemini, fugle, cfg)
-    experiments = ensure_strategy_experiment_state(state, today_str)
+    experiments = ensure_strategy_experiment_state(state, today_str, settings)
     if state.get("settled_today"):
         print(f"ℹ️ 今日 ({today_str}) 已完成收盤結算，不重複結算。")
         return "done"
@@ -2369,7 +2585,7 @@ def run_once(ctx: Dict) -> str:
     # 收盤結算優先於任何選股（避免前面輪次缺失時，13:25 之後的第一輪還跑去重新選股）
     if hm >= HISTORY_SETTLE_TIME:
         run_settlement(state, today_str, gemini, fugle, wave1_stocks, wave2_stocks, latest_analysis_records,
-                       analysis_log, live_quotes, state["total_signals"], cfg)
+                       analysis_log, live_quotes, state["total_signals"], cfg, strategy_settings=settings)
         return "done"
 
     # 第一波選股（13:00 後才補選已無意義，不再選）
@@ -2414,7 +2630,8 @@ def run_once(ctx: Dict) -> str:
         return "ok"
 
     # 13:00 後且無持倉：不再分析
-    has_experiment_positions = any(mode.get("open_positions") for mode in experiments["modes"].values())
+    legacy_modes = experiments.get("legacy_modes") if isinstance(experiments.get("legacy_modes"), dict) else {}
+    has_experiment_positions = any(mode.get("open_positions") for mode in list(experiments["modes"].values()) + list(legacy_modes.values()))
     if hm >= ANALYSIS_STOP_TIME and not state.get("open_positions") and not has_experiment_positions:
         print(f"已過 {ANALYSIS_STOP_TIME}，停止新進場，等待 {HISTORY_SETTLE_TIME} 收盤結算。")
         persist(state, status_text=f"已停止新進場 (等待 {HISTORY_SETTLE_TIME} 收盤結算)")
@@ -2436,6 +2653,10 @@ def run_once(ctx: Dict) -> str:
                                         for p in open_positions if str(p.get("symbol")) not in seen]
     seen.update(str(p.get("symbol")) for p in open_positions)
     for mode in experiments["modes"].values():
+        monitored.extend({"symbol": p["symbol"], "name": p.get("name", p["symbol"])}
+                         for p in mode.get("open_positions", []) if str(p.get("symbol")) not in seen)
+        seen.update(str(p.get("symbol")) for p in mode.get("open_positions", []))
+    for mode in legacy_modes.values():
         monitored.extend({"symbol": p["symbol"], "name": p.get("name", p["symbol"])}
                          for p in mode.get("open_positions", []) if str(p.get("symbol")) not in seen)
         seen.update(str(p.get("symbol")) for p in mode.get("open_positions", []))
@@ -2472,6 +2693,24 @@ def run_once(ctx: Dict) -> str:
             # ② 訊號只用「已收完」的 K 棒（進行中的分K會重繪）
             completed = te.drop_incomplete_bar(bars, hm)
 
+            # 舊版影子持倉只繼續監控出場，不再建立舊版新倉；換版當天的歷史帳本保留到收盤。
+            for legacy_mode in legacy_modes.values():
+                legacy_trades = legacy_mode.setdefault("trades", [])
+                legacy_positions = legacy_mode.setdefault("open_positions", [])
+                for pos in list(legacy_positions):
+                    if pos.get("symbol") != symbol:
+                        continue
+                    hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
+                    if not hit:
+                        continue
+                    closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+                    legacy_positions.remove(pos)
+                    for trade_index in range(len(legacy_trades) - 1, -1, -1):
+                        if legacy_trades[trade_index].get("id") == pos.get("id"):
+                            legacy_trades[trade_index] = closed
+                            break
+                    legacy_mode["summary"] = te.summarize_trades(legacy_trades)
+
             # 五種策略組合平行跑影子交易：每組有獨立持倉、交易帳本與設定，互不影響正式帳本。
             for mode_key, mode in experiments["modes"].items():
                 mode_settings = normalize_settings(mode.get("settings"))
@@ -2494,11 +2733,41 @@ def run_once(ctx: Dict) -> str:
                 mode_res = evaluate_strategies(completed, mode_settings)
                 mode_signal = mode_res.get("signal", "WATCH")
                 mode_entry = mode_res.get("price") or (completed[-1]["close"] if completed else bars[-1]["close"])
+                mode_votes_by_side = mode_res.get("strategy_votes_by_side") or {"BUY": [], "SHORT": []}
+                matched_votes = mode_res.get("strategy_votes") or []
+                if mode_signal in {"BUY", "SHORT"}:
+                    mode_res["strategy"] = mode_key
+                    mode_res["strategy_name"] = mode.get("name", mode_key)
+                    mode_res["reason"] = "；".join(v.get("reason", "") for v in matched_votes)
+                required_indicators = list(mode.get("indicators") or [])
+                risk_snapshot = {key: mode_settings.get(key) for key in (
+                    "volume_multiple", "stop_atr", "target_atr", "min_net_rr", "min_target_cost_multiple",
+                    "sizing_mode", "risk_per_trade", "position_amount", "fixed_shares", "max_position_value",
+                )}
+                fired_by_side = {
+                    side: [v.get("key") for v in mode_votes_by_side.get(side, [])]
+                    for side in ("BUY", "SHORT")
+                }
+                mode_reason = mode_res.get("reason", "")
+                if mode_signal == "WATCH":
+                    fired_labels = []
+                    for side, side_label in (("BUY", "多方"), ("SHORT", "空方")):
+                        votes = mode_votes_by_side.get(side, [])
+                        if votes:
+                            detail = "、".join(v.get("name", v.get("key", "")) for v in votes)
+                            fired_labels.append(f"{side_label}觸發 {detail}")
+                    mode_reason = ("；".join(fired_labels) + "；" if fired_labels else "") + (
+                        f"需至少勾選兩項，且所選模組全數同方向成立：{ ' + '.join(STRATEGY_NAMES.get(key, key) for key in required_indicators) or '尚未設定' }"
+                    )
                 mode_record = {
                     "time": now.strftime("%H:%M:%S"), "symbol": symbol, "name": name,
                     "signal": mode_signal, "price": mode_entry,
-                    "reason": mode_res.get("reason", ""),
-                    "strategy_votes": mode_res.get("strategy_votes", []),
+                    "reason": mode_reason,
+                    "strategy_votes": matched_votes,
+                    "strategy_votes_by_side": mode_votes_by_side,
+                    "required_indicators": required_indicators,
+                    "fired_indicators_by_side": fired_by_side,
+                    "settings_snapshot": risk_snapshot,
                     "vote_counts": mode_res.get("vote_counts", {}),
                 }
                 mode_candidate = None
@@ -2510,11 +2779,15 @@ def run_once(ctx: Dict) -> str:
                     if position:
                         position["experiment_mode"] = mode_key
                         position["experiment_name"] = mode.get("name")
+                        position["experiment_config"] = {
+                            "name": mode.get("name"), "indicators": required_indicators,
+                            "settings": risk_snapshot,
+                        }
                         mode_candidate = {"position": position,
                                           "votes": int((mode_res.get("vote_counts") or {}).get(mode_signal, 0))}
                         mode_record["entry_candidate"] = True
                     else:
-                        mode_record["entry_candidate"] = False
+                        mode_record["entry_candidate"] = True
                         mode_record["entry_block_reason"] = why
                 mode.setdefault("analysis_log", []).append(mode_record)
                 experiment_pending[mode_key].append({"record": mode_record, "candidate": mode_candidate})

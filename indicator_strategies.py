@@ -31,6 +31,16 @@ STRATEGY_FAMILY = {
 }
 REVERSAL_FAMILY = "reversal"
 
+# 每日五組影子策略：組內所選訊號模組必須同方向同時成立才進場。
+# 這些是可由 strategy_settings.json / 看板下載檔自由調整的起始搭配，並非宣稱高勝率保證。
+DEFAULT_EXPERIMENT_STRATEGIES = [
+    {"id": "strategy_1", "name": "VWAP + MACD 放量突破", "indicators": ["vwap_momentum", "macd_volume"]},
+    {"id": "strategy_2", "name": "EMA 回檔 + KD 趨勢確認", "indicators": ["ema_pullback", "stochastic_trend"]},
+    {"id": "strategy_3", "name": "開盤區間 + 區間突破", "indicators": ["orb_breakout", "range_breakout"]},
+    {"id": "strategy_4", "name": "EMA 快慢線 + MACD 動能", "indicators": ["ema_momentum", "macd_volume"]},
+    {"id": "strategy_5", "name": "RSI 布林反轉 + VWAP 確認", "indicators": ["rsi_reversal", "vwap_momentum"]},
+]
+
 DEFAULT_SETTINGS = {
     "enabled_strategies": {key: True for key in STRATEGY_NAMES},
     "min_votes": 2,              # 至少幾個「獨立家族」同向才進場（原為 1：任一策略觸發就進場）
@@ -55,6 +65,7 @@ DEFAULT_SETTINGS = {
     "daily_capital": 1_000_000.0,     # 每天可用於當沖的本金（元）；每天開盤重置
     "allow_short": True,
     "skip_attention": True,           # 注意股一律不進場
+    "experiment_strategies": DEFAULT_EXPERIMENT_STRATEGIES,
 }
 
 SIZING_MODES = ("fixed_risk", "fixed_amount", "fixed_shares")
@@ -72,42 +83,44 @@ RISK_MODE_PRESETS = {
                 "cooldown_minutes": 0, "cooldown_after_stop_only": False},
 }
 
-# 五組固定設定，供每日並行影子交易；每組有獨立持倉與本金，能公平比較策略組合。
-EXPERIMENT_MODE_CONFIGS = {
-    "vwap_momentum": {
-        "name": "VWAP 動能確認",
-        "enabled": ("vwap_momentum", "macd_volume", "ema_momentum", "orb_breakout", "range_breakout"),
-        "settings": {"min_votes": 2, "volume_multiple": 1.2, "stop_atr": 1.1, "target_atr": 2.0, "min_net_rr": 1.0, "max_open_positions": 20},
-    },
-    "trend_pullback": {
-        "name": "EMA 趨勢回檔",
-        "enabled": ("ema_pullback", "ema_momentum", "stochastic_trend", "macd_volume"),
-        "settings": {"min_votes": 2, "volume_multiple": 1.0, "stop_atr": 1.2, "target_atr": 1.8, "min_net_rr": 1.0, "max_open_positions": 20},
-    },
-    "volume_breakout": {
-        "name": "放量區間突破",
-        "enabled": ("orb_breakout", "range_breakout", "vwap_momentum", "macd_volume"),
-        "settings": {"min_votes": 2, "volume_multiple": 1.5, "stop_atr": 1.1, "target_atr": 2.2, "min_net_rr": 1.0, "max_open_positions": 20},
-    },
-    "reversal_confirm": {
-        "name": "RSI 反轉確認",
-        "enabled": ("rsi_reversal", "vwap_momentum", "stochastic_trend"),
-        "settings": {"min_votes": 2, "volume_multiple": 1.1, "stop_atr": 0.9, "target_atr": 1.6, "min_net_rr": 1.0, "max_open_positions": 20},
-    },
-    "all_families": {
-        "name": "全策略家族共識",
-        "enabled": tuple(STRATEGY_NAMES),
-        "settings": {"min_votes": 2, "volume_multiple": 1.2, "stop_atr": 1.25, "target_atr": 2.0, "min_net_rr": 1.0, "max_open_positions": 20},
-    },
-}
+def normalize_experiment_strategies(raw=None) -> List[Dict]:
+    """正規化恰好五組可編輯的指標組合，丟棄未知指標並去除重複值。"""
+    source = raw if isinstance(raw, (list, tuple)) else []
+    result = []
+    for index, default in enumerate(DEFAULT_EXPERIMENT_STRATEGIES):
+        item = source[index] if index < len(source) and isinstance(source[index], dict) else {}
+        raw_indicators = item.get("indicators", item.get("enabled_indicators", default["indicators"]))
+        if not isinstance(raw_indicators, (list, tuple)):
+            raw_indicators = default["indicators"]
+        indicators = list(dict.fromkeys(str(key) for key in raw_indicators if str(key) in STRATEGY_NAMES))
+        name = str(item.get("name") or default["name"]).strip()[:48] or default["name"]
+        result.append({"id": default["id"], "name": name, "indicators": indicators})
+    return result
 
 
-def experiment_settings() -> Dict[str, Dict]:
-    """回傳五組固定實驗設定；與主策略及使用者當前風險模式分離。"""
+def experiment_settings(settings: Optional[Dict] = None) -> Dict[str, Dict]:
+    """建立五組獨立影子設定；被勾選的訊號模組必須全數同方向成立。"""
+    base = normalize_settings(settings)
     result = {}
-    for mode_key, mode in EXPERIMENT_MODE_CONFIGS.items():
-        enabled = {key: key in mode["enabled"] for key in STRATEGY_NAMES}
-        result[mode_key] = normalize_settings({**mode["settings"], "enabled_strategies": enabled})
+    for combo in base["experiment_strategies"]:
+        selected = combo["indicators"]
+        enabled = {key: key in selected for key in STRATEGY_NAMES}
+        mode_settings = dict(base)
+        mode_settings.update({
+            "enabled_strategies": enabled,
+            "min_votes": max(2, len(selected)),
+            "min_vote_margin": 1,
+            "count_by_family": False,
+            "max_open_positions": 20,
+            "max_entries_per_symbol": 0,
+            "cooldown_minutes": 0,
+            "cooldown_after_stop_only": False,
+        })
+        result[combo["id"]] = {
+            "name": combo["name"],
+            "indicators": list(selected),
+            "settings": normalize_settings(mode_settings),
+        }
     return result
 
 
@@ -124,6 +137,7 @@ def normalize_settings(settings: Optional[Dict] = None) -> Dict:
     enabled = dict(DEFAULT_SETTINGS["enabled_strategies"])
     enabled.update({k: bool(v) for k, v in (source.get("enabled_strategies") or {}).items() if k in enabled})
     out["enabled_strategies"] = enabled
+    out["experiment_strategies"] = normalize_experiment_strategies(source.get("experiment_strategies"))
     bounds = {
         "min_votes": (1, len(STRATEGY_NAMES), int),
         "min_vote_margin": (1, len(STRATEGY_NAMES), int),
@@ -188,7 +202,8 @@ def _rsi(values: List[float], period: int = 14) -> float:
 
 def evaluate(candles: List[Dict], settings: Optional[Dict] = None) -> Dict:
     cfg = normalize_settings(settings)
-    result = {"signal": "WATCH", "strategy_name": "", "strategy_matches": [], "strategy_votes": [], "reason": "", "price": None, "atr": 0.0, "vwap": None}
+    result = {"signal": "WATCH", "strategy_name": "", "strategy_matches": [], "strategy_votes": [],
+              "strategy_votes_by_side": {"BUY": [], "SHORT": []}, "reason": "", "price": None, "atr": 0.0, "vwap": None}
     if not candles or len(candles) < cfg["min_bars"]:
         result["reason"] = f"K線不足（需至少 {cfg['min_bars']} 根）"
         return result
@@ -293,7 +308,9 @@ def evaluate(candles: List[Dict], settings: Optional[Dict] = None) -> Dict:
     chosen = votes.get(side, []) if side != "WATCH" else []
     unit = "家族" if cfg["count_by_family"] else "策略"
     wait_reason = conflict or f"獨立{unit}票數多空 {buy_n}:{short_n}（原始策略 {raw_buy}:{raw_short}），未達門檻 {cfg['min_votes']}"
-    result.update(signal=side, strategy_name=chosen[0]["name"] if chosen else "", strategy_matches=[v["name"] for v in chosen], strategy_votes=chosen, reason="；".join(v["reason"] for v in chosen) or wait_reason, price=round(price, 2), atr=round(atr, 4), vwap=round(vwap, 2), rsi=round(rsi, 2), vote_counts={"BUY": buy_n, "SHORT": short_n}, raw_vote_counts={"BUY": raw_buy, "SHORT": raw_short})
+    result.update(signal=side, strategy_name=chosen[0]["name"] if chosen else "", strategy_matches=[v["name"] for v in chosen], strategy_votes=chosen,
+                  strategy_votes_by_side={"BUY": votes["BUY"], "SHORT": votes["SHORT"]},
+                  reason="；".join(v["reason"] for v in chosen) or wait_reason, price=round(price, 2), atr=round(atr, 4), vwap=round(vwap, 2), rsi=round(rsi, 2), vote_counts={"BUY": buy_n, "SHORT": short_n}, raw_vote_counts={"BUY": raw_buy, "SHORT": raw_short})
     return result
 
 

@@ -9,6 +9,33 @@
     "stochastic_trend": true,
     "range_breakout": true
   },
+  "experiment_strategies": [
+    {
+      "id": "strategy_1",
+      "name": "VWAP + MACD 放量突破",
+      "indicators": ["vwap_momentum", "macd_volume"]
+    },
+    {
+      "id": "strategy_2",
+      "name": "EMA 回檔 + KD 趨勢確認",
+      "indicators": ["ema_pullback", "stochastic_trend"]
+    },
+    {
+      "id": "strategy_3",
+      "name": "開盤區間 + 區間突破",
+      "indicators": ["orb_breakout", "range_breakout"]
+    },
+    {
+      "id": "strategy_4",
+      "name": "EMA 快慢線 + MACD 動能",
+      "indicators": ["ema_momentum", "macd_volume"]
+    },
+    {
+      "id": "strategy_5",
+      "name": "RSI 布林反轉 + VWAP 確認",
+      "indicators": ["rsi_reversal", "vwap_momentum"]
+    }
+  ],
   "min_votes": 2,
   "min_vote_margin": 1,
   "count_by_family": true,
