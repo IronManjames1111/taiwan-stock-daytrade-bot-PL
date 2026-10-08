@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">盤中監控中 (10:51)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">盤中分析中 (10:52)</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-10-08 10:51:23</span>
+                    <span class="text-white mono ml-1.5">2026-10-08 10:52:27</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -388,14 +388,14 @@
                         </tr>
                     </thead>
                     <tbody id="analysis-tbody" class="divide-y divide-white/5">
-            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch" data-symbol="1802">
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="short" data-symbol="1802">
                 <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">1802 台玻</td>
-                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
-                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">63.8</td>
-                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 text-gray-300 text-xs">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="1802" onclick="toggleHistoryLog(this, '1802')">📜 歷史 25 筆</button></td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-short">🔻 放空</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">63.6</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">63.9</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">63.2</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱；MACD 死亡交叉、VWAP 下方且量能確認；EMA9 下穿 EMA20 且位於 VWAP 下方；KD 向下交叉並符合空頭趨勢　⛔未進場：停利空間僅為成本的 2.7 倍（需 ≥ 3.0）</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="1802" onclick="toggleHistoryLog(this, '1802')">📜 歷史 26 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1802">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -404,11 +404,11 @@
             <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch" data-symbol="1301">
                 <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">1301 台塑</td>
                 <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
-                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">79.8</td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">79.5</td>
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="1301" onclick="toggleHistoryLog(this, '1301')">📜 歷史 41 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="1301" onclick="toggleHistoryLog(this, '1301')">📜 歷史 41 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1301">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -420,8 +420,8 @@
                 <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">73.2</td>
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 text-gray-300 text-xs">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="6770" onclick="toggleHistoryLog(this, '6770')">📜 歷史 23 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（需達近期均量 1.2 倍），觀望</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="6770" onclick="toggleHistoryLog(this, '6770')">📜 歷史 24 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="6770">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -433,8 +433,8 @@
                 <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">37.1</td>
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 text-gray-300 text-xs">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="2409" onclick="toggleHistoryLog(this, '2409')">📜 歷史 24 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（需達近期均量 1.2 倍），觀望</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="2409" onclick="toggleHistoryLog(this, '2409')">📜 歷史 25 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="2409">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -486,7 +486,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="1815" onclick="toggleHistoryLog(this, '1815')">📜 歷史 26 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="1815" onclick="toggleHistoryLog(this, '1815')">📜 歷史 26 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1815">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -498,21 +498,21 @@
                 <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">12.1</td>
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（需達近期均量 1.2 倍），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="1718" onclick="toggleHistoryLog(this, '1718')">📜 歷史 10 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="1718" onclick="toggleHistoryLog(this, '1718')">📜 歷史 11 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1718">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
             </tr>
             
-            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch" data-symbol="1714">
+            <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="short" data-symbol="1714">
                 <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">1714 和桐</td>
-                <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
-                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">20.1</td>
-                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
-                <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（需達近期均量 1.2 倍），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="1714" onclick="toggleHistoryLog(this, '1714')">📜 歷史 6 筆</button></td>
+                <td class="py-2.5 px-3"><span class="sig-badge sig-short">🔻 放空</span></td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">20.05</td>
+                <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">20.15</td>
+                <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">19.9</td>
+                <td class="py-2.5 px-3 text-gray-300 text-xs">MACD 量能確認：MACD 死亡交叉、VWAP 下方且量能確認　⛔未進場：扣成本後淨賺賠比 0.71 &lt; 1.0（損益兩平勝率約 58%）</td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="1714" onclick="toggleHistoryLog(this, '1714')">📜 歷史 7 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1714">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -521,11 +521,11 @@
             <tr class="hover:bg-white/[0.02] analysis-row" data-filter-group="watch" data-symbol="1326">
                 <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">1326 台化</td>
                 <td class="py-2.5 px-3"><span class="sig-badge sig-watch">— 觀望</span></td>
-                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">76.8</td>
+                <td class="py-2.5 px-3 mono text-gray-200 whitespace-nowrap">76.7</td>
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:50:34<button type="button" class="history-toggle-btn" data-symbol="1326" onclick="toggleHistoryLog(this, '1326')">📜 歷史 4 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:52:25<button type="button" class="history-toggle-btn" data-symbol="1326" onclick="toggleHistoryLog(this, '1326')">📜 歷史 4 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1326">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -536,17 +536,17 @@
 
             <!-- 手機版：直式資訊卡（避免長文字被表格固定欄寬硬擠導致換行跑版） -->
             <div id="analysis-cards" class="analysis-cards-wrap">
-            <div class="data-card analysis-row" data-filter-group="watch" data-symbol="1802">
+            <div class="data-card analysis-row" data-filter-group="short" data-symbol="1802">
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-bold text-white text-sm">1802 台玻</span>
-                    <span class="sig-badge sig-watch">— 觀望</span>
+                    <span class="sig-badge sig-short">🔻 放空</span>
                 </div>
-                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">63.8</span></div>
-                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
-                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
-                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</div>
-                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1802" onclick="toggleHistoryLog(this, '1802')">📜 歷史 25 筆</button><div class="history-log-container" data-symbol-log-card="1802"></div></div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">63.6</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">63.9</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">63.2</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱；MACD 死亡交叉、VWAP 下方且量能確認；EMA9 下穿 EMA20 且位於 VWAP 下方；KD 向下交叉並符合空頭趨勢　⛔未進場：停利空間僅為成本的 2.7 倍（需 ≥ 3.0）</div>
+                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1802" onclick="toggleHistoryLog(this, '1802')">📜 歷史 26 筆</button><div class="history-log-container" data-symbol-log-card="1802"></div></div>
             </div>
             
             <div class="data-card analysis-row" data-filter-group="watch" data-symbol="1301">
@@ -554,10 +554,10 @@
                     <span class="font-bold text-white text-sm">1301 台塑</span>
                     <span class="sig-badge sig-watch">— 觀望</span>
                 </div>
-                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">79.8</span></div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">79.5</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1301" onclick="toggleHistoryLog(this, '1301')">📜 歷史 41 筆</button><div class="history-log-container" data-symbol-log-card="1301"></div></div>
             </div>
@@ -570,9 +570,9 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">73.2</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
-                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</div>
-                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="6770" onclick="toggleHistoryLog(this, '6770')">📜 歷史 23 筆</button><div class="history-log-container" data-symbol-log-card="6770"></div></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（需達近期均量 1.2 倍），觀望</div>
+                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="6770" onclick="toggleHistoryLog(this, '6770')">📜 歷史 24 筆</button><div class="history-log-container" data-symbol-log-card="6770"></div></div>
             </div>
             
             <div class="data-card analysis-row" data-filter-group="watch" data-symbol="2409">
@@ -583,9 +583,9 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">37.1</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
-                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</div>
-                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="2409" onclick="toggleHistoryLog(this, '2409')">📜 歷史 24 筆</button><div class="history-log-container" data-symbol-log-card="2409"></div></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（需達近期均量 1.2 倍），觀望</div>
+                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="2409" onclick="toggleHistoryLog(this, '2409')">📜 歷史 25 筆</button><div class="history-log-container" data-symbol-log-card="2409"></div></div>
             </div>
             
             <div class="data-card analysis-row" data-filter-group="watch" data-symbol="2344">
@@ -635,7 +635,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">135.0</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1815" onclick="toggleHistoryLog(this, '1815')">📜 歷史 26 筆</button><div class="history-log-container" data-symbol-log-card="1815"></div></div>
             </div>
@@ -648,22 +648,22 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">12.1</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
-                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（需達近期均量 1.2 倍），觀望</div>
-                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1718" onclick="toggleHistoryLog(this, '1718')">📜 歷史 10 筆</button><div class="history-log-container" data-symbol-log-card="1718"></div></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</div>
+                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1718" onclick="toggleHistoryLog(this, '1718')">📜 歷史 11 筆</button><div class="history-log-container" data-symbol-log-card="1718"></div></div>
             </div>
             
-            <div class="data-card analysis-row" data-filter-group="watch" data-symbol="1714">
+            <div class="data-card analysis-row" data-filter-group="short" data-symbol="1714">
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-bold text-white text-sm">1714 和桐</span>
-                    <span class="sig-badge sig-watch">— 觀望</span>
+                    <span class="sig-badge sig-short">🔻 放空</span>
                 </div>
-                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">20.1</span></div>
-                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
-                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
-                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（需達近期均量 1.2 倍），觀望</div>
-                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1714" onclick="toggleHistoryLog(this, '1714')">📜 歷史 6 筆</button><div class="history-log-container" data-symbol-log-card="1714"></div></div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">20.05</span></div>
+                <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">20.15</span></div>
+                <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">19.9</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
+                <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">MACD 量能確認：MACD 死亡交叉、VWAP 下方且量能確認　⛔未進場：扣成本後淨賺賠比 0.71 &lt; 1.0（損益兩平勝率約 58%）</div>
+                <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1714" onclick="toggleHistoryLog(this, '1714')">📜 歷史 7 筆</button><div class="history-log-container" data-symbol-log-card="1714"></div></div>
             </div>
             
             <div class="data-card analysis-row" data-filter-group="watch" data-symbol="1326">
@@ -671,10 +671,10 @@
                     <span class="font-bold text-white text-sm">1326 台化</span>
                     <span class="sig-badge sig-watch">— 觀望</span>
                 </div>
-                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">76.8</span></div>
+                <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">76.7</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:50:34</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:52:25</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1326" onclick="toggleHistoryLog(this, '1326')">📜 歷史 4 筆</button><div class="history-log-container" data-symbol-log-card="1326"></div></div>
             </div>
@@ -751,9 +751,9 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-10-08 10:51:23",
+  "generated_at": "2026-10-08 10:52:27",
   "today_str": "2026-10-08",
-  "status_text": "盤中監控中 (10:51)",
+  "status_text": "盤中分析中 (10:52)",
   "active_model": "純技術指標（本地策略）",
   "total_signals": 1,
   "wave1_stocks": [
@@ -876,24 +876,24 @@
     {
       "symbol": "1802",
       "name": "台玻",
-      "signal": "WATCH",
-      "entry": 63.8,
-      "stop_loss": "-",
-      "target": "-",
-      "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
-      "strategy": "",
-      "updated_at": "10:50:34"
+      "signal": "SHORT",
+      "entry": 63.6,
+      "stop_loss": 63.9,
+      "target": 63.2,
+      "reason": "EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱；MACD 死亡交叉、VWAP 下方且量能確認；EMA9 下穿 EMA20 且位於 VWAP 下方；KD 向下交叉並符合空頭趨勢　⛔未進場：停利空間僅為成本的 2.7 倍（需 ≥ 3.0）",
+      "strategy": "EMA 趨勢回檔",
+      "updated_at": "10:52:25"
     },
     {
       "symbol": "1301",
       "name": "台塑",
       "signal": "WATCH",
-      "entry": 79.8,
+      "entry": 79.5,
       "stop_loss": "-",
       "target": "-",
       "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     {
       "symbol": "6770",
@@ -902,9 +902,9 @@
       "entry": 73.2,
       "stop_loss": "-",
       "target": "-",
-      "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
+      "reason": "：量能不足（需達近期均量 1.2 倍），觀望",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     {
       "symbol": "2409",
@@ -913,9 +913,9 @@
       "entry": 37.1,
       "stop_loss": "-",
       "target": "-",
-      "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
+      "reason": "：量能不足（需達近期均量 1.2 倍），觀望",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     {
       "symbol": "2344",
@@ -959,7 +959,7 @@
       "target": "-",
       "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     {
       "symbol": "1718",
@@ -968,31 +968,31 @@
       "entry": 12.1,
       "stop_loss": "-",
       "target": "-",
-      "reason": "：量能不足（需達近期均量 1.2 倍），觀望",
+      "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     {
       "symbol": "1714",
       "name": "和桐",
-      "signal": "WATCH",
-      "entry": 20.1,
-      "stop_loss": "-",
-      "target": "-",
-      "reason": "：量能不足（需達近期均量 1.2 倍），觀望",
-      "strategy": "",
-      "updated_at": "10:50:34"
+      "signal": "SHORT",
+      "entry": 20.05,
+      "stop_loss": 20.15,
+      "target": 19.9,
+      "reason": "MACD 量能確認：MACD 死亡交叉、VWAP 下方且量能確認　⛔未進場：扣成本後淨賺賠比 0.71 < 1.0（損益兩平勝率約 58%）",
+      "strategy": "MACD 量能確認",
+      "updated_at": "10:52:25"
     },
     {
       "symbol": "1326",
       "name": "台化",
       "signal": "WATCH",
-      "entry": 76.8,
+      "entry": 76.7,
       "stop_loss": "-",
       "target": "-",
       "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     }
   ],
   "analysis_log": [
@@ -3693,9 +3693,9 @@
       "target": "-",
       "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
       "strategy": "",
-      "updated_at": "10:50:34",
+      "updated_at": "10:52:25",
       "first_seen": "10:47:17",
-      "repeat": 3
+      "repeat": 4
     },
     {
       "symbol": "6770",
@@ -3784,12 +3784,14 @@
       "symbol": "1301",
       "name": "台塑",
       "signal": "WATCH",
-      "entry": 79.8,
+      "entry": 79.5,
       "stop_loss": "-",
       "target": "-",
       "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25",
+      "first_seen": "10:50:34",
+      "repeat": 2
     },
     {
       "symbol": "6770",
@@ -3817,30 +3819,87 @@
       "symbol": "1326",
       "name": "台化",
       "signal": "WATCH",
-      "entry": 76.8,
+      "entry": 76.7,
       "stop_loss": "-",
       "target": "-",
       "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
       "strategy": "",
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25",
+      "first_seen": "10:50:34",
+      "repeat": 2
+    },
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "WATCH",
+      "entry": 37.1,
+      "stop_loss": "-",
+      "target": "-",
+      "reason": "：量能不足（需達近期均量 1.2 倍），觀望",
+      "strategy": "",
+      "updated_at": "10:52:25"
+    },
+    {
+      "symbol": "1802",
+      "name": "台玻",
+      "signal": "SHORT",
+      "entry": 63.6,
+      "stop_loss": 63.9,
+      "target": 63.2,
+      "reason": "EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱；MACD 死亡交叉、VWAP 下方且量能確認；EMA9 下穿 EMA20 且位於 VWAP 下方；KD 向下交叉並符合空頭趨勢　⛔未進場：停利空間僅為成本的 2.7 倍（需 ≥ 3.0）",
+      "strategy": "EMA 趨勢回檔",
+      "updated_at": "10:52:25"
+    },
+    {
+      "symbol": "6770",
+      "name": "力積電",
+      "signal": "WATCH",
+      "entry": 73.2,
+      "stop_loss": "-",
+      "target": "-",
+      "reason": "：量能不足（需達近期均量 1.2 倍），觀望",
+      "strategy": "",
+      "updated_at": "10:52:25"
+    },
+    {
+      "symbol": "1718",
+      "name": "中纖",
+      "signal": "WATCH",
+      "entry": 12.1,
+      "stop_loss": "-",
+      "target": "-",
+      "reason": "：獨立家族票數多空 0:0（原始策略 0:0），未達門檻 1",
+      "strategy": "",
+      "updated_at": "10:52:25"
+    },
+    {
+      "symbol": "1714",
+      "name": "和桐",
+      "signal": "SHORT",
+      "entry": 20.05,
+      "stop_loss": 20.15,
+      "target": 19.9,
+      "reason": "MACD 量能確認：MACD 死亡交叉、VWAP 下方且量能確認　⛔未進場：扣成本後淨賺賠比 0.71 < 1.0（損益兩平勝率約 58%）",
+      "strategy": "MACD 量能確認",
+      "updated_at": "10:52:25"
     }
   ],
   "live_quotes": {
     "1802": {
-      "price": 63.8,
-      "updated_at": "10:50:34"
+      "price": 63.7,
+      "updated_at": "10:52:25"
     },
     "1301": {
-      "price": 79.7,
-      "updated_at": "10:50:34"
+      "price": 79.5,
+      "updated_at": "10:52:25"
     },
     "6770": {
       "price": 73.2,
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     "2409": {
-      "price": 37.1,
-      "updated_at": "10:50:34"
+      "price": 37.05,
+      "updated_at": "10:52:25"
     },
     "2344": {
       "price": 177.5,
@@ -3856,19 +3915,19 @@
     },
     "1815": {
       "price": 135,
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     "1718": {
       "price": 12.1,
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     "1714": {
       "price": 20.1,
-      "updated_at": "10:50:34"
+      "updated_at": "10:52:25"
     },
     "1326": {
-      "price": 76.9,
-      "updated_at": "10:50:34"
+      "price": 76.7,
+      "updated_at": "10:52:25"
     }
   },
   "settle_records": [],
@@ -24715,6 +24774,318 @@
             "name": "台化",
             "signal": "WATCH",
             "price": 76.8,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1301",
+            "name": "台塑",
+            "signal": "WATCH",
+            "price": 79.5,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "2409",
+            "name": "友達",
+            "signal": "WATCH",
+            "price": 37.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1802",
+            "name": "台玻",
+            "signal": "WATCH",
+            "price": 63.6,
+            "reason": "空方觸發 MACD 量能確認；需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": [
+                {
+                  "key": "macd_volume",
+                  "name": "MACD 量能確認",
+                  "reason": "MACD 死亡交叉、VWAP 下方且量能確認"
+                }
+              ]
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": [
+                "macd_volume"
+              ]
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 1
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1815",
+            "name": "富喬",
+            "signal": "WATCH",
+            "price": 135.0,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "6770",
+            "name": "力積電",
+            "signal": "WATCH",
+            "price": 73.2,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1718",
+            "name": "中纖",
+            "signal": "WATCH",
+            "price": 12.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1714",
+            "name": "和桐",
+            "signal": "WATCH",
+            "price": 20.05,
+            "reason": "空方觸發 MACD 量能確認；需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": [
+                {
+                  "key": "macd_volume",
+                  "name": "MACD 量能確認",
+                  "reason": "MACD 死亡交叉、VWAP 下方且量能確認"
+                }
+              ]
+            },
+            "required_indicators": [
+              "vwap_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": [
+                "macd_volume"
+              ]
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 1
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1326",
+            "name": "台化",
+            "signal": "WATCH",
+            "price": 76.7,
             "reason": "需至少勾選兩項，且所選模組全數同方向成立：VWAP 動能突破 + MACD 量能確認",
             "strategy_votes": [],
             "strategy_votes_by_side": {
@@ -46559,6 +46930,337 @@
               "BUY": 0,
               "SHORT": 0
             }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1301",
+            "name": "台塑",
+            "signal": "WATCH",
+            "price": 79.5,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 趨勢回檔 + KD 順勢交叉",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "2409",
+            "name": "友達",
+            "signal": "WATCH",
+            "price": 37.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 趨勢回檔 + KD 順勢交叉",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1802",
+            "name": "台玻",
+            "signal": "SHORT",
+            "price": 63.6,
+            "reason": "空頭排列中反彈 EMA9 後轉弱；KD 向下交叉並符合空頭趨勢",
+            "strategy_votes": [
+              {
+                "key": "ema_pullback",
+                "name": "EMA 趨勢回檔",
+                "reason": "空頭排列中反彈 EMA9 後轉弱"
+              },
+              {
+                "key": "stochastic_trend",
+                "name": "KD 順勢交叉",
+                "reason": "KD 向下交叉並符合空頭趨勢"
+              }
+            ],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": [
+                {
+                  "key": "ema_pullback",
+                  "name": "EMA 趨勢回檔",
+                  "reason": "空頭排列中反彈 EMA9 後轉弱"
+                },
+                {
+                  "key": "stochastic_trend",
+                  "name": "KD 順勢交叉",
+                  "reason": "KD 向下交叉並符合空頭趨勢"
+                }
+              ]
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": [
+                "ema_pullback",
+                "stochastic_trend"
+              ]
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 2
+            },
+            "entry_candidate": true,
+            "entry_block_reason": "停利空間僅為成本的 2.7 倍（需 ≥ 3.0）"
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1815",
+            "name": "富喬",
+            "signal": "WATCH",
+            "price": 135.0,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 趨勢回檔 + KD 順勢交叉",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "6770",
+            "name": "力積電",
+            "signal": "WATCH",
+            "price": 73.2,
+            "reason": "空方觸發 EMA 趨勢回檔；需至少勾選兩項，且所選模組全數同方向成立：EMA 趨勢回檔 + KD 順勢交叉",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": [
+                {
+                  "key": "ema_pullback",
+                  "name": "EMA 趨勢回檔",
+                  "reason": "空頭排列中反彈 EMA9 後轉弱"
+                }
+              ]
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": [
+                "ema_pullback"
+              ]
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 1
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1718",
+            "name": "中纖",
+            "signal": "WATCH",
+            "price": 12.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 趨勢回檔 + KD 順勢交叉",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1714",
+            "name": "和桐",
+            "signal": "WATCH",
+            "price": 20.05,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 趨勢回檔 + KD 順勢交叉",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1326",
+            "name": "台化",
+            "signal": "WATCH",
+            "price": 76.7,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 趨勢回檔 + KD 順勢交叉",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_pullback",
+              "stochastic_trend"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
           }
         ],
         "summary": {
@@ -67510,6 +68212,302 @@
               "BUY": 0,
               "SHORT": 0
             }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1301",
+            "name": "台塑",
+            "signal": "WATCH",
+            "price": 79.5,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "2409",
+            "name": "友達",
+            "signal": "WATCH",
+            "price": 37.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1802",
+            "name": "台玻",
+            "signal": "WATCH",
+            "price": 63.6,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1815",
+            "name": "富喬",
+            "signal": "WATCH",
+            "price": 135.0,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "6770",
+            "name": "力積電",
+            "signal": "WATCH",
+            "price": 73.2,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1718",
+            "name": "中纖",
+            "signal": "WATCH",
+            "price": 12.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1714",
+            "name": "和桐",
+            "signal": "WATCH",
+            "price": 20.05,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1326",
+            "name": "台化",
+            "signal": "WATCH",
+            "price": 76.7,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：開盤區間突破 + 區間高低突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "orb_breakout",
+              "range_breakout"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
           }
         ],
         "summary": {
@@ -88321,6 +89319,345 @@
             "name": "台化",
             "signal": "WATCH",
             "price": 76.8,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1301",
+            "name": "台塑",
+            "signal": "WATCH",
+            "price": 79.5,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "2409",
+            "name": "友達",
+            "signal": "WATCH",
+            "price": 37.1,
+            "reason": "空方觸發 EMA 快慢線動能；需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": [
+                {
+                  "key": "ema_momentum",
+                  "name": "EMA 快慢線動能",
+                  "reason": "EMA9 下穿 EMA20 且位於 VWAP 下方"
+                }
+              ]
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": [
+                "ema_momentum"
+              ]
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 1
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1802",
+            "name": "台玻",
+            "signal": "SHORT",
+            "price": 63.6,
+            "reason": "MACD 死亡交叉、VWAP 下方且量能確認；EMA9 下穿 EMA20 且位於 VWAP 下方",
+            "strategy_votes": [
+              {
+                "key": "macd_volume",
+                "name": "MACD 量能確認",
+                "reason": "MACD 死亡交叉、VWAP 下方且量能確認"
+              },
+              {
+                "key": "ema_momentum",
+                "name": "EMA 快慢線動能",
+                "reason": "EMA9 下穿 EMA20 且位於 VWAP 下方"
+              }
+            ],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": [
+                {
+                  "key": "macd_volume",
+                  "name": "MACD 量能確認",
+                  "reason": "MACD 死亡交叉、VWAP 下方且量能確認"
+                },
+                {
+                  "key": "ema_momentum",
+                  "name": "EMA 快慢線動能",
+                  "reason": "EMA9 下穿 EMA20 且位於 VWAP 下方"
+                }
+              ]
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": [
+                "macd_volume",
+                "ema_momentum"
+              ]
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 2
+            },
+            "entry_candidate": true,
+            "entry_block_reason": "停利空間僅為成本的 2.7 倍（需 ≥ 3.0）"
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1815",
+            "name": "富喬",
+            "signal": "WATCH",
+            "price": 135.0,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "6770",
+            "name": "力積電",
+            "signal": "WATCH",
+            "price": 73.2,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1718",
+            "name": "中纖",
+            "signal": "WATCH",
+            "price": 12.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1714",
+            "name": "和桐",
+            "signal": "WATCH",
+            "price": 20.05,
+            "reason": "空方觸發 MACD 量能確認；需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": [
+                {
+                  "key": "macd_volume",
+                  "name": "MACD 量能確認",
+                  "reason": "MACD 死亡交叉、VWAP 下方且量能確認"
+                }
+              ]
+            },
+            "required_indicators": [
+              "ema_momentum",
+              "macd_volume"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": [
+                "macd_volume"
+              ]
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 1
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1326",
+            "name": "台化",
+            "signal": "WATCH",
+            "price": 76.7,
             "reason": "需至少勾選兩項，且所選模組全數同方向成立：EMA 快慢線動能 + MACD 量能確認",
             "strategy_votes": [],
             "strategy_votes_by_side": {
@@ -109325,6 +110662,302 @@
               "BUY": 0,
               "SHORT": 0
             }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1301",
+            "name": "台塑",
+            "signal": "WATCH",
+            "price": 79.5,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "2409",
+            "name": "友達",
+            "signal": "WATCH",
+            "price": 37.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1802",
+            "name": "台玻",
+            "signal": "WATCH",
+            "price": 63.6,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1815",
+            "name": "富喬",
+            "signal": "WATCH",
+            "price": 135.0,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "6770",
+            "name": "力積電",
+            "signal": "WATCH",
+            "price": 73.2,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1718",
+            "name": "中纖",
+            "signal": "WATCH",
+            "price": 12.1,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1714",
+            "name": "和桐",
+            "signal": "WATCH",
+            "price": 20.05,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
+          },
+          {
+            "time": "10:52:25",
+            "symbol": "1326",
+            "name": "台化",
+            "signal": "WATCH",
+            "price": 76.7,
+            "reason": "需至少勾選兩項，且所選模組全數同方向成立：RSI 布林反轉 + VWAP 動能突破",
+            "strategy_votes": [],
+            "strategy_votes_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "required_indicators": [
+              "rsi_reversal",
+              "vwap_momentum"
+            ],
+            "fired_indicators_by_side": {
+              "BUY": [],
+              "SHORT": []
+            },
+            "settings_snapshot": {
+              "volume_multiple": 1.2,
+              "stop_atr": 1.25,
+              "target_atr": 1.8,
+              "min_net_rr": 1.0,
+              "min_target_cost_multiple": 3.0,
+              "sizing_mode": "fixed_risk",
+              "risk_per_trade": 2000.0,
+              "position_amount": 200000.0,
+              "fixed_shares": 1000,
+              "max_position_value": 700000.0
+            },
+            "vote_counts": {
+              "BUY": 0,
+              "SHORT": 0
+            }
           }
         ],
         "summary": {
@@ -109908,6 +111541,14 @@
       },
       {
         "t": "10:50:34",
+        "equity": 1001116.0,
+        "cash": 1001116.0,
+        "locked": 0.0,
+        "realized": 1116.0,
+        "unrealized": 0.0
+      },
+      {
+        "t": "10:52:25",
         "equity": 1001116.0,
         "cash": 1001116.0,
         "locked": 0.0,
