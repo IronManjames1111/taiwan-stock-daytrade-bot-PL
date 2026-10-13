@@ -15,6 +15,8 @@ from __future__ import annotations
 import math
 from typing import Dict, List, Optional, Tuple
 
+from tw_market_rules import snap_tick, tick_unit
+
 FEE_RATE_BASE = 0.001425   # 手續費率（單向，未打折）
 MIN_FEE_PER_SIDE = 20.0    # 單邊最低手續費
 LOT = 1000                 # 1 張 = 1000 股
@@ -134,16 +136,40 @@ def drop_incomplete_bar(candles: List[Dict], now_hm: str) -> List[Dict]:
     return candles
 
 
-def scan_exit(pos: Dict, candles: List[Dict], last_hm: Optional[str] = None) -> Optional[Dict]:
+def breakeven_lock_dist(side: str, entry: float, broker_discount: float = 1.0,
+                        is_day_trade_tax: bool = True) -> float:
+    """「保本」停損要離進場價多遠才真的不賠：每股來回成本 ×1.1，並進位到升降單位。"""
+    if entry <= 0:
+        return 0.0
+    per_share = round_trip_cost(side, entry, entry, LOT, broker_discount, is_day_trade_tax) / LOT
+    unit = float(tick_unit(entry))
+    dist = per_share * 1.1
+    return round(math.ceil(dist / unit - 1e-9) * unit, 4)
+
+
+def replay_position(pos: Dict, candles: List[Dict], last_hm: Optional[str] = None) -> Dict:
     """
-    依序掃描「進場那根 K 之後」的所有 K 棒，回傳第一個觸及的出場，或 None。
-    - 同一根同時觸及停損與停利 → 保守判停損
-    - 跳空越過停損 → 以該根開盤價（更差）成交；停利以掛單價成交
-    - last_hm：只掃描到此分鐘（含），用於 13:25 強平
+    由進場後第一根 K 開始逐根回放（無狀態：每輪從頭算，結果一定一致），回傳
+      {"hit": 出場資訊或 None, "mfe": 最大有利價差, "mae": 最大不利價差, "stop": 目前生效停損, "moved": 停損是否已上移}
+    出場管理（持倉含 risk_dist / be_trigger_r / lock_dist 時才啟用，舊持倉維持固定停損停利）：
+      1. 最有利價走到 ≥ be_trigger_r × 風險距離 → 停損移到「進場價 ± 成本 lock_dist」（保本且真的不賠）
+      2. 啟動後 trail_gap_r > 0 → 停損追在最有利價 − trail_gap_r × 風險距離，只升不降
+      3. 停損調整只從「下一根 K」起生效（同一根內先後順序不可知，保守處理）
+    同一根同時觸及停損與停利 → 判停損；跳空越過停損 → 以開盤價成交。
     """
     long_side = pos.get("signal") == "BUY"
-    sl, tp = float(pos["stop_loss"]), float(pos["take_profit"])
+    entry = float(pos["entry_price"])
+    sl0, tp = float(pos["stop_loss"]), float(pos["take_profit"])
+    stop = sl0
+    risk = float(pos.get("risk_dist") or abs(entry - sl0))
+    be_r = float(pos.get("be_trigger_r") or 0)
+    gap_r = float(pos.get("trail_gap_r") or 0)
+    lock = pos.get("lock_dist")
+    manage = be_r > 0 and lock is not None and risk > 0
     start = pos.get("entry_bar_hm") or str(pos.get("entry_time", ""))[:5]
+    best, worst = entry, entry
+    moved = False
+    hit = None
     for bar in candles:
         hm = bar_hm(bar)
         if not hm or hm <= start:
@@ -155,16 +181,52 @@ def scan_exit(pos: Dict, candles: List[Dict], last_hm: Optional[str] = None) -> 
         except (KeyError, TypeError, ValueError):
             continue
         open_ = float(bar["open"]) if bar.get("open") not in (None, "") else None
-        hit_sl = low <= sl if long_side else high >= sl
+        hit_sl = low <= stop if long_side else high >= stop
         hit_tp = high >= tp if long_side else low <= tp
         if hit_sl:
-            price = sl
+            price = stop
             if open_ is not None:
-                price = min(sl, open_) if long_side else max(sl, open_)
-            return {"reason": "hit_sl", "price": price, "time": f"{hm}:00"}
+                price = min(stop, open_) if long_side else max(stop, open_)
+            hit = {"reason": "hit_trail" if moved else "hit_sl", "price": price, "time": f"{hm}:00"}
+            worst = min(worst, low) if long_side else max(worst, high)
+            break
         if hit_tp:
-            return {"reason": "hit_tp", "price": tp, "time": f"{hm}:00"}
-    return None
+            hit = {"reason": "hit_tp", "price": tp, "time": f"{hm}:00"}
+            best = max(best, high) if long_side else min(best, low)
+            break
+        best = max(best, high) if long_side else min(best, low)
+        worst = min(worst, low) if long_side else max(worst, high)
+        if manage:
+            gain = (best - entry) if long_side else (entry - best)
+            if gain >= be_r * risk:
+                new_stop = entry + float(lock) if long_side else entry - float(lock)
+                if gap_r > 0:
+                    trail = best - gap_r * risk if long_side else best + gap_r * risk
+                    new_stop = max(new_stop, trail) if long_side else min(new_stop, trail)
+                new_stop = snap_tick(new_stop, "floor" if long_side else "ceil")
+                better = new_stop > stop if long_side else new_stop < stop
+                valid = new_stop < best if long_side else new_stop > best
+                if better and valid:
+                    stop, moved = new_stop, True
+    mfe = (best - entry) if long_side else (entry - best)
+    mae = (entry - worst) if long_side else (worst - entry)
+    return {"hit": hit, "mfe": round(max(mfe, 0.0), 4), "mae": round(max(mae, 0.0), 4), "stop": stop, "moved": moved}
+
+
+def scan_exit(pos: Dict, candles: List[Dict], last_hm: Optional[str] = None) -> Optional[Dict]:
+    """回傳第一個觸及的出場（reason: hit_sl / hit_trail / hit_tp），或 None。細節見 replay_position。"""
+    return replay_position(pos, candles, last_hm)["hit"]
+
+
+def excursion_extra(pos: Dict, candles: List[Dict], last_hm: Optional[str] = None) -> Dict:
+    """持倉期間的最大有利 / 不利波動（占進場價 %），寫進平倉紀錄供日後檢討停損停利距離是否合適。"""
+    try:
+        r = replay_position(pos, candles, last_hm)
+        entry = float(pos["entry_price"])
+        return {"mfe_pct": round(r["mfe"] / entry * 100, 3), "mae_pct": round(r["mae"] / entry * 100, 3),
+                "final_stop": r["stop"]}
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        return {}
 
 
 def last_close_until(candles: List[Dict], last_hm: str) -> Optional[Tuple[float, str]]:
@@ -178,7 +240,8 @@ def last_close_until(candles: List[Dict], last_hm: str) -> Optional[Tuple[float,
 
 
 def close_position(pos: Dict, exit_price: float, exit_time: str, reason: str,
-                   broker_discount: float, is_day_trade_tax: bool, price_source: str = "") -> Dict:
+                   broker_discount: float, is_day_trade_tax: bool, price_source: str = "",
+                   extra: Optional[Dict] = None) -> Dict:
     side = pos.get("signal")
     shares = int(pos.get("shares", LOT))
     entry = float(pos["entry_price"])
@@ -190,6 +253,8 @@ def close_position(pos: Dict, exit_price: float, exit_time: str, reason: str,
               "pnl_amount": round(net, 0), "result": "win" if net > 0 else "loss" if net < 0 else "breakeven"}
     if price_source:
         closed["price_source"] = price_source
+    if extra:
+        closed.update(extra)
     return closed
 
 
@@ -203,16 +268,30 @@ def _minutes(hms: str) -> Optional[int]:
         return None
 
 
-def can_enter(symbol: str, trades: List[Dict], now_hm: str, settings: Dict) -> Tuple[bool, str]:
+def can_enter(symbol: str, trades: List[Dict], now_hm: str, settings: Dict,
+              signal_bar_hm: Optional[str] = None) -> Tuple[bool, str]:
     """
     重複進場限制：
-      • max_entries_per_symbol=0 時不限制每日進場次數；正數時才啟用上限。
-      • cooldown_minutes=0 時不限制出場後冷卻；正數時依設定冷卻。
+      • max_entries_per_symbol：每檔每日進場上限（0=不限）。
+      • max_stops_per_symbol（v24）：同一檔當日停損達此次數就收手（0=不限）。10/7 的 1714、6456 都曾連續 3 次停損。
+      • cooldown_minutes：出場後冷卻（預設只在停損後）。
+      • signal_bar_hm（v24）：訊號觸發的那根 K 必須晚於上一筆出場的 K，
+        否則是「剛被洗出場、同一個舊訊號又觸發」，不是新機會（訊號視窗會讓舊訊號多活幾根，需要這道保護）。
     """
     mine = [t for t in trades if t.get("symbol") == symbol]
     entry_limit = int(settings.get("max_entries_per_symbol", 0) or 0)
     if entry_limit > 0 and len(mine) >= entry_limit:
         return False, f"今日已進場 {len(mine)} 次，達每檔上限 {entry_limit}"
+    stop_limit = int(settings.get("max_stops_per_symbol", 0) or 0)
+    if stop_limit > 0:
+        stops = sum(1 for t in mine if t.get("status") == "closed" and t.get("exit_reason") in ("hit_sl",))
+        if stops >= stop_limit:
+            return False, f"今日已停損 {stops} 次，達每檔停損上限 {stop_limit}，不再進場"
+    if signal_bar_hm:
+        for t in mine:
+            if t.get("status") == "closed" and t.get("exit_reason") in ("hit_sl", "hit_trail", "hit_tp") and t.get("exit_time"):
+                if str(signal_bar_hm) <= str(t["exit_time"])[:5]:
+                    return False, f"訊號 K 棒（{signal_bar_hm}）早於上次出場（{str(t['exit_time'])[:5]}），等新訊號"
     now_m = _minutes(now_hm)
     cooldown = settings["cooldown_minutes"]
     stop_only = settings.get("cooldown_after_stop_only", True)
@@ -228,6 +307,18 @@ def can_enter(symbol: str, trades: List[Dict], now_hm: str, settings: Dict) -> T
             exit_label = "停損出場" if t.get("exit_reason") == "hit_sl" else "前次出場"
             return False, f"{t['exit_time'][:5]} {exit_label}，冷卻 {cooldown} 分鐘內不再進場"
     return True, ""
+
+
+def daily_loss_breached(initial: float, trades: List[Dict], live_quotes: Optional[Dict], limit_pct: float,
+                        broker_discount: float = 1.0, is_day_trade_tax: bool = True) -> Tuple[bool, str]:
+    """當日權益（已實現＋未實現）虧損達本金 limit_pct % 時回傳 True：當天不再開新倉（既有持倉照常停損停利）。"""
+    if not limit_pct or limit_pct <= 0 or initial <= 0:
+        return False, ""
+    snap = capital_snapshot(initial, trades, live_quotes, broker_discount, is_day_trade_tax)
+    loss = initial - snap["equity"]
+    if loss >= initial * limit_pct / 100:
+        return True, f"當日權益已虧 {loss:,.0f} 元（≥ 本金 {limit_pct:g}% = {initial * limit_pct / 100:,.0f}），今日停止新進場"
+    return False, ""
 
 
 # ───────────────────────── 每日資金池 ─────────────────────────

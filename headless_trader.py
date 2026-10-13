@@ -61,7 +61,7 @@ from fugle_service import FugleService
 from tw_market_rules import calc_limit_prices as _calc_limit_prices, check_at_limit as _check_at_limit
 from tw_market_rules import extract_symbol_rules, check_entry_allowed
 from indicator_strategies import (DEFAULT_SETTINGS, STRATEGY_NAMES, evaluate as evaluate_strategies,
-                                  load_strategy_settings, normalize_settings, position_levels,
+                                  load_strategy_settings, normalize_settings, position_levels, position_plan,
                                   apply_risk_mode, RISK_MODE_PRESETS,
                                   experiment_settings)
 import trade_engine as te
@@ -335,7 +335,8 @@ def render_html_dashboard(
     export_json_js_safe = export_json_str.replace("</", "<\\/")
 
     # 計算損益卡片文字
-    pnl_text = "今日無交易" if settled else "尚未結算"
+    pnl_text = "今日無交易" if settled else "尚無已平倉"
+    pnl_label = "結算損益" if settled else "已實現損益（盤中）"
     pnl_class = "text-gray-400"
     if settle_records:
         # 【bug修復】cache_service._compute_settle_result() 回傳的欄位是
@@ -500,7 +501,7 @@ def render_html_dashboard(
             """
     else:
         _empty_msg = ("今日已收盤結算：沒有任何已平倉的交易" if settled
-                      else f"尚未達到收盤結算時間 ({HISTORY_SETTLE_TIME})")
+                      else f"目前還沒有已平倉的交易（持倉中的部位請看下方「目前持倉監控」，{HISTORY_SETTLE_TIME} 收盤結算會強平剩餘部位）")
         settle_rows = f'<tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">{_empty_msg}</td></tr>'
         settle_cards = f'<div class="text-center text-gray-500 text-xs py-4">{_empty_msg}</div>'
 
@@ -700,7 +701,7 @@ def render_html_dashboard(
                 <div class="text-xl font-bold text-[#f5b942] mono mt-1">{total_signals} 筆</div>
             </div>
             <div class="panel border rounded-xl p-4">
-                <div class="text-[11px] text-gray-500">結算損益</div>
+                <div class="text-[11px] text-gray-500">{pnl_label}</div>
                 <div class="text-xl font-bold {pnl_class} mono mt-1">{pnl_text}</div>
             </div>
         </div>
@@ -827,10 +828,10 @@ def render_html_dashboard(
         <div class="panel border rounded-2xl p-5">
             <div class="flex items-center justify-between border-b border-white/5 pb-3 mb-3">
                 <div>
-                    <h2 class="font-bold text-white text-base">今日回測結算</h2>
-                    <p class="text-[11px] text-gray-500 mt-0.5">{HISTORY_SETTLE_TIME} 以當日 1 分K 逐根回放比對實際賺賠（已扣手續費與證交稅）</p>
+                    <h2 class="font-bold text-white text-base">今日已平倉明細</h2>
+                    <p class="text-[11px] text-gray-500 mt-0.5">已觸及停利 / 停損 / 保本停損的單筆會即時列出（已扣手續費與證交稅）；未平倉部位在下方「目前持倉監控」，{HISTORY_SETTLE_TIME} 統一強平結算</p>
                 </div>
-                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">{HISTORY_SETTLE_TIME} 結算</span>
+                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">{"已結算" if settled else "盤中即時"}</span>
             </div>
 
             <!-- 桌面版：表格 -->
@@ -1128,7 +1129,7 @@ def render_html_dashboard(
                 const pnl = hasQuote ? (current - entry) * (side === "SHORT" ? -1 : 1) * shares : null;
                 const progress = hasQuote && Number.isFinite(target) && target !== entry ? (current - entry) / (target - entry) * 100 : null;
                 const pnlClass = pnl > 0 ? "text-[#ff5470]" : pnl < 0 ? "text-[#00d68f]" : "text-gray-400";
-                return `<tr><td class="py-2 px-3 whitespace-nowrap">${{escapeHtml(pos.symbol)}} ${{escapeHtml(pos.name || "")}}</td><td>${{escapeHtml(pos.direction || (side === "SHORT" ? "放空" : "做多"))}}</td><td>${{escapeHtml(pos.strategy_name || "-")}}</td><td class="mono">${{escapeHtml(pos.entry_time || "-")}}</td><td class="mono">${{Number.isFinite(entry) ? entry.toFixed(2) : "-"}}</td><td class="mono">${{hasQuote ? current.toFixed(2) : "-"}}</td><td class="mono ${{pnlClass}}">${{pnl === null ? "-" : (pnl > 0 ? "+" : "") + Math.round(pnl).toLocaleString()}}<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">${{escapeHtml(pos.stop_loss ?? "-")}}</td><td class="mono text-[#ff5470]">${{escapeHtml(pos.take_profit ?? "-")}}</td><td class="mono">${{progress === null ? "-" : `${{Math.round(progress)}}%`}}</td></tr>`;
+                return `<tr><td class="py-2 px-3 whitespace-nowrap">${{escapeHtml(pos.symbol)}} ${{escapeHtml(pos.name || "")}}</td><td>${{escapeHtml(pos.direction || (side === "SHORT" ? "放空" : "做多"))}}</td><td>${{escapeHtml(pos.strategy_name || "-")}}</td><td class="mono">${{escapeHtml(pos.entry_time || "-")}}</td><td class="mono">${{Number.isFinite(entry) ? entry.toFixed(2) : "-"}}</td><td class="mono">${{hasQuote ? current.toFixed(2) : "-"}}</td><td class="mono ${{pnlClass}}">${{pnl === null ? "-" : (pnl > 0 ? "+" : "") + Math.round(pnl).toLocaleString()}}<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">${{escapeHtml(pos.current_stop ?? pos.stop_loss ?? "-")}}${{pos.stop_moved ? '<span class="block text-[10px] text-[#f5b942]">🔒 已上移（原 ' + escapeHtml(pos.stop_loss) + '）</span>' : ""}}</td><td class="mono text-[#ff5470]">${{escapeHtml(pos.take_profit ?? "-")}}</td><td class="mono">${{progress === null ? "-" : `${{Math.round(progress)}}%`}}</td></tr>`;
             }}).join("");
             tbody.innerHTML = rows || '<tr><td colspan="10" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr>';
         }}
@@ -1480,6 +1481,7 @@ def render_html_dashboard(
             const EXIT_REASON_LABELS = {{
                 "hit_tp": "✅ 觸及停利",
                 "hit_sl": "🛑 觸及停損",
+                "hit_trail": "🔒 保本/移動停損出場",
                 "forced_close": "⏱ 收盤強制平倉",
             }};
             records.forEach(r => {{
@@ -1612,6 +1614,7 @@ STATE_FILE = "dashboard_state.json"
 EXIT_REASON_LABELS = {
     "hit_tp": "✅ 觸及停利",
     "hit_sl": "🛑 觸及停損",
+    "hit_trail": "🔒 保本/移動停損出場",
     "forced_close": "⏱ 收盤強制平倉",
 }
 
@@ -2208,6 +2211,9 @@ def persist(state: Dict, **render_kwargs) -> None:
     render_kwargs.setdefault("total_signals", state.get("total_signals"))
     render_kwargs.setdefault("open_positions", state.get("open_positions"))
     render_kwargs.setdefault("strategy_trades", state.get("strategy_trades"))
+    # v25：盤中就顯示「已平倉」的單筆結果（停利 / 停損 / 保本出場），不必等 13:25 收盤結算；
+    # 尚未平倉的部位由「目前持倉監控」顯示。
+    render_kwargs.setdefault("settle_records", te.build_settle_records(state.get("strategy_trades") or []))
     render_kwargs.setdefault("strategy_experiments", state.get("strategy_experiments"))
     render_kwargs.setdefault("capital", state.get("capital"))
     render_kwargs.setdefault("capital_history", load_capital_history())
@@ -2258,6 +2264,31 @@ def fetch_candles_parallel(fugle, symbols: List[str], workers: int = 4) -> Dict[
 # ═════════════════════════════════════════════════════════════════
 #  收盤結算（v22：單一資料來源 strategy_trades；逐根回放；強平價即時重抓）
 # ═════════════════════════════════════════════════════════════════
+def save_candle_snapshot(today_str: str, candles_map: Dict) -> None:
+    """
+    v24：把當天所有監控標的的 1 分 K 存成 history_records/candles_日期.json.gz（約 30~50KB）。
+    沒有分 K 就無法離線回測停損停利距離；有了它，replay_backtest.py 可以直接重放今天的策略，不必再呼叫 API。
+    失敗只印警告，不影響結算。
+    """
+    try:
+        import gzip
+        out = {}
+        for sym, raw in (candles_map or {}).items():
+            bars = te.normalize_candles(raw)
+            if bars:
+                out[str(sym)] = [[te.bar_hm(b), b.get("open"), b.get("high"), b.get("low"), b.get("close"), b.get("volume")]
+                                 for b in bars]
+        if not out:
+            return
+        os.makedirs("history_records", exist_ok=True)
+        with gzip.open(f"history_records/candles_{today_str}.json.gz", "wt", encoding="utf-8") as f:
+            json.dump({"date": today_str, "cols": ["hm", "open", "high", "low", "close", "volume"], "candles": out}, f,
+                      ensure_ascii=False, separators=(",", ":"))
+        print(f"💾 已存當日 1 分 K 快照（{len(out)} 檔）供離線回測")
+    except Exception as e:
+        print(f"⚠️ 分 K 快照儲存失敗（不影響結算）: {e}")
+
+
 def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: List[Dict], wave2_stocks: List[Dict],
                    latest_analysis_records: List[Dict], analysis_log: List[Dict], live_quotes: Dict,
                    total_signals: int, cfg: Optional[Dict] = None,
@@ -2292,6 +2323,7 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
         [p["symbol"] for mode in all_experiment_modes for p in mode.get("open_positions", [])] +
         [str(s.get("symbol")) for s in (wave2_stocks or []) + (wave1_stocks or [])]))
     candles_map = fetch_candles_parallel(fugle, symbols) if allow_fetch else {}
+    save_candle_snapshot(today_str, candles_map)
     for sym, raw in candles_map.items():
         bars = te.normalize_candles(raw)
         if bars:
@@ -2305,12 +2337,14 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
         if bars:
             hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
             if hit:
-                closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+                closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles",
+                                           te.excursion_extra(pos, bars, HISTORY_SETTLE_TIME))
             else:
                 last = te.last_close_until(bars, HISTORY_SETTLE_TIME)
                 if last:
                     closed = te.close_position(pos, last[0], f"{HISTORY_SETTLE_TIME}:00", "forced_close",
-                                               discount, day_tax, f"bar_{last[1]}_close")
+                                               discount, day_tax, f"bar_{last[1]}_close",
+                                               te.excursion_extra(pos, bars, HISTORY_SETTLE_TIME))
         if closed is None:
             price = float((live_quotes.get(sym) or {}).get("price") or pos["entry_price"])
             print(f"  ⚠️ [{sym}] 無法取得最新K線，強平價沿用最近一次報價 {price}")
@@ -2334,12 +2368,14 @@ def run_settlement(state: Dict, today_str: str, gemini, fugle, wave1_stocks: Lis
             if bars:
                 hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
                 if hit:
-                    closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+                    closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles",
+                                           te.excursion_extra(pos, bars, HISTORY_SETTLE_TIME))
                 else:
                     last = te.last_close_until(bars, HISTORY_SETTLE_TIME)
                     if last:
                         closed = te.close_position(pos, last[0], f"{HISTORY_SETTLE_TIME}:00", "forced_close",
-                                                   discount, day_tax, f"bar_{last[1]}_close")
+                                                   discount, day_tax, f"bar_{last[1]}_close",
+                                                   te.excursion_extra(pos, bars, HISTORY_SETTLE_TIME))
             if closed is None:
                 price = float((live_quotes.get(pos["symbol"]) or {}).get("price") or pos["entry_price"])
                 closed = te.close_position(pos, price, f"{HISTORY_SETTLE_TIME}:00", "forced_close",
@@ -2425,7 +2461,8 @@ def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, com
     if sig == "SHORT" and not settings["allow_short"]:
         return None, "設定禁止放空", True
     trade_ledger = state.get("strategy_trades", state.get("trades", []))
-    ok, why = te.can_enter(symbol, trade_ledger, now.strftime("%H:%M:%S"), settings)
+    ok, why = te.can_enter(symbol, trade_ledger, now.strftime("%H:%M:%S"), settings,
+                           signal_bar_hm=res.get("signal_bar_hm"))
     if not ok:
         return None, why, True
 
@@ -2435,7 +2472,8 @@ def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, com
     if not ok:
         return None, why, True
 
-    stop_p, target_p = position_levels(sig, entry_p, float(res.get("atr") or 0), settings)
+    plan = position_plan(sig, entry_p, float(res.get("atr") or 0), settings, completed)
+    stop_p, target_p = plan["stop"], plan["target"]
     shares, why = te.calc_shares(sig, entry_p, stop_p, settings, discount, day_tax)
     if shares <= 0:
         return None, why, True
@@ -2456,6 +2494,11 @@ def try_open_position(state: Dict, fugle, symbol: str, name: str, res: Dict, com
         "status": "open", "reason": f"{res.get('strategy_name', '多策略共識')}：{res.get('reason', '')}",
         "expected_net_win": metrics["net_win"], "expected_net_loss": metrics["net_loss"],
         "expected_cost": metrics["cost"], "net_rr": metrics["net_rr"],
+        # v24：停損停利依據與出場管理參數（replay_position 依此做保本 / 移動停損）
+        "risk_dist": plan["risk_dist"], "risk_pct": plan["risk_pct"], "plan_rr": plan["rr"], "stop_basis": plan["basis"],
+        "be_trigger_r": settings.get("breakeven_trigger_r", 0), "trail_gap_r": settings.get("trail_gap_r", 0),
+        "lock_dist": te.breakeven_lock_dist(sig, entry_p, discount, day_tax),
+        "signal_bar_hm": res.get("signal_bar_hm"),
     }
     return position, "", False
 
@@ -2680,15 +2723,24 @@ def run_once(ctx: Dict) -> str:
                 hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
                 if not hit:
                     continue
-                closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+                closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles",
+                                           te.excursion_extra(pos, bars, HISTORY_SETTLE_TIME))
                 open_positions.remove(pos)
                 for i in range(len(strategy_trades) - 1, -1, -1):
                     if strategy_trades[i].get("id") == pos.get("id"):
                         strategy_trades[i] = closed
                         break
-                print(f"   {'✅' if hit['reason'] == 'hit_tp' else '🛑'} [持倉出場] {symbol} {hit['reason']} "
+                print(f"   {'✅' if hit['reason'] == 'hit_tp' else '🔒' if hit['reason'] == 'hit_trail' else '🛑'} [持倉出場] {symbol} {hit['reason']} "
                       f"@ {closed['exit_price']}（{hit['time'][:5]}）淨損益 {closed['pnl_amount']:+,.0f}，"
                       f"回補資金 {closed.get('position_value') or te.position_value(closed['entry_price'], closed['shares']):,.0f}")
+
+            # 仍在持倉的部位：把「目前生效的停損」寫回（保本 / 移動停損啟動後會高於原始停損），供看板顯示
+            for pos in open_positions:
+                if pos.get("symbol") == symbol:
+                    cur = te.replay_position(pos, bars, HISTORY_SETTLE_TIME)
+                    pos["current_stop"] = cur["stop"]
+                    pos["stop_moved"] = bool(cur["moved"])
+                    pos["mfe_pct"] = round(cur["mfe"] / float(pos["entry_price"]) * 100, 3)
 
             # ② 訊號只用「已收完」的 K 棒（進行中的分K會重繪）
             completed = te.drop_incomplete_bar(bars, hm)
@@ -2703,7 +2755,8 @@ def run_once(ctx: Dict) -> str:
                     hit = te.scan_exit(pos, bars, last_hm=HISTORY_SETTLE_TIME)
                     if not hit:
                         continue
-                    closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles")
+                    closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"], discount, day_tax, "candles",
+                                           te.excursion_extra(pos, bars, HISTORY_SETTLE_TIME))
                     legacy_positions.remove(pos)
                     for trade_index in range(len(legacy_trades) - 1, -1, -1):
                         if legacy_trades[trade_index].get("id") == pos.get("id"):
@@ -2723,7 +2776,7 @@ def run_once(ctx: Dict) -> str:
                     if not hit:
                         continue
                     closed = te.close_position(pos, hit["price"], hit["time"], hit["reason"],
-                                               discount, day_tax, "candles")
+                                               discount, day_tax, "candles", te.excursion_extra(pos, bars, HISTORY_SETTLE_TIME))
                     mode_positions.remove(pos)
                     for trade_index in range(len(mode_trades) - 1, -1, -1):
                         if mode_trades[trade_index].get("id") == pos.get("id"):
@@ -2799,7 +2852,7 @@ def run_once(ctx: Dict) -> str:
             reason = f"{res.get('strategy_name', '多策略共識')}：{res.get('reason', '')}"
             cand = None
             if sig in {"BUY", "SHORT"}:
-                stop_p, target_p = position_levels(sig, float(entry_p), float(res.get("atr") or 0), settings)
+                stop_p, target_p = position_levels(sig, float(entry_p), float(res.get("atr") or 0), settings, completed)
                 position, why, show = try_open_position(state, fugle, symbol, name, res, completed, now,
                                                         settings, discount, day_tax, today_str)
                 if position:
@@ -2823,6 +2876,16 @@ def run_once(ctx: Dict) -> str:
     initial_cap = float((state.get("capital") or {}).get("initial") or get_daily_capital(settings))
     snap = te.capital_snapshot(initial_cap, strategy_trades, live_quotes, discount, day_tax)
     cands = [p["cand"] for p in pending if p["cand"]]
+    # v24 當日虧損熔斷：權益虧損達本金 daily_loss_limit_pct % 就不再開新倉（既有持倉照常停損停利）
+    breached, breach_why = te.daily_loss_breached(initial_cap, strategy_trades, live_quotes,
+                                                  settings.get("daily_loss_limit_pct", 0), discount, day_tax)
+    if breached and cands:
+        print(f"   🧯 {breach_why}")
+        for p in pending:
+            if p["cand"]:
+                p["record"]["reason"] += f"　⛔未進場：{breach_why}"
+                p["cand"] = None
+        cands = []
     if cands:
         print(f"   💰 可用資金 {snap['cash']:,.0f} / 本金 {snap['initial']:,.0f}，本輪進場候選 {len(cands)} 檔")
         allocs = {id(a["candidate"]): a for a in te.allocate_candidates(

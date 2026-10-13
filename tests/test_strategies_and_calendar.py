@@ -23,7 +23,7 @@ def test_risk_mode_actually_changes_settings():
     base = I.normalize_settings({})
     assert I.apply_risk_mode(base, "auto") == base
     assert I.apply_risk_mode(base, "conservative")["min_votes"] == 3
-    assert I.apply_risk_mode(base, "aggressive")["target_atr"] > base["target_atr"]
+    assert I.apply_risk_mode(base, "aggressive")["target_rr"] > base["target_rr"]
     assert I.apply_risk_mode(base, "relaxed")["min_votes"] == 1
 
 

@@ -141,7 +141,10 @@ def test_forced_close_uses_fresh_candles_not_stale_quote(env, monkeypatch):
 
 def test_cost_gate_blocks_marginal_trade_and_logs_reason(env, monkeypatch):
     ctx, _ = ctx_with({"3481": flat_bars(540, 30)})
-    force_signal(monkeypatch, atr=0.12)               # 停損停利只差幾檔 → 成本吃掉利潤
+    force_signal(monkeypatch, atr=0.12)
+    # v24 起停損有 0.6% 下限、停利為 2 倍停損，不會再出現「只差幾檔」；改把成本倍數門檻拉高來驗證擋單與理由
+    strict = {**ht.load_strategy_settings(), "min_target_cost_multiple": 12.0}
+    monkeypatch.setattr(ht, "load_strategy_settings", lambda *a, **k: ht.normalize_settings(strict))
     ht.run_once(ctx)
     env["now"] = TZ.localize(dt.datetime(2026, 10, 6, 9, 31, 5))
     ht.run_once(ctx)
@@ -321,3 +324,111 @@ def test_multiple_signals_share_one_capital_pool(env, monkeypatch):
     assert st["capital"]["locked"] <= 300_000 and st["capital"]["cash"] >= 0
     skipped = [r for r in st["latest_analysis_records"] if "資金不足" in r["reason"] or "縮減" in r["reason"]]
     assert skipped, "資金用完後，其餘標的應註明未進場原因"
+
+
+# ── v24 ──────────────────────────────────────────────────────────
+def _open_one(env, monkeypatch, candles, **settings_override):
+    base = ht.load_strategy_settings()
+    ht_settings = ht.normalize_settings({**base, **settings_override})
+    monkeypatch.setattr(ht, "load_strategy_settings", lambda *a, **k: ht_settings)
+    ctx, _ = ctx_with(candles)
+    force_signal(monkeypatch)
+    ht.run_once(ctx)                                    # 選股
+    env["now"] = TZ.localize(dt.datetime(2026, 10, 6, 9, 31, 5))
+    ht.run_once(ctx)                                    # 進場
+    return ctx, json.load(open("dashboard_state.json", encoding="utf-8"))
+
+
+def test_position_carries_v24_levels_and_management_fields(env, monkeypatch):
+    _, state = _open_one(env, monkeypatch, {"3481": flat_bars(540, 30)})
+    pos = state["open_positions"][0]
+    assert pos["risk_pct"] >= 0.6 and abs(pos["plan_rr"] - 2.0) < 0.2
+    assert pos["be_trigger_r"] == 1.2 and pos["lock_dist"] > 0 and pos["risk_dist"] > 0
+    assert pos["stop_loss"] < pos["entry_price"] < pos["take_profit"]
+
+
+def test_breakeven_exit_in_full_flow_is_small_win_with_excursions(env, monkeypatch):
+    candles = {"3481": flat_bars(540, 30)}
+    ctx, state = _open_one(env, monkeypatch, candles)
+    pos = state["open_positions"][0]
+    entry, risk = pos["entry_price"], pos["risk_dist"]
+    up = entry + 1.4 * risk                              # 浮盈 1.4R（已過保本啟動點、尚未到 2R 停利）
+    candles["3481"] += [bar("09:30", 52.8, 52.85, 52.75, 52.8), bar("09:31", 52.8, 52.85, 52.75, 52.8),
+                        bar("09:32", 52.8, up, 52.8, up - 0.05),
+                        bar("09:33", up - 0.05, up - 0.05, entry - 0.01, entry)]   # 回到進場價 → 觸發保本停損
+    monkeypatch.setattr(ht, "evaluate_strategies", lambda c, s=None: {"signal": "WATCH", "reason": "-", "price": 52.8,
+                                                                    "atr": 0.5, "strategy_name": ""})
+    env["now"] = TZ.localize(dt.datetime(2026, 10, 6, 9, 35, 5))
+    ht.run_once(ctx)
+    t = json.load(open("dashboard_state.json", encoding="utf-8"))["strategy_trades"][0]
+    assert t["exit_reason"] == "hit_trail" and t["pnl_amount"] > 0 and t["result"] == "win"
+    assert t["mfe_pct"] > 0 and "mae_pct" in t
+
+
+def test_daily_loss_breaker_blocks_new_entries(env, monkeypatch):
+    candles = {"3481": flat_bars(540, 30)}
+    ctx, state = _open_one(env, monkeypatch, candles, cooldown_minutes=0, max_stops_per_symbol=0,
+                           daily_loss_limit_pct=0.05)   # 0.05% = 500 元
+    pos = state["open_positions"][0]
+    candles["3481"] += [bar("09:30", 52.8, 52.85, 52.75, 52.8), bar("09:31", 52.8, 52.85, 52.75, 52.8),
+                        bar("09:32", 52.8, 52.8, pos["stop_loss"] - 0.3, pos["stop_loss"] - 0.2)]
+    env["now"] = TZ.localize(dt.datetime(2026, 10, 6, 9, 33, 5))
+    ht.run_once(ctx)
+    state = json.load(open("dashboard_state.json", encoding="utf-8"))
+    assert state["strategy_trades"][0]["exit_reason"] == "hit_sl" and state["open_positions"] == []
+    assert len(state["strategy_trades"]) == 1
+    assert "停止新進場" in state["latest_analysis_records"][0]["reason"]
+
+
+def test_settlement_saves_candle_snapshot(env, monkeypatch):
+    import gzip
+    ctx, _ = ctx_with({"3481": flat_bars(540, 250)})
+    force_signal(monkeypatch, "WATCH")
+    ht.run_once(ctx)
+    env["now"] = TZ.localize(dt.datetime(2026, 10, 6, 13, 26, 0))
+    assert ht.run_once(ctx) == "done"
+    data = json.load(gzip.open("history_records/candles_2026-10-06.json.gz", "rt", encoding="utf-8"))
+    assert data["cols"][0] == "hm" and len(data["candles"]["3481"]) == 250
+
+
+# ── v25：盤中即時顯示已平倉 / 持倉 ──────────────────────────────
+def _settle_tbody(html):
+    return html.split('id="settle-tbody"')[1].split("</tbody>")[0]
+
+
+def test_closed_trade_visible_before_settlement_and_open_one_in_monitor(env, monkeypatch):
+    candles = {"3481": flat_bars(540, 30)}
+    ctx, state = _open_one(env, monkeypatch, candles)
+    pos = state["open_positions"][0]
+    # 剛進場、尚未平倉：結算區是空的提示，持倉監控資料有這筆
+    html = open("index.html", encoding="utf-8").read()
+    assert "目前還沒有已平倉" in _settle_tbody(html) and "尚無已平倉" in html
+    assert '"open_positions": [{' in html.replace("\n", "").replace("  ", "") or pos["symbol"] in html
+    # 停利出場後（尚未到 13:25）：結算區立刻出現這筆，損益卡顯示盤中已實現
+    tp = pos["take_profit"]
+    candles["3481"] += [bar("09:30", 52.8, 52.85, 52.75, 52.8), bar("09:31", 52.8, 52.85, 52.75, 52.8),
+                        bar("09:32", 52.8, tp + 0.1, 52.8, tp)]
+    monkeypatch.setattr(ht, "evaluate_strategies", lambda c, s=None: {"signal": "WATCH", "reason": "-", "price": 52.8,
+                                                                    "atr": 0.5, "strategy_name": ""})
+    env["now"] = TZ.localize(dt.datetime(2026, 10, 6, 9, 35, 5))
+    ht.run_once(ctx)
+    html = open("index.html", encoding="utf-8").read()
+    body = _settle_tbody(html)
+    assert "3481" in body and "觸及停利" in body and "目前還沒有已平倉" not in body
+    assert "已實現損益（盤中）" in html and "盤中即時" in html
+
+
+def test_open_position_records_effective_stop_after_trailing(env, monkeypatch):
+    candles = {"3481": flat_bars(540, 30)}
+    ctx, state = _open_one(env, monkeypatch, candles)
+    pos = state["open_positions"][0]
+    entry, risk = pos["entry_price"], pos["risk_dist"]
+    up = entry + 1.4 * risk
+    candles["3481"] += [bar("09:30", 52.8, 52.85, 52.75, 52.8), bar("09:31", 52.8, 52.85, 52.75, 52.8),
+                        bar("09:32", 52.8, up, 52.8, up - 0.05), bar("09:33", up - 0.05, up, up - 0.1, up - 0.05)]
+    monkeypatch.setattr(ht, "evaluate_strategies", lambda c, s=None: {"signal": "WATCH", "reason": "-", "price": 52.8,
+                                                                    "atr": 0.5, "strategy_name": ""})
+    env["now"] = TZ.localize(dt.datetime(2026, 10, 6, 9, 35, 5))
+    ht.run_once(ctx)
+    p = json.load(open("dashboard_state.json", encoding="utf-8"))["open_positions"][0]
+    assert p["stop_moved"] is True and p["current_stop"] > p["stop_loss"] and p["mfe_pct"] > 0
