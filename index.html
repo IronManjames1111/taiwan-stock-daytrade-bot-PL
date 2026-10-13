@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">已停止新進場 (等待 13:25 收盤結算)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">已收盤結算完成</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-10-13 13:24:26</span>
+                    <span class="text-white mono ml-1.5">2026-10-13 13:25:31</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -195,7 +195,7 @@
             </div>
             <div class="panel border rounded-xl p-4">
                 <div class="text-[11px] text-gray-500">結算損益</div>
-                <div class="text-xl font-bold text-gray-400 mono mt-1">尚未結算</div>
+                <div class="text-xl font-bold text-[#ff5470] mono mt-1">+$22</div>
             </div>
         </div>
 
@@ -682,12 +682,56 @@
                             <th class="py-2 px-3">出場原因</th>
                         </tr>
                     </thead>
-                    <tbody id="settle-tbody" class="divide-y divide-white/5"><tr><td colspan="8" class="py-4 text-center text-gray-500 text-xs">尚未達到收盤結算時間 (13:25)</td></tr></tbody>
+                    <tbody id="settle-tbody" class="divide-y divide-white/5">
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">4938 <span class="text-gray-400 font-normal">和碩</span></td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔 + MACD 量能確認</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">103.0</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">104.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,260</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">4938 <span class="text-gray-400 font-normal">和碩</span></td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">104.5</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">103.5</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$1,238</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">🛑 觸及停損</td>
+            </tr>
+            </tbody>
                 </table>
             </div>
 
             <!-- 手機版：直式資訊卡 -->
-            <div id="settle-cards" class="analysis-cards-wrap"><div class="text-center text-gray-500 text-xs py-4">尚未達到收盤結算時間 (13:25)</div></div>
+            <div id="settle-cards" class="analysis-cards-wrap">
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">4938　<span class="text-gray-400 font-normal text-xs">和碩</span> <span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">103.0 → 104.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔 + MACD 量能確認</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,260</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">4938　<span class="text-gray-400 font-normal text-xs">和碩</span> <span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">104.5 → 103.5</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$1,238</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">🛑 觸及停損</span></div>
+            </div>
+            </div>
         </div>
 
         <!-- 💰 資金變化卡片 -->
@@ -725,9 +769,9 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-10-13 13:24:26",
+  "generated_at": "2026-10-13 13:25:31",
   "today_str": "2026-10-13",
-  "status_text": "已停止新進場 (等待 13:25 收盤結算)",
+  "status_text": "已收盤結算完成",
   "active_model": "純技術指標（本地策略）",
   "total_signals": 2,
   "wave1_stocks": [
@@ -6859,47 +6903,90 @@
   ],
   "live_quotes": {
     "2409": {
-      "price": 33.9,
-      "updated_at": "12:59:24"
+      "price": 34.2,
+      "updated_at": "13:30:00"
     },
     "6770": {
-      "price": 67.3,
-      "updated_at": "12:59:24"
+      "price": 67.5,
+      "updated_at": "13:30:00"
     },
     "2408": {
-      "price": 487,
-      "updated_at": "12:59:24"
+      "price": 489,
+      "updated_at": "13:30:00"
     },
     "2344": {
-      "price": 161,
-      "updated_at": "12:59:24"
+      "price": 162,
+      "updated_at": "13:30:00"
     },
     "4938": {
-      "price": 103.5,
-      "updated_at": "11:10:36"
+      "price": 102.5,
+      "updated_at": "13:30:00"
     },
     "3481": {
       "price": 50.1,
-      "updated_at": "10:28:27"
+      "updated_at": "13:30:00"
     },
     "2303": {
-      "price": 140.5,
-      "updated_at": "12:59:24"
+      "price": 141,
+      "updated_at": "13:30:00"
     },
     "1301": {
-      "price": 81,
-      "updated_at": "12:59:24"
+      "price": 80.8,
+      "updated_at": "13:30:00"
     },
     "1312": {
       "price": 17.65,
-      "updated_at": "12:59:24"
+      "updated_at": "13:30:00"
     },
     "1303": {
-      "price": 313,
-      "updated_at": "12:59:24"
+      "price": 317.5,
+      "updated_at": "13:30:00"
     }
   },
-  "settle_records": [],
+  "settle_records": [
+    {
+      "symbol": "4938",
+      "name": "和碩",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔 + MACD 量能確認",
+      "shares": 1000,
+      "position_value": 103000.0,
+      "entry_time": "10:20:37",
+      "exit_time": "10:59:00",
+      "entry_price": 103.0,
+      "exit_price": 104.5,
+      "stop_loss": 102.0,
+      "take_profit": 104.5,
+      "result": "win",
+      "pnl_amount": 1260.0,
+      "pnl_gross": 1500.0,
+      "cost_amount": 240.0,
+      "exit_reason": "hit_tp",
+      "settle_status": "settled"
+    },
+    {
+      "symbol": "4938",
+      "name": "和碩",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "EMA 趨勢回檔",
+      "shares": 1000,
+      "position_value": 104500.0,
+      "entry_time": "11:07:22",
+      "exit_time": "11:10:00",
+      "entry_price": 104.5,
+      "exit_price": 103.5,
+      "stop_loss": 103.5,
+      "take_profit": 106.0,
+      "result": "loss",
+      "pnl_amount": -1238.0,
+      "pnl_gross": -1000.0,
+      "cost_amount": 238.0,
+      "exit_reason": "hit_sl",
+      "settle_status": "settled"
+    }
+  ],
   "open_positions": [],
   "strategy_trades": [
     {
@@ -230678,6 +230765,14 @@
         "locked": 0.0,
         "realized": 22.0,
         "unrealized": 0.0
+      },
+      {
+        "t": "13:25:00",
+        "equity": 1000022.0,
+        "cash": 1000022.0,
+        "locked": 0.0,
+        "realized": 22.0,
+        "unrealized": 0.0
       }
     ]
   },
@@ -230723,6 +230818,20 @@
       "cost": 0,
       "max_locked": 0.0,
       "low_equity": 1000000.0
+    },
+    {
+      "date": "2026-10-13",
+      "initial": 1000000.0,
+      "final": 1000022.0,
+      "pnl": 22.0,
+      "pnl_pct": 0.002,
+      "entries": 2,
+      "closed": 2,
+      "wins": 1,
+      "win_rate": 0.5,
+      "cost": 478.0,
+      "max_locked": 104500.0,
+      "low_equity": 999264.0
     }
   ]
 };
