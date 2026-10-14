@@ -432,3 +432,9 @@ def test_open_position_records_effective_stop_after_trailing(env, monkeypatch):
     ht.run_once(ctx)
     p = json.load(open("dashboard_state.json", encoding="utf-8"))["open_positions"][0]
     assert p["stop_moved"] is True and p["current_stop"] > p["stop_loss"] and p["mfe_pct"] > 0
+
+
+def test_page_shows_data_time_for_open_positions(env, monkeypatch):
+    _open_one(env, monkeypatch, {"3481": flat_bars(540, 30)})
+    html = open("index.html", encoding="utf-8").read()
+    assert 'id="open-position-freshness"' in html and '"generated_at": "2026-10-06 09:31:05"' in html

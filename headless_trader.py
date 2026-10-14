@@ -312,6 +312,7 @@ def render_html_dashboard(
     # live_quotes 同樣放入 payload：供前端計算歷史分析紀錄中 BUY/SHORT 訊號的即時損益。
     export_payload = {
         "generated_at": now_str,
+        "settled": bool(settled),
         "today_str": today_str,
         "status_text": status_text,
         "active_model": active_model,
@@ -732,7 +733,7 @@ def render_html_dashboard(
         </div>
 
         <section class="panel border rounded-2xl p-5">
-            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3"><div><h2 class="font-bold text-white text-base">目前持倉監控</h2><p class="text-[11px] text-gray-500 mt-1">策略每輪（預設每分鐘）以分 K 高低價檢查停利／停損；浮動損益為未扣費稅估值。</p></div><span class="text-[11px] text-gray-500">正式策略模擬持倉 · <b id="open-position-count">{len(open_positions)}</b> 檔</span></div>
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3"><div><h2 class="font-bold text-white text-base">目前持倉監控</h2><p class="text-[11px] text-gray-500 mt-1">策略每輪以分 K 高低價檢查停利／停損；浮動損益為未扣費稅估值。<span id="open-position-freshness" class="ml-1"></span></p></div><span class="text-[11px] text-gray-500">正式策略模擬持倉 · <b id="open-position-count">{len(open_positions)}</b> 檔</span></div>
             <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場時間</th><th>進場價</th><th>最新價</th><th>浮動損益</th><th>停損</th><th>停利</th><th>目標進度</th></tr></thead><tbody id="open-position-tbody">{positions_html}</tbody></table></div>
         </section>
 
@@ -1113,7 +1114,23 @@ def render_html_dashboard(
         }};
         let CURRENT_STRATEGY_EXPERIMENTS = {{}};
 
+        // 頁面是靜態檔：資料 = 後端「上次推送」當下的快照，不是即時串流。
+        // 這裡顯示資料時間與延遲，超過 6 分鐘（盤中）就警示，避免把舊資料誤當即時。
+        function updateFreshness() {{
+            const el = document.getElementById("open-position-freshness");
+            if (!el) return;
+            const gen = EXPORT_DATA.generated_at;
+            const t = gen ? new Date(gen.replace(" ", "T") + "+08:00").getTime() : NaN;
+            if (!Number.isFinite(t)) {{ el.textContent = ""; return; }}
+            const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+            const stale = !EXPORT_DATA.settled && mins >= 6;
+            el.className = "ml-1 " + (stale ? "text-[#f5b942] font-semibold" : "text-gray-500");
+            el.textContent = `資料時間 ${{gen.slice(11, 19)}}（${{mins}} 分鐘前）${{stale ? "⚠️ 資料可能延遲，請確認排程是否在跑" : ""}}`;
+        }}
+        setInterval(updateFreshness, 30000);
+
         function renderOpenPositionTable(positions, quotes) {{
+            updateFreshness();
             const tbody = document.getElementById("open-position-tbody");
             if (!tbody) return;
             const count = document.getElementById("open-position-count");
@@ -2967,7 +2984,7 @@ def _commit_push():
 def run_loop(ctx: Dict):
     interval = int(os.getenv("LOOP_INTERVAL_SEC", "60"))
     end_hm = os.getenv("LOOP_END_TIME", "13:32")
-    commit_every = int(os.getenv("COMMIT_EVERY_MIN", "5"))
+    commit_every = int(os.getenv("COMMIT_EVERY_MIN", "2"))
     last_commit = time.monotonic()
     print(f"🔁 loop 模式：每 {interval} 秒一輪，{end_hm} 結束，每 {commit_every} 分鐘推送一次")
     while get_tw_now().strftime("%H:%M") <= end_hm:
