@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">盤中監控中 (13:24)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">已收盤結算完成</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-10-19 13:24:29</span>
+                    <span class="text-white mono ml-1.5">2026-10-19 13:25:36</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -194,8 +194,8 @@
                 <div class="text-xl font-bold text-[#f5b942] mono mt-1">27 筆</div>
             </div>
             <div class="panel border rounded-xl p-4">
-                <div class="text-[11px] text-gray-500">已實現損益（盤中）</div>
-                <div class="text-xl font-bold text-[#ff5470] mono mt-1">+$5,081</div>
+                <div class="text-[11px] text-gray-500">結算損益</div>
+                <div class="text-xl font-bold text-[#ff5470] mono mt-1">+$5,713</div>
             </div>
         </div>
 
@@ -305,13 +305,13 @@
         </div>
 
         <section class="panel border rounded-2xl p-5">
-            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3"><div><h2 class="font-bold text-white text-base">目前持倉監控</h2><p class="text-[11px] text-gray-500 mt-1">策略每輪以分 K 高低價檢查停利／停損；浮動損益為未扣費稅估值。<span id="open-position-freshness" class="ml-1"></span></p></div><span class="text-[11px] text-gray-500">正式策略模擬持倉 · <b id="open-position-count">2</b> 檔</span></div>
-            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場時間</th><th>進場價</th><th>最新價</th><th>浮動損益</th><th>停損</th><th>停利</th><th>目標進度</th></tr></thead><tbody id="open-position-tbody"><tr><td class="py-2 px-3 whitespace-nowrap">2409 友達</td><td>做多</td><td>MACD 量能確認 + EMA 趨勢回檔</td><td class="mono">12:04:35</td><td class="mono">36.25</td><td class="mono">36.65</td><td class="mono text-[#ff5470]">+1,600<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">35.9</td><td class="mono text-[#ff5470]">36.95</td><td class="mono">57%</td></tr><tr><td class="py-2 px-3 whitespace-nowrap">3481 群創</td><td>做多</td><td>EMA 趨勢回檔</td><td class="mono">12:50:41</td><td class="mono">47.05</td><td class="mono">47.0</td><td class="mono text-[#00d68f]">-200<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">46.75</td><td class="mono text-[#ff5470]">47.65</td><td class="mono">-8%</td></tr></tbody></table></div>
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3"><div><h2 class="font-bold text-white text-base">目前持倉監控</h2><p class="text-[11px] text-gray-500 mt-1">策略每輪以分 K 高低價檢查停利／停損；浮動損益為未扣費稅估值。<span id="open-position-freshness" class="ml-1"></span></p></div><span class="text-[11px] text-gray-500">正式策略模擬持倉 · <b id="open-position-count">0</b> 檔</span></div>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場時間</th><th>進場價</th><th>最新價</th><th>浮動損益</th><th>停損</th><th>停利</th><th>目標進度</th></tr></thead><tbody id="open-position-tbody"><tr><td colspan="10" class="py-4 text-center text-gray-500">目前沒有持倉</td></tr></tbody></table></div>
         </section>
 
         <section class="panel border rounded-2xl p-5">
             <h2 class="font-bold text-white text-base mb-1">正式策略績效</h2><p class="text-[11px] text-gray-500 mb-3">已平倉損益已扣手續費與稅；未實現損益尚未扣費稅。</p>
-            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>持倉</th><th>勝率</th><th>已實現淨損益</th><th>未實現損益</th></tr></thead><tbody id="strategy-stat-tbody"><tr><td>EMA 趨勢回檔</td><td>14</td><td>13</td><td>1</td><td>61.5%</td><td>+145</td><td>-200</td></tr><tr><td>EMA 趨勢回檔 + KD 順勢交叉</td><td>2</td><td>2</td><td>0</td><td>100.0%</td><td>+4,510</td><td>+0</td></tr><tr><td>區間高低突破</td><td>2</td><td>2</td><td>0</td><td>100.0%</td><td>+2,473</td><td>+0</td></tr><tr><td>VWAP 動能突破 + EMA 趨勢回檔</td><td>2</td><td>2</td><td>0</td><td>50.0%</td><td>-1,501</td><td>+0</td></tr><tr><td>VWAP 動能突破 + MACD 量能確認</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+2,556</td><td>+0</td></tr><tr><td>區間高低突破 + VWAP 動能突破 + EMA 趨勢回檔</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+2,169</td><td>+0</td></tr><tr><td>VWAP 動能突破 + 開盤區間突破 + 區間高低突破</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+304</td><td>+0</td></tr><tr><td>MACD 量能確認 + EMA 趨勢回檔</td><td>1</td><td>0</td><td>1</td><td>-</td><td>+0</td><td>+1,600</td></tr><tr><td>MACD 量能確認 + 區間高低突破</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,706</td><td>+0</td></tr><tr><td>MACD 量能確認 + EMA 趨勢回檔 + EMA 快慢線動能</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,880</td><td>+0</td></tr><tr><td>開盤區間突破</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,989</td><td>+0</td></tr></tbody></table></div>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>持倉</th><th>勝率</th><th>已實現淨損益</th><th>未實現損益</th></tr></thead><tbody id="strategy-stat-tbody"><tr><td>EMA 趨勢回檔</td><td>14</td><td>14</td><td>0</td><td>57.1%</td><td>-487</td><td>+0</td></tr><tr><td>EMA 趨勢回檔 + KD 順勢交叉</td><td>2</td><td>2</td><td>0</td><td>100.0%</td><td>+4,510</td><td>+0</td></tr><tr><td>區間高低突破</td><td>2</td><td>2</td><td>0</td><td>100.0%</td><td>+2,473</td><td>+0</td></tr><tr><td>VWAP 動能突破 + EMA 趨勢回檔</td><td>2</td><td>2</td><td>0</td><td>50.0%</td><td>-1,501</td><td>+0</td></tr><tr><td>VWAP 動能突破 + MACD 量能確認</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+2,556</td><td>+0</td></tr><tr><td>區間高低突破 + VWAP 動能突破 + EMA 趨勢回檔</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+2,169</td><td>+0</td></tr><tr><td>MACD 量能確認 + EMA 趨勢回檔</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+1,264</td><td>+0</td></tr><tr><td>VWAP 動能突破 + 開盤區間突破 + 區間高低突破</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+304</td><td>+0</td></tr><tr><td>MACD 量能確認 + 區間高低突破</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,706</td><td>+0</td></tr><tr><td>MACD 量能確認 + EMA 趨勢回檔 + EMA 快慢線動能</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,880</td><td>+0</td></tr><tr><td>開盤區間突破</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,989</td><td>+0</td></tr></tbody></table></div>
         </section>
 
         <section class="panel border rounded-2xl p-5">
@@ -690,7 +690,7 @@
                     <h2 class="font-bold text-white text-base">今日已平倉明細</h2>
                     <p class="text-[11px] text-gray-500 mt-0.5">已觸及停利 / 停損 / 保本停損的單筆會即時列出（已扣手續費與證交稅）；未平倉部位在下方「目前持倉監控」，13:25 統一強平結算</p>
                 </div>
-                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">盤中即時</span>
+                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">已結算</span>
             </div>
 
             <!-- 桌面版：表格 -->
@@ -963,6 +963,17 @@
             </tr>
             
             <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">2409 <span class="text-gray-400 font-normal">友達</span></td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">MACD 量能確認 + EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">36.25</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">36.65</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
+                <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,264</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">⏱ 收盤強制平倉</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
                 <td class="py-2 px-3 font-bold text-white whitespace-nowrap">6770 <span class="text-gray-400 font-normal">力積電</span></td>
                 <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
                 <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
@@ -982,6 +993,17 @@
                 <td class="py-2 px-3"><span class="sig-badge sig-long">✅ 獲利</span></td>
                 <td class="py-2 px-3 mono text-[#ff5470] font-bold whitespace-nowrap">+$1,618</td>
                 <td class="py-2 px-3 text-gray-400 text-xs">✅ 觸及停利</td>
+            </tr>
+            
+            <tr class="hover:bg-white/[0.02]">
+                <td class="py-2 px-3 font-bold text-white whitespace-nowrap">3481 <span class="text-gray-400 font-normal">群創</span></td>
+                <td class="py-2 px-3 font-semibold whitespace-nowrap">BUY</td>
+                <td class="py-2 px-3 text-[#8db3ff]">EMA 趨勢回檔</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">47.05</td>
+                <td class="py-2 px-3 mono whitespace-nowrap">47.0</td>
+                <td class="py-2 px-3"><span class="sig-badge sig-short">❌ 虧損</span></td>
+                <td class="py-2 px-3 mono text-[#00d68f] font-bold whitespace-nowrap">-$632</td>
+                <td class="py-2 px-3 text-gray-400 text-xs">⏱ 收盤強制平倉</td>
             </tr>
             </tbody>
                 </table>
@@ -1244,6 +1266,17 @@
             
             <div class="data-card">
                 <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">2409　<span class="text-gray-400 font-normal text-xs">友達</span> <span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-long">✅ 獲利</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">36.25 → 36.65</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">MACD 量能確認 + EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,264</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">⏱ 收盤強制平倉</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
                     <span class="font-bold text-white text-sm">6770　<span class="text-gray-400 font-normal text-xs">力積電</span> <span class="text-gray-400 font-normal text-xs">BUY</span></span>
                     <span class="sig-badge sig-short">❌ 虧損</span>
                 </div>
@@ -1262,6 +1295,17 @@
                 <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
                 <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#ff5470] font-bold">+$1,618</span></div>
                 <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">✅ 觸及停利</span></div>
+            </div>
+            
+            <div class="data-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-white text-sm">3481　<span class="text-gray-400 font-normal text-xs">群創</span> <span class="text-gray-400 font-normal text-xs">BUY</span></span>
+                    <span class="sig-badge sig-short">❌ 虧損</span>
+                </div>
+                <div class="data-row"><span class="dlabel">進場 → 出場</span><span class="dvalue mono">47.05 → 47.0</span></div>
+                <div class="data-row"><span class="dlabel">進場策略</span><span class="dvalue">EMA 趨勢回檔</span></div>
+                <div class="data-row"><span class="dlabel">淨損益</span><span class="dvalue mono text-[#00d68f] font-bold">-$632</span></div>
+                <div class="data-row"><span class="dlabel">出場原因</span><span class="dvalue text-xs">⏱ 收盤強制平倉</span></div>
             </div>
             </div>
         </div>
@@ -1301,10 +1345,10 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-10-19 13:24:29",
-  "settled": false,
+  "generated_at": "2026-10-19 13:25:36",
+  "settled": true,
   "today_str": "2026-10-19",
-  "status_text": "盤中監控中 (13:24)",
+  "status_text": "已收盤結算完成",
   "active_model": "純技術指標（本地策略）",
   "total_signals": 27,
   "wave1_stocks": [
@@ -10927,47 +10971,47 @@
   "live_quotes": {
     "2409": {
       "price": 36.65,
-      "updated_at": "13:23:31"
+      "updated_at": "13:30:00"
     },
     "6269": {
-      "price": 79.8,
-      "updated_at": "13:23:31"
+      "price": 79.6,
+      "updated_at": "13:30:00"
     },
     "1815": {
       "price": 154,
-      "updated_at": "10:28:31"
+      "updated_at": "13:30:00"
     },
     "5314": {
-      "price": 27.95,
-      "updated_at": "10:38:29"
+      "price": 27.6,
+      "updated_at": "13:30:00"
     },
     "3481": {
       "price": 47,
-      "updated_at": "13:23:31"
+      "updated_at": "13:30:00"
     },
     "6770": {
       "price": 65.5,
-      "updated_at": "13:23:31"
+      "updated_at": "13:30:00"
     },
     "2303": {
-      "price": 131.5,
-      "updated_at": "13:23:31"
+      "price": 131,
+      "updated_at": "13:30:00"
     },
     "6505": {
-      "price": 120,
-      "updated_at": "10:28:31"
+      "price": 116.5,
+      "updated_at": "13:30:00"
     },
     "1802": {
       "price": 66.2,
-      "updated_at": "13:23:31"
+      "updated_at": "13:30:00"
     },
     "1303": {
-      "price": 302.5,
-      "updated_at": "13:23:31"
+      "price": 302,
+      "updated_at": "13:30:00"
     },
     "8039": {
-      "price": 300.5,
-      "updated_at": "13:23:31"
+      "price": 300,
+      "updated_at": "13:30:00"
     }
   },
   "settle_records": [
@@ -11455,6 +11499,27 @@
       "settle_status": "settled"
     },
     {
+      "symbol": "2409",
+      "name": "友達",
+      "signal": "BUY",
+      "direction": "做多",
+      "strategy": "MACD 量能確認 + EMA 趨勢回檔",
+      "shares": 4000,
+      "position_value": 145000.0,
+      "entry_time": "12:04:35",
+      "exit_time": "13:25:00",
+      "entry_price": 36.25,
+      "exit_price": 36.65,
+      "stop_loss": 35.9,
+      "take_profit": 36.95,
+      "result": "win",
+      "pnl_amount": 1264.0,
+      "pnl_gross": 1600.0,
+      "cost_amount": 336.0,
+      "exit_reason": "forced_close",
+      "settle_status": "settled"
+    },
+    {
       "symbol": "6770",
       "name": "力積電",
       "signal": "BUY",
@@ -11495,101 +11560,30 @@
       "cost_amount": 382.0,
       "exit_reason": "hit_tp",
       "settle_status": "settled"
-    }
-  ],
-  "open_positions": [
-    {
-      "id": "2026-10-19_2409_120435",
-      "symbol": "2409",
-      "name": "友達",
-      "signal": "BUY",
-      "direction": "做多",
-      "strategy": "",
-      "strategy_name": "MACD 量能確認 + EMA 趨勢回檔",
-      "strategy_votes": [
-        {
-          "key": "macd_volume",
-          "name": "MACD 量能確認",
-          "reason": "MACD 黃金交叉、VWAP 上方且量能確認",
-          "age": 0,
-          "bar_hm": "12:03"
-        },
-        {
-          "key": "ema_pullback",
-          "name": "EMA 趨勢回檔",
-          "reason": "多頭排列中回測 EMA9 後收復",
-          "age": 1,
-          "bar_hm": "12:02"
-        }
-      ],
-      "entry_price": 36.25,
-      "stop_loss": 35.9,
-      "take_profit": 36.95,
-      "shares": 4000,
-      "entry_time": "12:04:35",
-      "entry_bar_hm": "12:03",
-      "status": "open",
-      "reason": "MACD 量能確認：MACD 黃金交叉、VWAP 上方且量能確認；多頭排列中回測 EMA9 後收復（1根前）",
-      "expected_net_win": 2461.0,
-      "expected_net_loss": 1731.0,
-      "expected_cost": 339.0,
-      "net_rr": 1.42,
-      "risk_dist": 0.35,
-      "risk_pct": 0.966,
-      "plan_rr": 2.0,
-      "stop_basis": "結構",
-      "be_trigger_r": 1.2,
-      "trail_gap_r": 1.0,
-      "lock_dist": 0.15,
-      "signal_bar_hm": "12:03",
-      "position_value": 145000.0,
-      "current_stop": 36.4,
-      "stop_moved": true,
-      "mfe_pct": 1.241
     },
     {
-      "id": "2026-10-19_3481_125041",
       "symbol": "3481",
       "name": "群創",
       "signal": "BUY",
       "direction": "做多",
-      "strategy": "",
-      "strategy_name": "EMA 趨勢回檔",
-      "strategy_votes": [
-        {
-          "key": "ema_pullback",
-          "name": "EMA 趨勢回檔",
-          "reason": "多頭排列中回測 EMA9 後收復",
-          "age": 0,
-          "bar_hm": "12:49"
-        }
-      ],
+      "strategy": "EMA 趨勢回檔",
+      "shares": 4000,
+      "position_value": 188200.0,
+      "entry_time": "12:50:41",
+      "exit_time": "13:25:00",
       "entry_price": 47.05,
+      "exit_price": 47.0,
       "stop_loss": 46.75,
       "take_profit": 47.65,
-      "shares": 4000,
-      "entry_time": "12:50:41",
-      "entry_bar_hm": "12:49",
-      "status": "open",
-      "reason": "EMA 趨勢回檔：多頭排列中回測 EMA9 後收復",
-      "expected_net_win": 1963.0,
-      "expected_net_loss": 1630.0,
-      "expected_cost": 437.0,
-      "net_rr": 1.2,
-      "risk_dist": 0.3,
-      "risk_pct": 0.638,
-      "plan_rr": 2.0,
-      "stop_basis": "最小幅度",
-      "be_trigger_r": 1.2,
-      "trail_gap_r": 1.0,
-      "lock_dist": 0.15,
-      "signal_bar_hm": "12:49",
-      "position_value": 188200.0,
-      "current_stop": 46.75,
-      "stop_moved": false,
-      "mfe_pct": 0.319
+      "result": "loss",
+      "pnl_amount": -632.0,
+      "pnl_gross": -200.0,
+      "cost_amount": 432.0,
+      "exit_reason": "forced_close",
+      "settle_status": "settled"
     }
   ],
+  "open_positions": [],
   "strategy_trades": [
     {
       "id": "2026-10-19_6269_091727",
@@ -12901,7 +12895,7 @@
       "shares": 4000,
       "entry_time": "12:04:35",
       "entry_bar_hm": "12:03",
-      "status": "open",
+      "status": "closed",
       "reason": "MACD 量能確認：MACD 黃金交叉、VWAP 上方且量能確認；多頭排列中回測 EMA9 後收復（1根前）",
       "expected_net_win": 2461.0,
       "expected_net_loss": 1731.0,
@@ -12915,7 +12909,20 @@
       "trail_gap_r": 1.0,
       "lock_dist": 0.15,
       "signal_bar_hm": "12:03",
-      "position_value": 145000.0
+      "position_value": 145000.0,
+      "current_stop": 36.4,
+      "stop_moved": true,
+      "mfe_pct": 1.241,
+      "exit_price": 36.65,
+      "exit_time": "13:25:00",
+      "exit_reason": "forced_close",
+      "pnl_gross": 1600.0,
+      "cost_amount": 336.0,
+      "pnl_amount": 1264.0,
+      "result": "win",
+      "price_source": "bar_13:24_close",
+      "mae_pct": 0.69,
+      "final_stop": 36.4
     },
     {
       "id": "2026-10-19_6770_121041",
@@ -13044,7 +13051,7 @@
       "shares": 4000,
       "entry_time": "12:50:41",
       "entry_bar_hm": "12:49",
-      "status": "open",
+      "status": "closed",
       "reason": "EMA 趨勢回檔：多頭排列中回測 EMA9 後收復",
       "expected_net_win": 1963.0,
       "expected_net_loss": 1630.0,
@@ -13058,7 +13065,20 @@
       "trail_gap_r": 1.0,
       "lock_dist": 0.15,
       "signal_bar_hm": "12:49",
-      "position_value": 188200.0
+      "position_value": 188200.0,
+      "current_stop": 46.75,
+      "stop_moved": false,
+      "mfe_pct": 0.319,
+      "exit_price": 47.0,
+      "exit_time": "13:25:00",
+      "exit_reason": "forced_close",
+      "pnl_gross": -200.0,
+      "cost_amount": 432.0,
+      "pnl_amount": -632.0,
+      "result": "loss",
+      "price_source": "bar_13:24_close",
+      "mae_pct": 0.319,
+      "final_stop": 46.75
     }
   ],
   "strategy_settings": {
@@ -117821,142 +117841,7 @@
             }
           ]
         },
-        "open_positions": [
-          {
-            "id": "2026-10-19_strategy_3_6770_120631_4",
-            "symbol": "6770",
-            "name": "力積電",
-            "signal": "BUY",
-            "direction": "做多",
-            "strategy": "strategy_3",
-            "strategy_name": "開盤區間 + 區間突破",
-            "strategy_votes": [
-              {
-                "key": "orb_breakout",
-                "name": "開盤區間突破",
-                "reason": "突破前15根開盤區間高點",
-                "age": 1,
-                "bar_hm": "12:04"
-              },
-              {
-                "key": "range_breakout",
-                "name": "區間高低突破",
-                "reason": "放量突破前20根區間高點",
-                "age": 1,
-                "bar_hm": "12:04"
-              }
-            ],
-            "entry_price": 64.9,
-            "stop_loss": 64.2,
-            "take_profit": 66.3,
-            "shares": 2000,
-            "entry_time": "12:06:31",
-            "entry_bar_hm": "12:05",
-            "status": "open",
-            "reason": "開盤區間 + 區間突破：突破前15根開盤區間高點；放量突破前20根區間高點",
-            "expected_net_win": 2496.0,
-            "expected_net_loss": 1696.0,
-            "expected_cost": 304.0,
-            "net_rr": 1.47,
-            "risk_dist": 0.7,
-            "risk_pct": 1.079,
-            "plan_rr": 2.0,
-            "stop_basis": "結構",
-            "be_trigger_r": 1.2,
-            "trail_gap_r": 1.0,
-            "lock_dist": 0.2,
-            "signal_bar_hm": "12:04",
-            "experiment_mode": "strategy_3",
-            "experiment_name": "開盤區間 + 區間突破",
-            "experiment_config": {
-              "name": "開盤區間 + 區間突破",
-              "indicators": [
-                "orb_breakout",
-                "range_breakout"
-              ],
-              "settings": {
-                "volume_multiple": 1.1,
-                "stop_atr": 1.5,
-                "target_atr": 1.8,
-                "min_net_rr": 1.0,
-                "min_target_cost_multiple": 3.0,
-                "sizing_mode": "fixed_risk",
-                "risk_per_trade": 2000.0,
-                "position_amount": 200000.0,
-                "fixed_shares": 1000,
-                "max_position_value": 700000.0
-              }
-            },
-            "position_value": 129800.0
-          },
-          {
-            "id": "2026-10-19_strategy_3_3481_124433_5",
-            "symbol": "3481",
-            "name": "群創",
-            "signal": "BUY",
-            "direction": "做多",
-            "strategy": "strategy_3",
-            "strategy_name": "開盤區間 + 區間突破",
-            "strategy_votes": [
-              {
-                "key": "orb_breakout",
-                "name": "開盤區間突破",
-                "reason": "突破前15根開盤區間高點",
-                "age": 0,
-                "bar_hm": "12:43"
-              },
-              {
-                "key": "range_breakout",
-                "name": "區間高低突破",
-                "reason": "放量突破前20根區間高點",
-                "age": 0,
-                "bar_hm": "12:43"
-              }
-            ],
-            "entry_price": 47.05,
-            "stop_loss": 46.75,
-            "take_profit": 47.65,
-            "shares": 4000,
-            "entry_time": "12:44:33",
-            "entry_bar_hm": "12:43",
-            "status": "open",
-            "reason": "開盤區間 + 區間突破：突破前15根開盤區間高點；放量突破前20根區間高點",
-            "expected_net_win": 1963.0,
-            "expected_net_loss": 1630.0,
-            "expected_cost": 437.0,
-            "net_rr": 1.2,
-            "risk_dist": 0.3,
-            "risk_pct": 0.638,
-            "plan_rr": 2.0,
-            "stop_basis": "最小幅度",
-            "be_trigger_r": 1.2,
-            "trail_gap_r": 1.0,
-            "lock_dist": 0.15,
-            "signal_bar_hm": "12:43",
-            "experiment_mode": "strategy_3",
-            "experiment_name": "開盤區間 + 區間突破",
-            "experiment_config": {
-              "name": "開盤區間 + 區間突破",
-              "indicators": [
-                "orb_breakout",
-                "range_breakout"
-              ],
-              "settings": {
-                "volume_multiple": 1.1,
-                "stop_atr": 1.5,
-                "target_atr": 1.8,
-                "min_net_rr": 1.0,
-                "min_target_cost_multiple": 3.0,
-                "sizing_mode": "fixed_risk",
-                "risk_per_trade": 2000.0,
-                "position_amount": 200000.0,
-                "fixed_shares": 1000,
-                "max_position_value": 700000.0
-              }
-            },
-            "position_value": 188200.0
-          }
-        ],
+        "open_positions": [],
         "trades": [
           {
             "id": "2026-10-19_strategy_3_2409_095633_1",
@@ -118222,7 +118107,7 @@
             "shares": 2000,
             "entry_time": "12:06:31",
             "entry_bar_hm": "12:05",
-            "status": "open",
+            "status": "closed",
             "reason": "開盤區間 + 區間突破：突破前15根開盤區間高點；放量突破前20根區間高點",
             "expected_net_win": 2496.0,
             "expected_net_loss": 1696.0,
@@ -118257,7 +118142,18 @@
                 "max_position_value": 700000.0
               }
             },
-            "position_value": 129800.0
+            "position_value": 129800.0,
+            "exit_price": 65.5,
+            "exit_time": "13:25:00",
+            "exit_reason": "forced_close",
+            "pnl_gross": 1200.0,
+            "cost_amount": 301.0,
+            "pnl_amount": 899.0,
+            "result": "win",
+            "price_source": "bar_13:24_close",
+            "mfe_pct": 1.233,
+            "mae_pct": 0.77,
+            "final_stop": 64.2
           },
           {
             "id": "2026-10-19_strategy_3_3481_124433_5",
@@ -118289,7 +118185,7 @@
             "shares": 4000,
             "entry_time": "12:44:33",
             "entry_bar_hm": "12:43",
-            "status": "open",
+            "status": "closed",
             "reason": "開盤區間 + 區間突破：突破前15根開盤區間高點；放量突破前20根區間高點",
             "expected_net_win": 1963.0,
             "expected_net_loss": 1630.0,
@@ -118324,7 +118220,18 @@
                 "max_position_value": 700000.0
               }
             },
-            "position_value": 188200.0
+            "position_value": 188200.0,
+            "exit_price": 47.0,
+            "exit_time": "13:25:00",
+            "exit_reason": "forced_close",
+            "pnl_gross": -200.0,
+            "cost_amount": 432.0,
+            "pnl_amount": -632.0,
+            "result": "loss",
+            "price_source": "bar_13:24_close",
+            "mfe_pct": 0.319,
+            "mae_pct": 0.319,
+            "final_stop": 46.75
           }
         ],
         "analysis_log": [
@@ -168347,11 +168254,11 @@
         ],
         "summary": {
           "entries": 5,
-          "closed": 3,
-          "wins": 1,
-          "win_rate": 0.3333333333333333,
-          "net_pnl": -578.0,
-          "cost": 928.0
+          "closed": 5,
+          "wins": 2,
+          "win_rate": 0.4,
+          "net_pnl": -311.0,
+          "cost": 1661.0
         }
       },
       "strategy_4": {
@@ -267875,10 +267782,10 @@
   },
   "capital": {
     "initial": 1000000.0,
-    "cash": 671881.0,
-    "locked": 333200.0,
-    "realized": 5081.0,
-    "unrealized": 632.0,
+    "cash": 1005713.0,
+    "locked": 0.0,
+    "realized": 5713.0,
+    "unrealized": 0.0,
     "equity": 1005713.0,
     "curve": [
       {
@@ -269192,6 +269099,14 @@
         "locked": 333200.0,
         "realized": 5081.0,
         "unrealized": 632.0
+      },
+      {
+        "t": "13:25:00",
+        "equity": 1005713.0,
+        "cash": 1005713.0,
+        "locked": 0.0,
+        "realized": 5713.0,
+        "unrealized": 0.0
       }
     ]
   },
@@ -269293,6 +269208,20 @@
       "cost": 5090.0,
       "max_locked": 777100.0,
       "low_equity": 989208.0
+    },
+    {
+      "date": "2026-10-19",
+      "initial": 1000000.0,
+      "final": 1005713.0,
+      "pnl": 5713.0,
+      "pnl_pct": 0.571,
+      "entries": 27,
+      "closed": 27,
+      "wins": 17,
+      "win_rate": 0.6296,
+      "cost": 10037.0,
+      "max_locked": 931250.0,
+      "low_equity": 996774.0
     }
   ]
 };
