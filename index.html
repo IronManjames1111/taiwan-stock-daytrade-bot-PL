@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">盤中監控中 (10:29)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">中盤第二波監控中</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-10-22 10:29:34</span>
+                    <span class="text-white mono ml-1.5">2026-10-22 10:31:03</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -260,7 +260,47 @@
                     </div>
                     <span class="text-[11px] bg-[#1f1433] text-[#c4a6ff] border border-[#a78bfa]/25 px-2 py-0.5 rounded-md whitespace-nowrap">波段二</span>
                 </div>
-                <ul class="space-y-2 text-sm"><li class="text-gray-500 text-xs py-2">10:30 自動重新掃描成交量排行...</li></ul>
+                <ul class="space-y-2 text-sm">
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#1</span>1802 台玻</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">68.8 元 · 191,777 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#2</span>2409 友達</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">37.0 元 · 140,856 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#3</span>1815 富喬</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">145.0 元 · 91,362 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#4</span>6770 力積電</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">67.8 元 · 67,761 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#5</span>1303 南亞</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">307.5 元 · 57,855 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#6</span>1101 台泥</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">28.1 元 · 57,096 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#7</span>3481 群創</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">49.05 元 · 54,153 張</span>
+            </li>
+            
+            <li class="panel-raised border rounded-lg p-2.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-white text-sm whitespace-nowrap"><span class="text-[#c4a6ff] mr-1.5">#8</span>6269 台郡</span>
+                <span class="mono text-gray-400 text-[11px] text-right whitespace-nowrap">82.3 元 · 53,387 張</span>
+            </li>
+            </ul>
             </div>
         </div>
 
@@ -721,10 +761,10 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-10-22 10:29:34",
+  "generated_at": "2026-10-22 10:31:03",
   "settled": false,
   "today_str": "2026-10-22",
-  "status_text": "盤中監控中 (10:29)",
+  "status_text": "中盤第二波監控中",
   "active_model": "純技術指標（本地策略）",
   "total_signals": 6,
   "wave1_stocks": [
@@ -785,7 +825,64 @@
       "rank": "14"
     }
   ],
-  "wave2_stocks": [],
+  "wave2_stocks": [
+    {
+      "symbol": "1802",
+      "name": "台玻",
+      "price": 68.8,
+      "volume": 191777,
+      "rank": "2"
+    },
+    {
+      "symbol": "2409",
+      "name": "友達",
+      "price": 37.0,
+      "volume": 140856,
+      "rank": "3"
+    },
+    {
+      "symbol": "1815",
+      "name": "富喬",
+      "price": 145.0,
+      "volume": 91362,
+      "rank": "5"
+    },
+    {
+      "symbol": "6770",
+      "name": "力積電",
+      "price": 67.8,
+      "volume": 67761,
+      "rank": "7"
+    },
+    {
+      "symbol": "1303",
+      "name": "南亞",
+      "price": 307.5,
+      "volume": 57855,
+      "rank": "9"
+    },
+    {
+      "symbol": "1101",
+      "name": "台泥",
+      "price": 28.1,
+      "volume": 57096,
+      "rank": "10"
+    },
+    {
+      "symbol": "3481",
+      "name": "群創",
+      "price": 49.05,
+      "volume": 54153,
+      "rank": "12"
+    },
+    {
+      "symbol": "6269",
+      "name": "台郡",
+      "price": 82.3,
+      "volume": 53387,
+      "rank": "13"
+    }
+  ],
   "latest_analysis": [
     {
       "symbol": "2409",
