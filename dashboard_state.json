@@ -8363,88 +8363,45 @@
   ],
   "live_quotes": {
     "2409": {
-      "price": 33.7,
-      "updated_at": "13:24:49"
+      "price": 33.65,
+      "updated_at": "13:30:00"
     },
     "6770": {
-      "price": 69.4,
-      "updated_at": "13:24:49"
+      "price": 69.6,
+      "updated_at": "13:30:00"
     },
     "1802": {
-      "price": 64.7,
-      "updated_at": "13:24:49"
+      "price": 64.6,
+      "updated_at": "13:30:00"
     },
     "1303": {
       "price": 296.5,
-      "updated_at": "13:24:49"
+      "updated_at": "13:30:00"
     },
     "2303": {
       "price": 122.5,
-      "updated_at": "13:24:49"
+      "updated_at": "13:30:00"
     },
     "3481": {
-      "price": 46.55,
-      "updated_at": "13:24:49"
+      "price": 46.6,
+      "updated_at": "13:30:00"
     },
     "2353": {
-      "price": 33.15,
-      "updated_at": "13:24:49"
+      "price": 33.2,
+      "updated_at": "13:30:00"
     },
     "1101": {
-      "price": 27.95,
-      "updated_at": "11:01:58"
+      "price": 28.1,
+      "updated_at": "13:30:00"
     },
     "6269": {
       "price": 78.5,
-      "updated_at": "13:24:49"
+      "updated_at": "13:30:00"
     }
   },
   "total_signals": 17,
   "last_analysis_minute_bucket": "2026-10-27 13:24:49",
-  "open_positions": [
-    {
-      "id": "2026-10-27_6269_104742",
-      "symbol": "6269",
-      "name": "台郡",
-      "signal": "SHORT",
-      "direction": "放空",
-      "strategy": "",
-      "strategy_name": "區間高低突破",
-      "strategy_votes": [
-        {
-          "key": "range_breakout",
-          "name": "區間高低突破",
-          "reason": "放量跌破前20根區間低點",
-          "age": 0,
-          "bar_hm": "10:46"
-        }
-      ],
-      "entry_price": 79.8,
-      "stop_loss": 81.3,
-      "take_profit": 77.4,
-      "shares": 1000,
-      "entry_time": "10:47:42",
-      "entry_bar_hm": "10:46",
-      "status": "open",
-      "reason": "區間高低突破：放量跌破前20根區間低點",
-      "expected_net_win": 2218.0,
-      "expected_net_loss": 1684.0,
-      "expected_cost": 182.0,
-      "net_rr": 1.32,
-      "risk_dist": 1.5,
-      "risk_pct": 1.88,
-      "plan_rr": 1.6,
-      "stop_basis": "結構（已封頂）；停利收斂至當日極值",
-      "be_trigger_r": 1.2,
-      "trail_gap_r": 1.0,
-      "lock_dist": 0.3,
-      "signal_bar_hm": "10:46",
-      "position_value": 79800.0,
-      "current_stop": 79.3,
-      "stop_moved": true,
-      "mfe_pct": 2.506
-    }
-  ],
+  "open_positions": [],
   "strategy_trades": [
     {
       "id": "2026-10-27_3481_092241",
@@ -9076,7 +9033,7 @@
       "shares": 1000,
       "entry_time": "10:47:42",
       "entry_bar_hm": "10:46",
-      "status": "open",
+      "status": "closed",
       "reason": "區間高低突破：放量跌破前20根區間低點",
       "expected_net_win": 2218.0,
       "expected_net_loss": 1684.0,
@@ -9090,7 +9047,20 @@
       "trail_gap_r": 1.0,
       "lock_dist": 0.3,
       "signal_bar_hm": "10:46",
-      "position_value": 79800.0
+      "position_value": 79800.0,
+      "current_stop": 79.3,
+      "stop_moved": true,
+      "mfe_pct": 2.506,
+      "exit_price": 78.5,
+      "exit_time": "13:25:00",
+      "exit_reason": "forced_close",
+      "pnl_gross": 1300.0,
+      "cost_amount": 183.0,
+      "pnl_amount": 1117.0,
+      "result": "win",
+      "price_source": "bar_13:24_close",
+      "mae_pct": 0.752,
+      "final_stop": 79.3
     },
     {
       "id": "2026-10-27_2353_105343",
@@ -58706,142 +58676,7 @@
             }
           ]
         },
-        "open_positions": [
-          {
-            "id": "2026-10-27_strategy_2_1802_125245_5",
-            "symbol": "1802",
-            "name": "台玻",
-            "signal": "SHORT",
-            "direction": "放空",
-            "strategy": "strategy_2",
-            "strategy_name": "EMA 回檔 + KD 趨勢確認",
-            "strategy_votes": [
-              {
-                "key": "ema_pullback",
-                "name": "EMA 趨勢回檔",
-                "reason": "空頭排列中反彈 EMA9 後轉弱",
-                "age": 0,
-                "bar_hm": "12:51"
-              },
-              {
-                "key": "stochastic_trend",
-                "name": "KD 順勢交叉",
-                "reason": "KD 向下交叉並符合空頭趨勢",
-                "age": 0,
-                "bar_hm": "12:51"
-              }
-            ],
-            "entry_price": 65.4,
-            "stop_loss": 65.9,
-            "take_profit": 64.4,
-            "shares": 3000,
-            "entry_time": "12:52:45",
-            "entry_bar_hm": "12:51",
-            "status": "open",
-            "reason": "EMA 回檔 + KD 趨勢確認：空頭排列中反彈 EMA9 後轉弱；KD 向下交叉並符合空頭趨勢",
-            "expected_net_win": 2550.0,
-            "expected_net_loss": 1951.0,
-            "expected_cost": 450.0,
-            "net_rr": 1.31,
-            "risk_dist": 0.5,
-            "risk_pct": 0.765,
-            "plan_rr": 2.0,
-            "stop_basis": "結構",
-            "be_trigger_r": 1.2,
-            "trail_gap_r": 1.0,
-            "lock_dist": 0.2,
-            "signal_bar_hm": "12:51",
-            "experiment_mode": "strategy_2",
-            "experiment_name": "EMA 回檔 + KD 趨勢確認",
-            "experiment_config": {
-              "name": "EMA 回檔 + KD 趨勢確認",
-              "indicators": [
-                "ema_pullback",
-                "stochastic_trend"
-              ],
-              "settings": {
-                "volume_multiple": 1.1,
-                "stop_atr": 1.5,
-                "target_atr": 1.8,
-                "min_net_rr": 1.0,
-                "min_target_cost_multiple": 3.0,
-                "sizing_mode": "fixed_risk",
-                "risk_per_trade": 2000.0,
-                "position_amount": 200000.0,
-                "fixed_shares": 1000,
-                "max_position_value": 700000.0
-              }
-            },
-            "position_value": 196200.0
-          },
-          {
-            "id": "2026-10-27_strategy_2_2409_125744_6",
-            "symbol": "2409",
-            "name": "友達",
-            "signal": "SHORT",
-            "direction": "放空",
-            "strategy": "strategy_2",
-            "strategy_name": "EMA 回檔 + KD 趨勢確認",
-            "strategy_votes": [
-              {
-                "key": "ema_pullback",
-                "name": "EMA 趨勢回檔",
-                "reason": "空頭排列中反彈 EMA9 後轉弱",
-                "age": 0,
-                "bar_hm": "12:56"
-              },
-              {
-                "key": "stochastic_trend",
-                "name": "KD 順勢交叉",
-                "reason": "KD 向下交叉並符合空頭趨勢",
-                "age": 1,
-                "bar_hm": "12:55"
-              }
-            ],
-            "entry_price": 34.05,
-            "stop_loss": 34.3,
-            "take_profit": 33.55,
-            "shares": 5000,
-            "entry_time": "12:57:44",
-            "entry_bar_hm": "12:56",
-            "status": "open",
-            "reason": "EMA 回檔 + KD 趨勢確認：空頭排列中反彈 EMA9 後轉弱；KD 向下交叉並符合空頭趨勢",
-            "expected_net_win": 2110.0,
-            "expected_net_loss": 1642.0,
-            "expected_cost": 390.0,
-            "net_rr": 1.29,
-            "risk_dist": 0.25,
-            "risk_pct": 0.734,
-            "plan_rr": 2.0,
-            "stop_basis": "結構",
-            "be_trigger_r": 1.2,
-            "trail_gap_r": 1.0,
-            "lock_dist": 0.15,
-            "signal_bar_hm": "12:56",
-            "experiment_mode": "strategy_2",
-            "experiment_name": "EMA 回檔 + KD 趨勢確認",
-            "experiment_config": {
-              "name": "EMA 回檔 + KD 趨勢確認",
-              "indicators": [
-                "ema_pullback",
-                "stochastic_trend"
-              ],
-              "settings": {
-                "volume_multiple": 1.1,
-                "stop_atr": 1.5,
-                "target_atr": 1.8,
-                "min_net_rr": 1.0,
-                "min_target_cost_multiple": 3.0,
-                "sizing_mode": "fixed_risk",
-                "risk_per_trade": 2000.0,
-                "position_amount": 200000.0,
-                "fixed_shares": 1000,
-                "max_position_value": 700000.0
-              }
-            },
-            "position_value": 170250.0
-          }
-        ],
+        "open_positions": [],
         "trades": [
           {
             "id": "2026-10-27_strategy_2_6269_110345_1",
@@ -59185,7 +59020,7 @@
             "shares": 3000,
             "entry_time": "12:52:45",
             "entry_bar_hm": "12:51",
-            "status": "open",
+            "status": "closed",
             "reason": "EMA 回檔 + KD 趨勢確認：空頭排列中反彈 EMA9 後轉弱；KD 向下交叉並符合空頭趨勢",
             "expected_net_win": 2550.0,
             "expected_net_loss": 1951.0,
@@ -59220,7 +59055,18 @@
                 "max_position_value": 700000.0
               }
             },
-            "position_value": 196200.0
+            "position_value": 196200.0,
+            "exit_price": 64.6,
+            "exit_time": "13:25:00",
+            "exit_reason": "forced_close",
+            "pnl_gross": 2400.0,
+            "cost_amount": 450.0,
+            "pnl_amount": 1950.0,
+            "result": "win",
+            "price_source": "bar_13:24_close",
+            "mfe_pct": 1.223,
+            "mae_pct": 0.306,
+            "final_stop": 65.1
           },
           {
             "id": "2026-10-27_strategy_2_2409_125744_6",
@@ -59252,7 +59098,7 @@
             "shares": 5000,
             "entry_time": "12:57:44",
             "entry_bar_hm": "12:56",
-            "status": "open",
+            "status": "closed",
             "reason": "EMA 回檔 + KD 趨勢確認：空頭排列中反彈 EMA9 後轉弱；KD 向下交叉並符合空頭趨勢",
             "expected_net_win": 2110.0,
             "expected_net_loss": 1642.0,
@@ -59287,7 +59133,18 @@
                 "max_position_value": 700000.0
               }
             },
-            "position_value": 170250.0
+            "position_value": 170250.0,
+            "exit_price": 33.65,
+            "exit_time": "13:25:00",
+            "exit_reason": "forced_close",
+            "pnl_gross": 2000.0,
+            "cost_amount": 390.0,
+            "pnl_amount": 1610.0,
+            "result": "win",
+            "price_source": "bar_13:24_close",
+            "mfe_pct": 1.175,
+            "mae_pct": 0.441,
+            "final_stop": 33.9
           }
         ],
         "analysis_log": [
@@ -112069,11 +111926,11 @@
         ],
         "summary": {
           "entries": 6,
-          "closed": 4,
-          "wins": 1,
-          "win_rate": 0.25,
-          "net_pnl": -4607.0,
-          "cost": 1257.0
+          "closed": 6,
+          "wins": 3,
+          "win_rate": 0.5,
+          "net_pnl": -1047.0,
+          "cost": 2097.0
         }
       },
       "strategy_3": {
@@ -261835,7 +261692,7 @@
       }
     }
   },
-  "settled_today": false,
+  "settled_today": true,
   "symbol_rules": {
     "2303": {
       "can_day_trade": true,
@@ -261912,10 +261769,10 @@
   },
   "capital": {
     "initial": 1000000.0,
-    "cash": 914759.0,
-    "locked": 79800.0,
-    "realized": -5441.0,
-    "unrealized": 1117.0,
+    "cash": 995676.0,
+    "locked": 0.0,
+    "realized": -4324.0,
+    "unrealized": 0.0,
     "equity": 995676.0,
     "curve": [
       {
@@ -263221,6 +263078,14 @@
         "locked": 79800.0,
         "realized": -5441.0,
         "unrealized": 1117.0
+      },
+      {
+        "t": "13:25:00",
+        "equity": 995676.0,
+        "cash": 995676.0,
+        "locked": 0.0,
+        "realized": -4324.0,
+        "unrealized": 0.0
       }
     ]
   },
