@@ -153,7 +153,7 @@
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-11-04 10:46:06</span>
+                    <span class="text-white mono ml-1.5">2026-11-04 10:47:00</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -306,12 +306,12 @@
 
         <section class="panel border rounded-2xl p-5">
             <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3"><div><h2 class="font-bold text-white text-base">目前持倉監控</h2><p class="text-[11px] text-gray-500 mt-1">策略每輪以分 K 高低價檢查停利／停損；浮動損益為未扣費稅估值。<span id="open-position-freshness" class="ml-1"></span></p></div><span class="text-[11px] text-gray-500">正式策略模擬持倉 · <b id="open-position-count">3</b> 檔</span></div>
-            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場時間</th><th>進場價</th><th>最新價</th><th>浮動損益</th><th>停損</th><th>停利</th><th>目標進度</th></tr></thead><tbody id="open-position-tbody"><tr><td class="py-2 px-3 whitespace-nowrap">1802 台玻</td><td>放空</td><td>區間高低突破</td><td class="mono">10:26:55</td><td class="mono">66.8</td><td class="mono">65.8</td><td class="mono text-[#ff5470]">+1,000<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">67.7</td><td class="mono text-[#ff5470]">65.0</td><td class="mono">56%</td></tr><tr><td class="py-2 px-3 whitespace-nowrap">2303 聯電</td><td>放空</td><td>EMA 趨勢回檔</td><td class="mono">10:36:03</td><td class="mono">102.5</td><td class="mono">102.0</td><td class="mono text-[#ff5470]">+500<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">104.0</td><td class="mono text-[#ff5470]">99.5</td><td class="mono">17%</td></tr><tr><td class="py-2 px-3 whitespace-nowrap">3481 群創</td><td>放空</td><td>EMA 趨勢回檔</td><td class="mono">10:44:57</td><td class="mono">40.7</td><td class="mono">40.55</td><td class="mono text-[#ff5470]">+600<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">41.0</td><td class="mono text-[#ff5470]">40.1</td><td class="mono">25%</td></tr></tbody></table></div>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">標的</th><th>方向</th><th>進場策略</th><th>進場時間</th><th>進場價</th><th>最新價</th><th>浮動損益</th><th>停損</th><th>停利</th><th>目標進度</th></tr></thead><tbody id="open-position-tbody"><tr><td class="py-2 px-3 whitespace-nowrap">1802 台玻</td><td>放空</td><td>區間高低突破</td><td class="mono">10:26:55</td><td class="mono">66.8</td><td class="mono">66.2</td><td class="mono text-[#ff5470]">+600<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">67.7</td><td class="mono text-[#ff5470]">65.0</td><td class="mono">33%</td></tr><tr><td class="py-2 px-3 whitespace-nowrap">2303 聯電</td><td>放空</td><td>EMA 趨勢回檔</td><td class="mono">10:36:03</td><td class="mono">102.5</td><td class="mono">102.5</td><td class="mono text-gray-400">-0<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">104.0</td><td class="mono text-[#ff5470]">99.5</td><td class="mono">-0%</td></tr><tr><td class="py-2 px-3 whitespace-nowrap">3481 群創</td><td>放空</td><td>EMA 趨勢回檔</td><td class="mono">10:44:57</td><td class="mono">40.7</td><td class="mono">40.75</td><td class="mono text-[#00d68f]">-200<span class="block text-[10px] text-gray-500">未扣費稅</span></td><td class="mono text-[#00d68f]">41.0</td><td class="mono text-[#ff5470]">40.1</td><td class="mono">-8%</td></tr></tbody></table></div>
         </section>
 
         <section class="panel border rounded-2xl p-5">
             <h2 class="font-bold text-white text-base mb-1">正式策略績效</h2><p class="text-[11px] text-gray-500 mb-3">已平倉損益已扣手續費與稅；未實現損益尚未扣費稅。</p>
-            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>持倉</th><th>勝率</th><th>已實現淨損益</th><th>未實現損益</th></tr></thead><tbody id="strategy-stat-tbody"><tr><td>EMA 趨勢回檔</td><td>7</td><td>5</td><td>2</td><td>40.0%</td><td>-1,982</td><td>+1,100</td></tr><tr><td>區間高低突破</td><td>2</td><td>1</td><td>1</td><td>100.0%</td><td>+2,022</td><td>+1,000</td></tr><tr><td>MACD 量能確認 + 開盤區間突破 + 區間高低突破</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+1,662</td><td>+0</td></tr><tr><td>EMA 趨勢回檔 + 開盤區間突破</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,737</td><td>+0</td></tr><tr><td>MACD 量能確認 + 開盤區間突破 + 區間高低突破 + EMA 趨勢回檔</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,898</td><td>+0</td></tr></tbody></table></div>
+            <div class="analysis-table-wrap overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr class="text-gray-500 border-b border-white/5"><th class="py-2 px-3">策略組合</th><th>進場</th><th>已平倉</th><th>持倉</th><th>勝率</th><th>已實現淨損益</th><th>未實現損益</th></tr></thead><tbody id="strategy-stat-tbody"><tr><td>EMA 趨勢回檔</td><td>7</td><td>5</td><td>2</td><td>40.0%</td><td>-1,982</td><td>-200</td></tr><tr><td>區間高低突破</td><td>2</td><td>1</td><td>1</td><td>100.0%</td><td>+2,022</td><td>+600</td></tr><tr><td>MACD 量能確認 + 開盤區間突破 + 區間高低突破</td><td>1</td><td>1</td><td>0</td><td>100.0%</td><td>+1,662</td><td>+0</td></tr><tr><td>EMA 趨勢回檔 + 開盤區間突破</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,737</td><td>+0</td></tr><tr><td>MACD 量能確認 + 開盤區間突破 + 區間高低突破 + EMA 趨勢回檔</td><td>1</td><td>1</td><td>0</td><td>0.0%</td><td>-1,898</td><td>+0</td></tr></tbody></table></div>
         </section>
 
         <section class="panel border rounded-2xl p-5">
@@ -395,7 +395,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="1802" onclick="toggleHistoryLog(this, '1802')">📜 歷史 41 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="1802" onclick="toggleHistoryLog(this, '1802')">📜 歷史 41 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1802">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -408,7 +408,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="2409" onclick="toggleHistoryLog(this, '2409')">📜 歷史 34 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="2409" onclick="toggleHistoryLog(this, '2409')">📜 歷史 34 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="2409">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -421,7 +421,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">103.5</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">99.0</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="2303" onclick="toggleHistoryLog(this, '2303')">📜 歷史 32 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="2303" onclick="toggleHistoryLog(this, '2303')">📜 歷史 32 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="2303">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -434,7 +434,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（近2根均量僅達近期均量 0.59 倍，需 ≥ 0.7），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="3481" onclick="toggleHistoryLog(this, '3481')">📜 歷史 34 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="3481" onclick="toggleHistoryLog(this, '3481')">📜 歷史 34 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="3481">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -447,7 +447,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（近2根均量僅達近期均量 0.42 倍，需 ≥ 0.7），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="1815" onclick="toggleHistoryLog(this, '1815')">📜 歷史 33 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="1815" onclick="toggleHistoryLog(this, '1815')">📜 歷史 33 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1815">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -460,7 +460,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（近2根均量僅達近期均量 0.48 倍，需 ≥ 0.7），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="2344" onclick="toggleHistoryLog(this, '2344')">📜 歷史 33 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="2344" onclick="toggleHistoryLog(this, '2344')">📜 歷史 33 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="2344">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -473,7 +473,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（近2根均量僅達近期均量 0.54 倍，需 ≥ 0.7），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="1303" onclick="toggleHistoryLog(this, '1303')">📜 歷史 33 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="1303" onclick="toggleHistoryLog(this, '1303')">📜 歷史 33 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="1303">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -486,7 +486,7 @@
                 <td class="py-2.5 px-3 mono text-[#00d68f] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 mono text-[#ff5470] whitespace-nowrap">-</td>
                 <td class="py-2.5 px-3 text-gray-300 text-xs">：量能不足（近2根均量僅達近期均量 0.38 倍，需 ≥ 0.7），觀望</td>
-                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:04<button type="button" class="history-toggle-btn" data-symbol="6770" onclick="toggleHistoryLog(this, '6770')">📜 歷史 30 筆</button></td>
+                <td class="py-2.5 px-3 text-gray-500 text-[11px] mono whitespace-nowrap">10:46:58<button type="button" class="history-toggle-btn" data-symbol="6770" onclick="toggleHistoryLog(this, '6770')">📜 歷史 30 筆</button></td>
             </tr>
             <tr class="history-log-row hidden" data-symbol-log="6770">
                 <td colspan="7" class="px-3 pb-3"><div class="history-log-container"></div></td>
@@ -505,7 +505,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">65.8</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1802" onclick="toggleHistoryLog(this, '1802')">📜 歷史 41 筆</button><div class="history-log-container" data-symbol-log-card="1802"></div></div>
             </div>
@@ -518,7 +518,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">28.4</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="2409" onclick="toggleHistoryLog(this, '2409')">📜 歷史 34 筆</button><div class="history-log-container" data-symbol-log-card="2409"></div></div>
             </div>
@@ -531,7 +531,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">102.0</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">103.5</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">99.0</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="2303" onclick="toggleHistoryLog(this, '2303')">📜 歷史 32 筆</button><div class="history-log-container" data-symbol-log-card="2303"></div></div>
             </div>
@@ -544,7 +544,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">40.5</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（近2根均量僅達近期均量 0.59 倍，需 ≥ 0.7），觀望</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="3481" onclick="toggleHistoryLog(this, '3481')">📜 歷史 34 筆</button><div class="history-log-container" data-symbol-log-card="3481"></div></div>
             </div>
@@ -557,7 +557,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">133.0</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（近2根均量僅達近期均量 0.42 倍，需 ≥ 0.7），觀望</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1815" onclick="toggleHistoryLog(this, '1815')">📜 歷史 33 筆</button><div class="history-log-container" data-symbol-log-card="1815"></div></div>
             </div>
@@ -570,7 +570,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">138.5</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（近2根均量僅達近期均量 0.48 倍，需 ≥ 0.7），觀望</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="2344" onclick="toggleHistoryLog(this, '2344')">📜 歷史 33 筆</button><div class="history-log-container" data-symbol-log-card="2344"></div></div>
             </div>
@@ -583,7 +583,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">270.5</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（近2根均量僅達近期均量 0.54 倍，需 ≥ 0.7），觀望</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="1303" onclick="toggleHistoryLog(this, '1303')">📜 歷史 33 筆</button><div class="history-log-container" data-symbol-log-card="1303"></div></div>
             </div>
@@ -596,7 +596,7 @@
                 <div class="data-row"><span class="dlabel">建議進場</span><span class="dvalue mono">58.6</span></div>
                 <div class="data-row"><span class="dlabel">建議停損</span><span class="dvalue mono text-[#00d68f]">-</span></div>
                 <div class="data-row"><span class="dlabel">建議停利</span><span class="dvalue mono text-[#ff5470]">-</span></div>
-                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:04</span></div>
+                <div class="data-row"><span class="dlabel">更新時間</span><span class="dvalue mono text-gray-500">10:46:58</span></div>
                 <div class="mt-2 pt-2 border-t border-white/5 text-xs text-gray-300 leading-relaxed">：量能不足（近2根均量僅達近期均量 0.38 倍，需 ≥ 0.7），觀望</div>
                 <div class="mt-2 pt-2 border-t border-white/5"><button type="button" class="history-toggle-btn" data-symbol="6770" onclick="toggleHistoryLog(this, '6770')">📜 歷史 30 筆</button><div class="history-log-container" data-symbol-log-card="6770"></div></div>
             </div>
@@ -871,7 +871,7 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-11-04 10:46:06",
+  "generated_at": "2026-11-04 10:47:00",
   "settled": false,
   "today_str": "2026-11-04",
   "status_text": "盤中分析中 (10:46)",
@@ -1003,7 +1003,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "2409",
@@ -1014,7 +1014,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "2303",
@@ -1025,7 +1025,7 @@
       "target": 99.0,
       "reason": "EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱",
       "strategy": "EMA 趨勢回檔",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "3481",
@@ -1036,7 +1036,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.59 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "1815",
@@ -1047,7 +1047,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.42 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "2344",
@@ -1058,7 +1058,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.48 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "1303",
@@ -1069,7 +1069,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.54 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "6770",
@@ -1080,7 +1080,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.38 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     }
   ],
   "analysis_log": [
@@ -4089,7 +4089,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "1815",
@@ -4100,7 +4100,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.42 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "2409",
@@ -4111,7 +4111,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.53 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "1303",
@@ -4122,7 +4122,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.54 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "2303",
@@ -4133,7 +4133,7 @@
       "target": 99.0,
       "reason": "EMA 趨勢回檔：空頭排列中反彈 EMA9 後轉弱",
       "strategy": "EMA 趨勢回檔",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "6770",
@@ -4144,7 +4144,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.38 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "3481",
@@ -4155,7 +4155,7 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.59 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     },
     {
       "symbol": "2344",
@@ -4166,41 +4166,41 @@
       "target": "-",
       "reason": "：量能不足（近2根均量僅達近期均量 0.48 倍，需 ≥ 0.7），觀望",
       "strategy": "",
-      "updated_at": "10:46:04"
+      "updated_at": "10:46:58"
     }
   ],
   "live_quotes": {
     "1802": {
-      "price": 65.8,
-      "updated_at": "10:46:04"
+      "price": 66.2,
+      "updated_at": "10:46:58"
     },
     "2409": {
-      "price": 28.35,
-      "updated_at": "10:46:04"
+      "price": 28.45,
+      "updated_at": "10:46:58"
     },
     "2303": {
-      "price": 102,
-      "updated_at": "10:46:04"
+      "price": 102.5,
+      "updated_at": "10:46:58"
     },
     "3481": {
-      "price": 40.55,
-      "updated_at": "10:46:04"
+      "price": 40.75,
+      "updated_at": "10:46:58"
     },
     "1815": {
-      "price": 133,
-      "updated_at": "10:46:04"
+      "price": 134.5,
+      "updated_at": "10:46:58"
     },
     "2344": {
-      "price": 138.5,
-      "updated_at": "10:46:04"
+      "price": 139,
+      "updated_at": "10:46:58"
     },
     "1303": {
-      "price": 271,
-      "updated_at": "10:46:04"
+      "price": 272,
+      "updated_at": "10:46:58"
     },
     "6770": {
-      "price": 58.6,
-      "updated_at": "10:46:04"
+      "price": 59,
+      "updated_at": "10:46:58"
     }
   },
   "settle_records": [
@@ -20960,7 +20960,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1802",
             "name": "台玻",
             "signal": "WATCH",
@@ -20997,7 +20997,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1815",
             "name": "富喬",
             "signal": "WATCH",
@@ -21034,7 +21034,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2409",
             "name": "友達",
             "signal": "WATCH",
@@ -21071,7 +21071,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1303",
             "name": "南亞",
             "signal": "WATCH",
@@ -21108,7 +21108,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2303",
             "name": "聯電",
             "signal": "WATCH",
@@ -21145,7 +21145,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "6770",
             "name": "力積電",
             "signal": "WATCH",
@@ -21182,7 +21182,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "3481",
             "name": "群創",
             "signal": "WATCH",
@@ -21219,7 +21219,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2344",
             "name": "華邦電",
             "signal": "WATCH",
@@ -38394,7 +38394,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1802",
             "name": "台玻",
             "signal": "WATCH",
@@ -38441,7 +38441,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1815",
             "name": "富喬",
             "signal": "WATCH",
@@ -38488,7 +38488,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2409",
             "name": "友達",
             "signal": "WATCH",
@@ -38535,7 +38535,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1303",
             "name": "南亞",
             "signal": "WATCH",
@@ -38582,7 +38582,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2303",
             "name": "聯電",
             "signal": "WATCH",
@@ -38629,7 +38629,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "6770",
             "name": "力積電",
             "signal": "WATCH",
@@ -38676,7 +38676,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "3481",
             "name": "群創",
             "signal": "WATCH",
@@ -38723,7 +38723,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2344",
             "name": "華邦電",
             "signal": "WATCH",
@@ -55029,7 +55029,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1802",
             "name": "台玻",
             "signal": "WATCH",
@@ -55066,7 +55066,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1815",
             "name": "富喬",
             "signal": "WATCH",
@@ -55103,7 +55103,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2409",
             "name": "友達",
             "signal": "WATCH",
@@ -55140,7 +55140,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1303",
             "name": "南亞",
             "signal": "WATCH",
@@ -55177,7 +55177,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2303",
             "name": "聯電",
             "signal": "WATCH",
@@ -55214,7 +55214,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "6770",
             "name": "力積電",
             "signal": "WATCH",
@@ -55251,7 +55251,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "3481",
             "name": "群創",
             "signal": "WATCH",
@@ -55288,7 +55288,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2344",
             "name": "華邦電",
             "signal": "WATCH",
@@ -71266,7 +71266,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1802",
             "name": "台玻",
             "signal": "WATCH",
@@ -71303,7 +71303,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1815",
             "name": "富喬",
             "signal": "WATCH",
@@ -71340,7 +71340,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2409",
             "name": "友達",
             "signal": "WATCH",
@@ -71377,7 +71377,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1303",
             "name": "南亞",
             "signal": "WATCH",
@@ -71414,7 +71414,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2303",
             "name": "聯電",
             "signal": "WATCH",
@@ -71451,7 +71451,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "6770",
             "name": "力積電",
             "signal": "WATCH",
@@ -71488,7 +71488,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "3481",
             "name": "群創",
             "signal": "WATCH",
@@ -71525,7 +71525,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2344",
             "name": "華邦電",
             "signal": "WATCH",
@@ -87183,7 +87183,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1802",
             "name": "台玻",
             "signal": "WATCH",
@@ -87220,7 +87220,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1815",
             "name": "富喬",
             "signal": "WATCH",
@@ -87257,7 +87257,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2409",
             "name": "友達",
             "signal": "WATCH",
@@ -87294,7 +87294,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "1303",
             "name": "南亞",
             "signal": "WATCH",
@@ -87331,7 +87331,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2303",
             "name": "聯電",
             "signal": "WATCH",
@@ -87368,7 +87368,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "6770",
             "name": "力積電",
             "signal": "WATCH",
@@ -87405,7 +87405,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "3481",
             "name": "群創",
             "signal": "WATCH",
@@ -87442,7 +87442,7 @@
             }
           },
           {
-            "time": "10:46:04",
+            "time": "10:46:58",
             "symbol": "2344",
             "name": "華邦電",
             "signal": "WATCH",
@@ -87495,8 +87495,8 @@
     "cash": 665967.0,
     "locked": 332100.0,
     "realized": -1933.0,
-    "unrealized": 1338.0,
-    "equity": 999405.0,
+    "unrealized": -363.0,
+    "equity": 997704.0,
     "curve": [
       {
         "t": "09:00:00",
@@ -87923,12 +87923,12 @@
         "unrealized": 1638.0
       },
       {
-        "t": "10:46:04",
-        "equity": 999405.0,
+        "t": "10:46:58",
+        "equity": 997704.0,
         "cash": 665967.0,
         "locked": 332100.0,
         "realized": -1933.0,
-        "unrealized": 1338.0
+        "unrealized": -363.0
       }
     ]
   },
