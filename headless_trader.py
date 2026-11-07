@@ -1605,6 +1605,12 @@ def render_html_dashboard(
 </body>
 </html>
 """
+    # v25：注入分頁導覽與高級質感樣式（dashboard_ui.html；缺檔時退回原樣，不影響交易流程）
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard_ui.html"), encoding="utf-8") as _ui:
+            html_content = html_content.replace("</body>", _ui.read() + "\n" + "</body>", 1)
+    except OSError:
+        pass
     try:
         with open("index.html", "w", encoding="utf-8") as f:
             f.write(html_content)

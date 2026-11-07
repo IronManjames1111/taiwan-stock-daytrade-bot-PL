@@ -10,7 +10,7 @@ export TZ=Asia/Taipei
 
 BRANCH="${GITHUB_REF_NAME:-main}"
 MAX_RETRY=5
-OUTPUTS=(index.html dashboard_state.json history_records)
+OUTPUTS=(index.html dashboard_state.json history_records analytics.html)
 
 git config user.name  'github-actions[bot]'
 git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

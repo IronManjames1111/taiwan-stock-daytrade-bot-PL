@@ -96,6 +96,10 @@ jobs:
 
       # always()：就算上一步失敗（例如渲染或網路錯誤），已經存好的狀態與進場紀錄仍要推送，
       # 不能因為前一步失敗就整輪作廢。
+      - name: 更新績效分析中心
+        if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        run: python3 build_analytics.py || true
+
       - name: 提交並推送交易紀錄
         if: ${{ always() && steps.gate.outputs.run == 'true' }}
         run: bash scripts/commit_push.sh

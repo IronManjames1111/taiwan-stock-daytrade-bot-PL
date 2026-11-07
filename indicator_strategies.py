@@ -81,6 +81,8 @@ DEFAULT_SETTINGS = {
     "breakeven_trigger_r": 1.2,       # 浮盈達 1.2R 後把停損移到「保本＋成本」（0=停用）
     "trail_gap_r": 1.0,               # 保本啟動後，停損追在最有利價 −1.0R（0=不移動停損）
     "daily_capital": 1_000_000.0,     # 每天可用於當沖的本金（元）；每天開盤重置
+    "min_price": 0.0,                 # v25：股價低於此值不進場（低價股跳動單位占比大、成本吃掉期望值；0=停用）
+    "long_start_hm": "",              # v25：此時間（HH:MM）之前不做多（早盤多單勝率偏低；空字串=停用）
     "allow_short": True,
     "skip_attention": True,           # 注意股一律不進場
     "experiment_strategies": DEFAULT_EXPERIMENT_STRATEGIES,
@@ -188,6 +190,7 @@ def normalize_settings(settings: Optional[Dict] = None) -> Dict:
         "swing_buffer_atr": (0.0, 2.0, float),
         "breakeven_trigger_r": (0.0, 5.0, float),
         "trail_gap_r": (0.0, 5.0, float),
+        "min_price": (0.0, 5000.0, float),
     }
     for key, (low, high, cast) in bounds.items():
         try:
@@ -201,6 +204,8 @@ def normalize_settings(settings: Optional[Dict] = None) -> Dict:
     for key in ("count_by_family", "allow_short", "skip_attention", "cooldown_after_stop_only", "use_day_extreme_cap"):
         if key in source:
             out[key] = bool(source[key])
+    hm = str(source.get("long_start_hm", out["long_start_hm"]) or "").strip()
+    out["long_start_hm"] = hm if len(hm) == 5 and hm[2] == ":" and hm[:2].isdigit() and hm[3:].isdigit() else ""
     mode = source.get("sizing_mode", out["sizing_mode"])
     out["sizing_mode"] = mode if mode in SIZING_MODES else DEFAULT_SETTINGS["sizing_mode"]
     return out
@@ -429,6 +434,15 @@ def evaluate(candles: List[Dict], settings: Optional[Dict] = None) -> Dict:
                   vote_counts={"BUY": buy_n, "SHORT": short_n}, raw_vote_counts={"BUY": raw_buy, "SHORT": raw_short},
                   signal_bar_hm=signal_hm.get(side) if side != "WATCH" else None,
                   efficiency=round(now["efficiency"], 3), vol_ratio=round(now["vol_ratio"], 2))
+    # ── v25：依 22 個交易日實測加上的進場前置過濾（見「更新說明_v25.md」）──
+    if result["signal"] in ("BUY", "SHORT"):
+        block = ""
+        if cfg["min_price"] and price < cfg["min_price"]:
+            block = f"股價 {price:.2f} 低於 {cfg['min_price']:g} 元，成本占比過高，不進場"
+        elif result["signal"] == "BUY" and cfg["long_start_hm"] and (_bar_hm(candles[-1]) or "99:99") < cfg["long_start_hm"]:
+            block = f"{cfg['long_start_hm']} 前不做多（早盤多單實測勝率偏低），觀望"
+        if block:
+            result.update(signal="WATCH", strategy_name="", strategy_matches=[], strategy_votes=[], signal_bar_hm=None, reason=block)
     return result
 
 

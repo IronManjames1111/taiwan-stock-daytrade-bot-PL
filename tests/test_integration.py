@@ -329,7 +329,7 @@ def test_multiple_signals_share_one_capital_pool(env, monkeypatch):
 # ── v24 ──────────────────────────────────────────────────────────
 def _open_one(env, monkeypatch, candles, **settings_override):
     base = ht.load_strategy_settings()
-    ht_settings = ht.normalize_settings({**base, **settings_override})
+    ht_settings = ht.normalize_settings({**base, "breakeven_trigger_r": 1.2, "min_stop_pct": 0.6, "min_price": 0.0, "long_start_hm": "", **settings_override})  # 固定 v24 出場參數，測試不隨 strategy_settings.json 調整而變
     monkeypatch.setattr(ht, "load_strategy_settings", lambda *a, **k: ht_settings)
     ctx, _ = ctx_with(candles)
     force_signal(monkeypatch)
