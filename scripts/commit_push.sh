@@ -12,6 +12,9 @@ BRANCH="${GITHUB_REF_NAME:-main}"
 MAX_RETRY=5
 OUTPUTS=(index.html dashboard_state.json history_records analytics.html)
 
+# v25：每次推送前重新產生績效分析中心（loop 模式也會定期更新；失敗不影響推送）
+python3 build_analytics.py >/dev/null 2>&1 || true
+
 git config user.name  'github-actions[bot]'
 git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 

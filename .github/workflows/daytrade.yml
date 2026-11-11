@@ -83,6 +83,8 @@ jobs:
           # 排程觸發走 repo variable RISK_MODE（預設 auto）；手動點 Run workflow 的下拉選單優先
           RISK_MODE: ${{ inputs.risk_mode || vars.RISK_MODE || 'auto' }}
           RUN_MODE: ${{ inputs.run_mode || vars.RUN_MODE || 'single' }}
+          # loop 模式每幾分鐘推送一次網站；Pages 單次部署約需 1 分鐘，建議 ≥3，太密會一直被下一次推送取消
+          COMMIT_EVERY_MIN: ${{ vars.COMMIT_EVERY_MIN || '4' }}
           FORCE_RUN: ${{ inputs.force_run }}
           # 以下為選填的 repo variables（Settings > Secrets and variables > Actions > Variables）
           BROKER_DISCOUNT: ${{ vars.BROKER_DISCOUNT }}
@@ -96,10 +98,6 @@ jobs:
 
       # always()：就算上一步失敗（例如渲染或網路錯誤），已經存好的狀態與進場紀錄仍要推送，
       # 不能因為前一步失敗就整輪作廢。
-      - name: 更新績效分析中心
-        if: ${{ always() && steps.gate.outputs.run == 'true' }}
-        run: python3 build_analytics.py || true
-
       - name: 提交並推送交易紀錄
         if: ${{ always() && steps.gate.outputs.run == 'true' }}
         run: bash scripts/commit_push.sh
