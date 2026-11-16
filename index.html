@@ -149,11 +149,11 @@
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">狀態</span>
-                    <span class="text-[#00d68f] font-bold ml-1.5">已停止新進場 (等待 13:25 收盤結算)</span>
+                    <span class="text-[#00d68f] font-bold ml-1.5">已收盤結算完成</span>
                 </div>
                 <div class="panel-raised rounded-lg px-3 py-2 border">
                     <span class="text-gray-500">更新</span>
-                    <span class="text-white mono ml-1.5">2026-11-16 13:20:24</span>
+                    <span class="text-white mono ml-1.5">2026-11-16 13:25:25</span>
                 </div>
                 <button type="button" onclick="downloadJSON()"
                     class="bg-[#0f1c33] hover:bg-[#152544] border border-[#4d8dff]/30 text-[#8db3ff] rounded-lg px-3 py-2 font-semibold transition cursor-pointer whitespace-nowrap">
@@ -194,7 +194,7 @@
                 <div class="text-xl font-bold text-[#f5b942] mono mt-1">6 筆</div>
             </div>
             <div class="panel border rounded-xl p-4">
-                <div class="text-[11px] text-gray-500">已實現損益（盤中）</div>
+                <div class="text-[11px] text-gray-500">結算損益</div>
                 <div class="text-xl font-bold text-[#ff5470] mono mt-1">+$10,331</div>
             </div>
         </div>
@@ -690,7 +690,7 @@
                     <h2 class="font-bold text-white text-base">今日已平倉明細</h2>
                     <p class="text-[11px] text-gray-500 mt-0.5">已觸及停利 / 停損 / 保本停損的單筆會即時列出（已扣手續費與證交稅）；未平倉部位在下方「目前持倉監控」，13:25 統一強平結算</p>
                 </div>
-                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">盤中即時</span>
+                <span class="text-[11px] text-[#f5b942] font-semibold whitespace-nowrap">已結算</span>
             </div>
 
             <!-- 桌面版：表格 -->
@@ -883,10 +883,10 @@
 
         // 本次看板的完整原始資料，供右上角「下載 JSON / 下載 CSV」按鈕使用
         const EXPORT_DATA = {
-  "generated_at": "2026-11-16 13:20:24",
-  "settled": false,
+  "generated_at": "2026-11-16 13:25:25",
+  "settled": true,
   "today_str": "2026-11-16",
-  "status_text": "已停止新進場 (等待 13:25 收盤結算)",
+  "status_text": "已收盤結算完成",
   "active_model": "純技術指標（本地策略）",
   "total_signals": 6,
   "wave1_stocks": [
@@ -12150,48 +12150,48 @@
   ],
   "live_quotes": {
     "2409": {
-      "price": 27.9,
-      "updated_at": "12:59:23"
+      "price": 27.8,
+      "updated_at": "13:30:00"
     },
     "1802": {
-      "price": 76.7,
-      "updated_at": "12:59:23"
+      "price": 76.6,
+      "updated_at": "13:30:00"
     },
     "5314": {
-      "price": 23.9,
-      "updated_at": "12:59:23"
+      "price": 23.35,
+      "updated_at": "13:30:00"
     },
     "3481": {
-      "price": 36.75,
-      "updated_at": "12:59:23"
+      "price": 36.5,
+      "updated_at": "13:30:00"
     },
     "2323": {
-      "price": 11.9,
-      "updated_at": "10:29:23"
+      "price": 11.75,
+      "updated_at": "13:30:00"
     },
     "2610": {
-      "price": 22.85,
-      "updated_at": "12:45:23"
+      "price": 22.7,
+      "updated_at": "13:30:00"
     },
     "1815": {
-      "price": 131,
-      "updated_at": "12:59:23"
+      "price": 130.5,
+      "updated_at": "13:30:00"
     },
     "6148": {
       "price": 63.9,
-      "updated_at": "10:29:23"
+      "updated_at": "13:30:00"
     },
     "1303": {
       "price": 274,
-      "updated_at": "12:59:23"
+      "updated_at": "13:30:00"
     },
     "2303": {
-      "price": 96,
-      "updated_at": "12:59:23"
+      "price": 95.1,
+      "updated_at": "13:30:00"
     },
     "2313": {
-      "price": 193.5,
-      "updated_at": "12:59:23"
+      "price": 191.5,
+      "updated_at": "13:30:00"
     }
   },
   "settle_records": [
@@ -397185,6 +397185,14 @@
         "locked": 0.0,
         "realized": 10331.0,
         "unrealized": 0.0
+      },
+      {
+        "t": "13:25:00",
+        "equity": 1010331.0,
+        "cash": 1010331.0,
+        "locked": 0.0,
+        "realized": 10331.0,
+        "unrealized": 0.0
       }
     ]
   },
@@ -397552,6 +397560,20 @@
       "cost": 3243.0,
       "max_locked": 624300.0,
       "low_equity": 997860.0
+    },
+    {
+      "date": "2026-11-16",
+      "initial": 1000000.0,
+      "final": 1010331.0,
+      "pnl": 10331.0,
+      "pnl_pct": 1.033,
+      "entries": 6,
+      "closed": 6,
+      "wins": 5,
+      "win_rate": 0.8333,
+      "cost": 1769.0,
+      "max_locked": 496850.0,
+      "low_equity": 1000000.0
     }
   ]
 };
